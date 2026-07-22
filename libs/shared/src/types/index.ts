@@ -7,8 +7,6 @@ export interface PaginatedResponse<T> {
   items: T[];
 }
 
-
-
 export interface VoiceActivityData {
   guildId: string;
   guildName: string;
@@ -57,8 +55,6 @@ export interface VoiceAnalysisResult {
   text: string;
 }
 
-
-
 export type {
   ActivityDailyOverview,
   MessageDailyRecord,
@@ -66,4 +62,3 @@ export type {
 } from './message-tracking';
 export * from './role-panel';
 export * from './voice-game';
-
