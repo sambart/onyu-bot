@@ -1,0 +1,4 @@
+{
+  "adminOnly": "This command is only available to administrators.",
+  "guildOnly": "This command can only be used in a server."
+}

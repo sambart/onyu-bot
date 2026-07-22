@@ -1,0 +1,38 @@
+{
+  "name": "onyu-bot",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Onyu Discord bot client - voice activity tracking, AI-powered analytics, member management",
+  "packageManager": "pnpm@10.11.0",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "@nestjs/core",
+      "@swc/core"
+    ]
+  },
+  "scripts": {
+    "libs:build": "pnpm --filter @onyu/shared build && pnpm --filter @onyu/bot-api-client build",
+    "predev": "pnpm libs:build",
+    "build": "pnpm -r run build",
+    "lint": "pnpm -r run lint",
+    "lint:fix": "pnpm -r run lint:fix",
+    "test": "pnpm -r run test",
+    "bot:dev": "pnpm --filter @onyu/bot start:dev",
+    "bot:build": "pnpm --filter @onyu/bot build",
+    "bot:start": "pnpm --filter @onyu/bot start:prod"
+  },
+  "devDependencies": {
+    "@types/node": "^20.3.1",
+    "eslint": "^9.39.0",
+    "eslint-config-prettier": "^9.1.0",
+    "eslint-plugin-simple-import-sort": "^12.0.0",
+    "eslint-plugin-unused-imports": "^4.0.0",
+    "globals": "^16.0.0",
+    "prettier": "^3.0.0",
+    "typescript": "^5.1.3",
+    "typescript-eslint": "^8.50.0"
+  }
+}
