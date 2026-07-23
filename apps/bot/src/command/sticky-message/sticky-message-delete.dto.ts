@@ -4,8 +4,10 @@ import { ChannelType } from 'discord.js';
 export class StickyMessageDeleteDto {
   @Channel([ChannelType.GuildText])
   @Param({
-    name: '채널',
-    description: '고정메세지를 삭제할 채널',
+    name: 'channel',
+    nameLocalizations: { ko: '채널' },
+    description: 'Channel to delete sticky messages from',
+    descriptionLocalizations: { ko: '고정메세지를 삭제할 채널' },
     required: true,
     type: ParamType.STRING,
   })

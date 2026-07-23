@@ -3,21 +3,38 @@ import { Injectable, Logger } from '@nestjs/common';
 import { BotApiClientService } from '@onyu/bot-api-client';
 import { AttachmentBuilder, CommandInteraction, GuildMember } from 'discord.js';
 
+import { BotI18nService } from '../common/application/bot-i18n.service';
+import { LocaleResolverService } from '../common/application/locale-resolver.service';
+
 @Command({
   name: 'me',
   nameLocalizations: { ko: '미' },
-  description: '내 프로필과 음성 활동을 확인합니다',
+  description: 'View your profile and voice activity',
+  descriptionLocalizations: { ko: '내 프로필과 음성 활동을 확인합니다' },
 })
 @Injectable()
 export class MeCommand {
   private readonly logger = new Logger(MeCommand.name);
 
-  constructor(private readonly apiClient: BotApiClientService) {}
+  constructor(
+    private readonly apiClient: BotApiClientService,
+    private readonly i18n: BotI18nService,
+    private readonly localeResolver: LocaleResolverService,
+  ) {}
 
   @Handler()
   async onMe(@InteractionEvent() interaction: CommandInteraction): Promise<void> {
+    const locale = await this.localeResolver.resolve(
+      interaction.user.id,
+      interaction.guildId,
+      interaction.locale,
+    );
+
     if (!interaction.guildId) {
-      await interaction.reply({ content: '서버에서만 사용 가능한 명령어입니다.', ephemeral: true });
+      await interaction.reply({
+        content: this.i18n.t(locale, 'errors.guildOnly'),
+        ephemeral: true,
+      });
       return;
     }
 
@@ -37,7 +54,7 @@ export class MeCommand {
 
       if (!result.data) {
         await interaction.editReply({
-          content: `최근 ${result.days}일간 음성 채널 활동 기록이 없습니다.`,
+          content: this.i18n.t(locale, 'commands.meNoActivity', { days: result.days }),
         });
         return;
       }
@@ -48,7 +65,7 @@ export class MeCommand {
       await interaction.editReply({ files: [attachment] });
     } catch (error) {
       this.logger.error('Me command error', error instanceof Error ? error.stack : String(error));
-      await interaction.editReply({ content: '프로필 조회 중 오류가 발생했습니다.' });
+      await interaction.editReply({ content: this.i18n.t(locale, 'commands.meError') });
     }
   }
 }

@@ -1,8 +1,7 @@
 import { DiscordModule } from '@discord-nestjs/core';
 import { Module } from '@nestjs/common';
 
-import { BotI18nService } from '../common/application/bot-i18n.service';
-import { LocaleResolverService } from '../common/application/locale-resolver.service';
+import { BotCommonModule } from '../common/bot-common.module';
 import { BotAutoChannelInteractionHandler } from './auto-channel/bot-auto-channel-interaction.handler';
 import { BotChannelStateHandler } from './channel/bot-channel-state.handler';
 import { BotGuildCreateHandler } from './guild-member/bot-guild-create.handler';
@@ -25,7 +24,7 @@ import { BotVoiceSyncHandler } from './voice/bot-voice-sync.handler';
  * API의 DiscordEventsModule을 대체한다.
  */
 @Module({
-  imports: [DiscordModule.forFeature()],
+  imports: [DiscordModule.forFeature(), BotCommonModule],
   providers: [
     BotVoiceStateDispatcher,
     BotVoiceSyncHandler,
@@ -44,8 +43,6 @@ import { BotVoiceSyncHandler } from './voice/bot-voice-sync.handler';
     // Role Panel
     BotRolePanelInteractionHandler,
     RolePanelInteractionService,
-    BotI18nService,
-    LocaleResolverService,
   ],
 })
 export class BotEventModule {}

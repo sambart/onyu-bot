@@ -54,10 +54,13 @@ export class BotCoPresenceScheduler implements OnApplicationBootstrap, OnApplica
 
     try {
       const snapshots = this.collectSnapshots();
+      // 완전히 빈 길드(음성 채널 멤버 0명)도 포함한 전체 스캔 대상 길드 ID.
+      // 빈 길드는 snapshots 에 등장하지 않아 세션 미종료(좀비)로 이어지므로 별도 전달한다(M-2).
+      const scannedGuildIds = [...this.client.guilds.cache.keys()];
       const voiceUserCounts = this.collectVoiceUserCounts();
 
       await Promise.all([
-        this.apiClient.pushCoPresenceSnapshots(snapshots),
+        this.apiClient.pushCoPresenceSnapshots(snapshots, scannedGuildIds),
         this.apiClient.pushVoiceUserCounts(voiceUserCounts),
       ]);
     } catch (err) {

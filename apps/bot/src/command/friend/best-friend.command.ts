@@ -11,6 +11,9 @@ import {
   GuildMember,
 } from 'discord.js';
 
+import { BotI18nService } from '../../common/application/bot-i18n.service';
+import { LocaleResolverService } from '../../common/application/locale-resolver.service';
+
 // 집계 기간 (일) — 30일 고정.
 // getMyBestFriends period 파라미터가 7 | 30 | 90 리터럴 유니온이므로 as const 필수
 const PERIOD = 30 as const;
@@ -29,12 +32,25 @@ const DEFAULT_WEB_URL = 'https://onyu.dev';
 export class BestFriendCommand {
   private readonly logger = new Logger(BestFriendCommand.name);
 
-  constructor(private readonly apiClient: BotApiClientService) {}
+  constructor(
+    private readonly apiClient: BotApiClientService,
+    private readonly i18n: BotI18nService,
+    private readonly localeResolver: LocaleResolverService,
+  ) {}
 
   @Handler()
   async onBestFriend(@InteractionEvent() interaction: ChatInputCommandInteraction): Promise<void> {
+    const locale = await this.localeResolver.resolve(
+      interaction.user.id,
+      interaction.guildId,
+      interaction.locale,
+    );
+
     if (!interaction.guildId) {
-      await interaction.reply({ content: '서버에서만 사용 가능한 명령어입니다.', ephemeral: true });
+      await interaction.reply({
+        content: this.i18n.t(locale, 'errors.guildOnly'),
+        ephemeral: true,
+      });
       return;
     }
 
@@ -56,18 +72,18 @@ export class BestFriendCommand {
         LIMIT,
       );
 
-      const linkButtonRow = this.buildLinkButtonRow(interaction.guildId);
+      const linkButtonRow = this.buildLinkButtonRow(interaction.guildId, locale);
 
       // errorCode 우선 처리 — PRIVATE, NO_DATA 등
       if (result.errorCode) {
-        const message = this.resolveErrorMessage(result.errorCode, result.days);
+        const message = this.resolveErrorMessage(result.errorCode, result.days, locale);
         await interaction.editReply({ content: message, components: [linkButtonRow] });
         return;
       }
 
       if (!result.data) {
         await interaction.editReply({
-          content: `최근 ${result.days}일간 함께한 친구 기록이 없어요. 음성방에 들어가 친구를 만들어보세요!`,
+          content: this.i18n.t(locale, 'commands.bestFriendNoData', { days: result.days }),
           components: [linkButtonRow],
         });
         return;
@@ -79,29 +95,29 @@ export class BestFriendCommand {
         'BestFriend command error',
         error instanceof Error ? error.stack : String(error),
       );
-      await interaction.editReply({ content: '베스트 프렌드 조회 중 오류가 발생했습니다.' });
+      await interaction.editReply({ content: this.i18n.t(locale, 'commands.bestFriendError') });
     }
   }
 
   /** errorCode를 사용자 친화적 메시지로 변환한다. */
-  private resolveErrorMessage(errorCode: string, days: number): string {
+  private resolveErrorMessage(errorCode: string, days: number, locale: string): string {
     if (errorCode === 'PRIVATE') {
-      return '비공개 설정된 사용자가 포함되어 있습니다.';
+      return this.i18n.t(locale, 'commands.bestFriendPrivate');
     }
     if (errorCode === 'NO_DATA') {
-      return `최근 ${days}일간 함께한 친구 기록이 없어요. 음성방에 들어가 친구를 만들어보세요!`;
+      return this.i18n.t(locale, 'commands.bestFriendNoData', { days });
     }
     // 예상치 못한 errorCode — 안내 메시지 fallback
-    return '베스트 프렌드 조회 중 알 수 없는 오류가 발생했습니다.';
+    return this.i18n.t(locale, 'commands.bestFriendUnknownError');
   }
 
-  private buildLinkButtonRow(guildId: string): ActionRowBuilder<ButtonBuilder> {
+  private buildLinkButtonRow(guildId: string, locale: string): ActionRowBuilder<ButtonBuilder> {
     // WEB_URL은 런타임에 읽는다 — 모듈 import 시점에 평가하면 ConfigModule의 .env 로드 전이라 fallback이 굳을 수 있다
     const webUrl = process.env['WEB_URL'] ?? DEFAULT_WEB_URL;
     const button = new ButtonBuilder()
-      .setLabel('대시보드에서 그래프 보기')
+      .setLabel(this.i18n.t(locale, 'commands.bestFriendButtonLabel'))
       .setStyle(ButtonStyle.Link)
-      .setURL(`${webUrl}/dashboard/guild/${guildId}/co-presence`);
+      .setURL(`${webUrl}/my/friends?guildId=${guildId}`);
 
     return new ActionRowBuilder<ButtonBuilder>().addComponents(button);
   }

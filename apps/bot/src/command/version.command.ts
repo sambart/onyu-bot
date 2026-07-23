@@ -7,13 +7,12 @@ import * as packageJson from '../../package.json';
 @Injectable()
 @Command({
   name: 'version',
-  description: '봇의 버전 정보를 표시합니다.',
+  description: 'Show the bot version',
+  descriptionLocalizations: { ko: '봇의 버전 정보를 표시합니다.' },
 })
 export class VersionCommand {
   @Handler()
-  async onVersion(
-    @EventParams() args: ClientEvents['interactionCreate'],
-  ): Promise<void> {
+  async onVersion(@EventParams() args: ClientEvents['interactionCreate']): Promise<void> {
     const [interaction] = args;
     if (!interaction.isChatInputCommand()) return;
 

@@ -12,3 +12,14 @@ export const VOICE_HEALTH_VERDICT_CATEGORY = {
 
 export type VerdictCategory =
   (typeof VOICE_HEALTH_VERDICT_CATEGORY)[keyof typeof VOICE_HEALTH_VERDICT_CATEGORY];
+
+/** verdict 카테고리 판별 코드 (H-4.3) — 봇 런타임 비교를 한국어 값 → 이 코드로 이관.
+ *  VOICE_HEALTH_VERDICT_CATEGORY 와 키 동일, 값은 로케일 무관 식별자. */
+export const VERDICT_CATEGORY_CODE = {
+  ACTIVITY: 'ACTIVITY',
+  ACTIVE_DAYS: 'ACTIVE_DAYS',
+  RELATIONSHIP_DIVERSITY: 'RELATIONSHIP_DIVERSITY',
+  PEER_COUNT: 'PEER_COUNT',
+} as const;
+export type VerdictCategoryCode =
+  (typeof VERDICT_CATEGORY_CODE)[keyof typeof VERDICT_CATEGORY_CODE];

@@ -175,8 +175,16 @@ export class BotApiClientService {
 
   // ── Co-Presence ──
 
-  async pushCoPresenceSnapshots(snapshots: CoPresenceSnapshot[]): Promise<void> {
-    await this.post('/bot-api/co-presence/snapshots', { snapshots });
+  /**
+   * @param scannedGuildIds - 이번 tick에 스캔한 전체 길드 ID(빈 길드 포함, optional).
+   * 부재 시 API는 snapshots 에서 길드 ID를 파생(하위호환). 완전히 빈 길드는 스냅샷에
+   * 등장하지 않으므로 세션 미종료(좀비) 위험 방지를 위해 전달을 권장한다(M-2).
+   */
+  async pushCoPresenceSnapshots(
+    snapshots: CoPresenceSnapshot[],
+    scannedGuildIds?: string[],
+  ): Promise<void> {
+    await this.post('/bot-api/co-presence/snapshots', { snapshots, scannedGuildIds });
   }
 
   async pushCoPresenceFlush(): Promise<void> {

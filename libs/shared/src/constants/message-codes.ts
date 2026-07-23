@@ -1,0 +1,72 @@
+/**
+ * API → 프론트(bot·web) 메시지 코드 계약 (R4).
+ * 값 == 키 문자열(직렬화 가독성·로그 추적). 프론트는 code→자기 로케일 키 매핑(H-3).
+ * 하위호환: 미지원 code 는 프론트가 message 폴백(H-3.3).
+ */
+export const MESSAGE_CODE = {
+  // ── auto-channel 결과 (정상/에러 봉투, H-1.2) — 결과 봉투 코드는 Plan B 명명 채택(Phase 3.4) ──
+  AUTO_CHANNEL_CREATED: 'AUTO_CHANNEL_CREATED',
+  AUTO_CHANNEL_CHOOSE_OPTION: 'AUTO_CHANNEL_CHOOSE_OPTION',
+  ERR_AUTO_CHANNEL_NOT_IN_VOICE: 'ERR_AUTO_CHANNEL_NOT_IN_VOICE',
+  ERR_AUTO_CHANNEL_CONFIG_NOT_FOUND: 'ERR_AUTO_CHANNEL_CONFIG_NOT_FOUND',
+  ERR_AUTO_CHANNEL_INVALID_CHANNEL: 'ERR_AUTO_CHANNEL_INVALID_CHANNEL',
+  ERR_AUTO_CHANNEL_MOVE_FAILED: 'ERR_AUTO_CHANNEL_MOVE_FAILED',
+
+  // ── status-prefix 결과 (H-1.2) — Plan B 명명 채택(Phase 3.4) ──
+  STATUS_PREFIX_APPLIED: 'STATUS_PREFIX_APPLIED',
+  STATUS_PREFIX_RESET_DONE: 'STATUS_PREFIX_RESET_DONE',
+  STATUS_PREFIX_RESET_NO_CHANGE: 'STATUS_PREFIX_RESET_NO_CHANGE', // 정상 안내(에러 아님 — "변경된 닉네임이 없습니다")
+  ERR_STATUS_PREFIX_BUTTON_NOT_FOUND: 'ERR_STATUS_PREFIX_BUTTON_NOT_FOUND',
+  ERR_STATUS_PREFIX_INVALID_CONFIG: 'ERR_STATUS_PREFIX_INVALID_CONFIG',
+  ERR_STATUS_PREFIX_SERVER_CONFIG_NOT_FOUND: 'ERR_STATUS_PREFIX_SERVER_CONFIG_NOT_FOUND',
+  ERR_STATUS_PREFIX_APPLY_FAILED: 'ERR_STATUS_PREFIX_APPLY_FAILED',
+  ERR_STATUS_PREFIX_RESET_FAILED: 'ERR_STATUS_PREFIX_RESET_FAILED',
+
+  // ── 기존 DomainException code 카탈로그 (wire 값 보존 — 값 변경 금지, §4.3) ──
+  EXCLUDED_CHANNEL_DUPLICATE: 'EXCLUDED_CHANNEL_DUPLICATE',
+  GUILD_NOT_FOUND: 'GUILD_NOT_FOUND',
+  INACTIVE_ROLE_NOT_CONFIGURED: 'INACTIVE_ROLE_NOT_CONFIGURED',
+  REMOVE_ROLE_NOT_CONFIGURED: 'REMOVE_ROLE_NOT_CONFIGURED',
+  MISSION_NOT_IN_PROGRESS: 'MISSION_NOT_IN_PROGRESS',
+  PREFIX_DUPLICATE: 'PREFIX_DUPLICATE',
+  CONFIG_NOT_FOUND: 'CONFIG_NOT_FOUND',
+  NOT_APPLICABLE: 'NOT_APPLICABLE',
+} as const;
+export type MessageCode = (typeof MESSAGE_CODE)[keyof typeof MESSAGE_CODE];
+
+// ── verdict/badge 구조화 부속 enum (H-4.1/H-4.2) ──
+export const VERDICT_UNIT = {
+  MINUTES: 'MINUTES',
+  PERCENT: 'PERCENT',
+  POINT: 'POINT',
+  PERSON: 'PERSON',
+} as const;
+export type VerdictUnit = (typeof VERDICT_UNIT)[keyof typeof VERDICT_UNIT];
+
+export const VERDICT_CRITERION_CODE = {
+  MIN_ACTIVITY_MINUTES: 'VERDICT_CRIT_MIN_ACTIVITY_MINUTES', // params: { minutes }
+  MIN_ACTIVE_DAYS_RATIO: 'VERDICT_CRIT_MIN_ACTIVE_DAYS_RATIO', // params: { percent }
+  MIN_DIVERSITY_POINTS: 'VERDICT_CRIT_MIN_DIVERSITY_POINTS', // params: { points }
+  MIN_PEER_COUNT: 'VERDICT_CRIT_MIN_PEER_COUNT', // params: { count }
+} as const;
+export type VerdictCriterionCode =
+  (typeof VERDICT_CRITERION_CODE)[keyof typeof VERDICT_CRITERION_CODE];
+
+export const BADGE_CRITERION_CODE = {
+  ACTIVITY: 'BADGE_CRIT_ACTIVITY_TOP', // params: { percent }
+  SOCIAL: 'BADGE_CRIT_SOCIAL', // params: { points, peers }
+  HUNTER: 'BADGE_CRIT_HUNTER_TOP', // params: { percent }
+  CONSISTENT: 'BADGE_CRIT_CONSISTENT', // params: { percent }
+  MIC: 'BADGE_CRIT_MIC', // params: { percent }
+} as const;
+export type BadgeCriterionCode = (typeof BADGE_CRITERION_CODE)[keyof typeof BADGE_CRITERION_CODE];
+
+export const BADGE_CURRENT_CODE = {
+  ACTIVITY: 'BADGE_CUR_ACTIVITY', // params: { percent }
+  SOCIAL: 'BADGE_CUR_SOCIAL', // params: { points, peers }
+  HUNTER_RANK: 'BADGE_CUR_HUNTER_RANK', // params: { percent }
+  NO_RECORD: 'BADGE_CUR_NO_RECORD', // params: {}
+  CONSISTENT: 'BADGE_CUR_CONSISTENT', // params: { percent }
+  MIC: 'BADGE_CUR_MIC', // params: { percent }
+} as const;
+export type BadgeCurrentCode = (typeof BADGE_CURRENT_CODE)[keyof typeof BADGE_CURRENT_CODE];

@@ -1,4 +1,12 @@
-import type { VerdictCategory } from '@onyu/shared';
+import type {
+  BadgeCriterionCode,
+  BadgeCurrentCode,
+  MessageCode,
+  VerdictCategory,
+  VerdictCategoryCode,
+  VerdictCriterionCode,
+  VerdictUnit,
+} from '@onyu/shared';
 
 /** Bot → API 요청/응답 DTO 타입 정의 */
 
@@ -123,12 +131,16 @@ export interface StatusPrefixApplyResult {
   success: boolean;
   newNickname?: string;
   message: string;
+  code?: MessageCode;
+  params?: Record<string, string | number>;
 }
 
 export interface StatusPrefixResetResult {
   success: boolean;
   originalNickname?: string;
   message: string;
+  code?: MessageCode;
+  params?: Record<string, string | number>;
 }
 
 // ── Auto Channel ──
@@ -161,6 +173,8 @@ export interface AutoChannelButtonResult {
   channelName?: string;
   message: string;
   subOptions?: AutoChannelSubOptionInfo[];
+  code?: MessageCode;
+  params?: Record<string, string | number>;
 }
 
 // ── Sticky Message ──
@@ -229,9 +243,14 @@ export interface SelfDiagnosisResultData {
   aloneRatio: number;
   verdicts: Array<{
     category: VerdictCategory;
+    categoryCode?: VerdictCategoryCode;
     isPassed: boolean;
     criterion: string;
     actual: string;
+    actualValue?: number;
+    actualUnit?: VerdictUnit;
+    criterionCode?: VerdictCriterionCode;
+    criterionParams?: Record<string, number>;
   }>;
   badges: string[];
   badgeGuides: Array<{
@@ -241,6 +260,10 @@ export interface SelfDiagnosisResultData {
     isEarned: boolean;
     criterion: string;
     current: string;
+    criterionCode?: BadgeCriterionCode;
+    criterionParams?: Record<string, number>;
+    currentCode?: BadgeCurrentCode;
+    currentParams?: Record<string, string | number>;
   }>;
   llmSummary?: string;
 }
@@ -252,7 +275,6 @@ export interface LlmSummaryResponse {
 }
 
 /** 베스트 프렌드 집계 허용 기간(일) */
-// eslint-disable-next-line no-magic-numbers -- 도메인 허용 기간(일) 상수
 export type ValidBestFriendPeriod = 7 | 30 | 90;
 
 /**

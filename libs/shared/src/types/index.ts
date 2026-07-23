@@ -51,6 +51,7 @@ export interface VoiceActivityData {
   }>;
 }
 
+export * from './level';
 export type {
   ActivityDailyOverview,
   MessageDailyRecord,

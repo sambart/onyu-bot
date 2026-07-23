@@ -6,6 +6,8 @@ import type { BotApiClientService, MissionMyResponse } from '@onyu/bot-api-clien
 import type { ButtonInteraction } from 'discord.js';
 import { beforeEach, describe, expect, it, type Mock, vi } from 'vitest';
 
+import { BotI18nService } from '../../common/application/bot-i18n.service';
+import { LocaleResolverService } from '../../common/application/locale-resolver.service';
 import { BotNewbieInteractionHandler } from './bot-newbie-interaction.handler';
 
 function makeButtonInteraction(overrides: Record<string, unknown> = {}): ButtonInteraction {
@@ -13,6 +15,8 @@ function makeButtonInteraction(overrides: Record<string, unknown> = {}): ButtonI
     isButton: () => true,
     customId: 'newbie_mission:my:guild-1',
     user: { id: 'user-1' },
+    guildId: 'guild-1',
+    locale: 'ko',
     deferReply: vi.fn().mockResolvedValue(undefined),
     editReply: vi.fn().mockResolvedValue(undefined),
     reply: vi.fn().mockResolvedValue(undefined),
@@ -40,7 +44,13 @@ describe('BotNewbieInteractionHandler', () => {
       getMyHuntingData: vi.fn(),
     };
 
-    handler = new BotNewbieInteractionHandler(apiClient as unknown as BotApiClientService);
+    const i18n = new BotI18nService();
+    i18n.onModuleInit();
+    handler = new BotNewbieInteractionHandler(
+      apiClient as unknown as BotApiClientService,
+      i18n,
+      new LocaleResolverService(),
+    );
   });
 
   // ──────────────────────────────────────────────────────
@@ -185,6 +195,107 @@ describe('BotNewbieInteractionHandler', () => {
 
       expect(apiClient.refreshMissionEmbed).toHaveBeenCalledWith({ guildId: 'guild-1' });
       expect(apiClient.getMyMissionData).not.toHaveBeenCalled();
+    });
+  });
+
+  // ──────────────────────────────────────────────────────
+  // en 로케일 동작 — 이번 i18n 이관의 핵심 목적(비한국어 클라이언트 영어 응답) 검증
+  // ──────────────────────────────────────────────────────
+  describe('locale — en-US', () => {
+    it('미참여(hasMission: false)이면 영어 메시지로 editReply한다', async () => {
+      const interaction = makeButtonInteraction({ locale: 'en-US' });
+      const response: MissionMyResponse = { ok: true, hasMission: false };
+      apiClient.getMyMissionData.mockResolvedValue(response);
+
+      await handler.handle(interaction);
+
+      expect(interaction.editReply).toHaveBeenCalledWith({
+        content: 'You have no mission in progress.',
+      });
+    });
+
+    it('참여(hasMission: true)이면 상태/플레이타임/횟수/마감일이 영어로 포함된 텍스트로 editReply한다', async () => {
+      const interaction = makeButtonInteraction({ locale: 'en-US' });
+      const response: MissionMyResponse = {
+        ok: true,
+        hasMission: true,
+        data: {
+          status: 'IN_PROGRESS',
+          playtimeSec: 3600,
+          playCount: 2,
+          targetPlaytimeSec: 10800,
+          targetPlayCount: 5,
+          endDate: '2026-03-08',
+          daysLeft: 3,
+        },
+      };
+      apiClient.getMyMissionData.mockResolvedValue(response);
+
+      await handler.handle(interaction);
+
+      const editReplyArg = (interaction.editReply as Mock).mock.calls[0][0] as { content: string };
+      expect(editReplyArg.content).toContain('In progress');
+      expect(editReplyArg.content).toContain('1h');
+      expect(editReplyArg.content).toContain('Play count: 2');
+      expect(editReplyArg.content).toContain('goal 5');
+      expect(editReplyArg.content).toContain('2026-03-08');
+      expect(editReplyArg.content).toContain('D-3');
+      // ko 문자열이 잔존하지 않아야 한다 — 혼재 회귀 방지
+      expect(editReplyArg.content).not.toContain('진행중');
+    });
+
+    it('targetPlayCount가 null이면 "Not set"으로 표기한다', async () => {
+      const interaction = makeButtonInteraction({ locale: 'en-US' });
+      const response: MissionMyResponse = {
+        ok: true,
+        hasMission: true,
+        data: {
+          status: 'IN_PROGRESS',
+          playtimeSec: 0,
+          playCount: 0,
+          targetPlaytimeSec: 10800,
+          targetPlayCount: null,
+          endDate: '2026-03-08',
+          daysLeft: 3,
+        },
+      };
+      apiClient.getMyMissionData.mockResolvedValue(response);
+
+      await handler.handle(interaction);
+
+      const editReplyArg = (interaction.editReply as Mock).mock.calls[0][0] as { content: string };
+      expect(editReplyArg.content).toContain('Not set');
+    });
+
+    it('guildId가 비어있으면(잘못된 customId) 영어 잘못된 요청 메시지를 reply한다', async () => {
+      const interaction = makeButtonInteraction({
+        customId: 'newbie_mission:my:',
+        locale: 'en-US',
+      });
+
+      await handler.handle(interaction);
+
+      expect(interaction.reply).toHaveBeenCalledWith({
+        ephemeral: true,
+        content: 'Invalid request.',
+      });
+    });
+  });
+
+  // ──────────────────────────────────────────────────────
+  // 로케일 폴백 — 미지원 로케일(ja) → en
+  // ──────────────────────────────────────────────────────
+  describe('locale — 미지원 로케일(ja) 폴백', () => {
+    it('ja 로케일이면 en으로 폴백하여 영어 메시지를 반환한다', async () => {
+      const interaction = makeButtonInteraction({ locale: 'ja' });
+      const response: MissionMyResponse = { ok: true, hasMission: false };
+      apiClient.getMyMissionData.mockResolvedValue(response);
+
+      await handler.handle(interaction);
+
+      expect(interaction.editReply).toHaveBeenCalledWith({
+        content: 'You have no mission in progress.',
+      });
     });
   });
 });

@@ -1,1 +1,18 @@
-{}
+{
+  "missionNone": "진행 중인 미션이 없습니다.",
+  "missionRefreshed": "미션 현황이 갱신되었습니다.",
+  "missionStatusInProgress": "진행중",
+  "missionStatusCompleted": "완료",
+  "missionStatusFailed": "실패",
+  "missionStatusLeft": "퇴장",
+  "missionMyTitle": "🧑‍🌾 **내 미션 진행도**",
+  "missionMyStatus": "상태: {status}",
+  "missionMyPlaytime": "누적 플레이타임: {playtime} / 목표 {target}",
+  "missionMyPlayCount": "플레이 횟수: {count}회 / 목표 {target}",
+  "missionMyDeadline": "마감일: {endDate} (D-{daysLeft})",
+  "missionTargetNone": "설정 없음",
+  "missionTargetCount": "{count}회",
+  "durationHour": "{h}시간",
+  "durationHourMin": "{h}시간 {m}분",
+  "mocoDataUnavailable": "데이터를 불러올 수 없습니다."
+}

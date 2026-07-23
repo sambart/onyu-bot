@@ -1,1 +1,18 @@
-{}
+{
+  "missionNone": "You have no mission in progress.",
+  "missionRefreshed": "The mission board has been refreshed.",
+  "missionStatusInProgress": "In progress",
+  "missionStatusCompleted": "Completed",
+  "missionStatusFailed": "Failed",
+  "missionStatusLeft": "Left",
+  "missionMyTitle": "🧑‍🌾 **My Mission Progress**",
+  "missionMyStatus": "Status: {status}",
+  "missionMyPlaytime": "Total playtime: {playtime} / goal {target}",
+  "missionMyPlayCount": "Play count: {count} / goal {target}",
+  "missionMyDeadline": "Deadline: {endDate} (D-{daysLeft})",
+  "missionTargetNone": "Not set",
+  "missionTargetCount": "{count}",
+  "durationHour": "{h}h",
+  "durationHourMin": "{h}h {m}m",
+  "mocoDataUnavailable": "Unable to load data."
+}

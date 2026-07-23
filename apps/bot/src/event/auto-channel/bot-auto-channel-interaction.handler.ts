@@ -4,6 +4,10 @@ import type { AutoChannelButtonResult } from '@onyu/bot-api-client';
 import { BotApiClientService } from '@onyu/bot-api-client';
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle, Client, Interaction } from 'discord.js';
 
+import { BotI18nService } from '../../common/application/bot-i18n.service';
+import { LocaleResolverService } from '../../common/application/locale-resolver.service';
+import { resolveResultMessage } from '../../common/application/message-code-map';
+
 const CUSTOM_ID_PREFIX = {
   BUTTON: 'auto_btn:',
   SUB_OPTION: 'auto_sub:',
@@ -24,6 +28,8 @@ export class BotAutoChannelInteractionHandler {
   constructor(
     private readonly apiClient: BotApiClientService,
     @InjectDiscordClient() private readonly discord: Client,
+    private readonly i18n: BotI18nService,
+    private readonly localeResolver: LocaleResolverService,
   ) {}
 
   @On('interactionCreate')
@@ -38,6 +44,7 @@ export class BotAutoChannelInteractionHandler {
 
     const guildId = interaction.guildId;
     const userId = interaction.user.id;
+    const locale = await this.localeResolver.resolve(userId, guildId, interaction.locale);
 
     try {
       await interaction.deferReply({ ephemeral: true });
@@ -58,7 +65,7 @@ export class BotAutoChannelInteractionHandler {
       if (isButton) {
         const buttonId = parseInt(customId.slice(CUSTOM_ID_PREFIX.BUTTON.length), 10);
         if (isNaN(buttonId)) {
-          await interaction.editReply({ content: '잘못된 요청입니다.' });
+          await interaction.editReply({ content: this.i18n.t(locale, 'errors.invalidRequest') });
           return;
         }
 
@@ -72,7 +79,7 @@ export class BotAutoChannelInteractionHandler {
       } else {
         const subOptionId = parseInt(customId.slice(CUSTOM_ID_PREFIX.SUB_OPTION.length), 10);
         if (isNaN(subOptionId)) {
-          await interaction.editReply({ content: '잘못된 요청입니다.' });
+          await interaction.editReply({ content: this.i18n.t(locale, 'errors.invalidRequest') });
           return;
         }
 
@@ -85,11 +92,12 @@ export class BotAutoChannelInteractionHandler {
         });
       }
 
+      const content = resolveResultMessage(this.i18n, locale, result);
       if (result.action === 'show_sub_options' && result.subOptions) {
         const rows = this.buildSubOptionActionRows(result.subOptions);
-        await interaction.editReply({ content: result.message, components: rows });
+        await interaction.editReply({ content, components: rows });
       } else {
-        await interaction.editReply({ content: result.message });
+        await interaction.editReply({ content });
       }
     } catch (error) {
       this.logger.error(
@@ -98,7 +106,7 @@ export class BotAutoChannelInteractionHandler {
       );
 
       try {
-        const content = '오류가 발생했습니다. 잠시 후 다시 시도하세요.';
+        const content = this.i18n.t(locale, 'errors.genericError');
         if (interaction.replied || interaction.deferred) {
           await interaction.followUp({ ephemeral: true, content });
         } else {

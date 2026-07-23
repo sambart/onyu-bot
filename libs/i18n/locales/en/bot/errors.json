@@ -1,4 +1,9 @@
 {
   "adminOnly": "This command is only available to administrators.",
-  "guildOnly": "This command can only be used in a server."
+  "guildOnly": "This command can only be used in a server.",
+  "manageGuildOnly": "This command is only available to server administrators.",
+  "invalidRequest": "Invalid request.",
+  "genericError": "An error occurred. Please try again later.",
+  "unknownError": "Unknown error",
+  "nicknamePermission": "I don't have permission to change nicknames. Please check the bot's role."
 }

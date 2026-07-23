@@ -1,6 +1,7 @@
 import { DiscordModule } from '@discord-nestjs/core';
 import { Module } from '@nestjs/common';
 
+import { BotCommonModule } from '../common/bot-common.module';
 import { BestFriendCommand } from './friend/best-friend.command';
 import { MeCommand } from './me.command';
 import { StickyMessageDeleteCommand } from './sticky-message/sticky-message-delete.command';
@@ -15,7 +16,7 @@ import { VoiceFlushCommand } from './voice-flush.command';
  * API에서 이동된 커맨드들을 등록한다.
  */
 @Module({
-  imports: [DiscordModule.forFeature()],
+  imports: [DiscordModule.forFeature(), BotCommonModule],
   providers: [
     VersionCommand,
     VoiceFlushCommand,
