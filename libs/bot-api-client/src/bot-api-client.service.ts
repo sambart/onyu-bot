@@ -11,6 +11,7 @@ import type {
   BotApiResponse,
   BotRolePanelConfigDto,
   CoPresenceSnapshot,
+  GetMyBestFriendsOptions,
   GuildMemberBulkUpsertDto,
   GuildMemberDeactivateDto,
   GuildMemberUpsertDto,
@@ -36,7 +37,6 @@ import type {
   StatusPrefixResetDto,
   StatusPrefixResetResult,
   StickyMessageConfigItem,
-  ValidBestFriendPeriod,
   VoiceStateUpdateDto,
   VoiceSyncDto,
 } from './types';
@@ -193,23 +193,11 @@ export class BotApiClientService {
 
   // ── Co-Presence (Phase 5: 베스트 프렌드) ──
 
-  async getMyBestFriends(
-    guildId: string,
-    userId: string,
-    displayName: string,
-    avatarUrl: string,
-    period: ValidBestFriendPeriod,
-    limit: number,
-  ): Promise<BestFriendCardResponse> {
-    const params = new URLSearchParams({
-      guildId,
-      userId,
-      displayName,
-      avatarUrl,
-      period: String(period),
-      limit: String(limit),
-    });
-    return this.post(`/bot-api/co-presence/best-friends?${params.toString()}`, {});
+  /**
+   * 닉네임·아바타 URL 등 개인정보가 액세스 로그(query string)에 남지 않도록 POST body로 전송한다.
+   */
+  async getMyBestFriends(options: GetMyBestFriendsOptions): Promise<BestFriendCardResponse> {
+    return this.post('/bot-api/co-presence/best-friends', options);
   }
 
   // ── Me ──

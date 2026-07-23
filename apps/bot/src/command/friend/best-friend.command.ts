@@ -1,6 +1,6 @@
 import { Command, Handler, InteractionEvent } from '@discord-nestjs/core';
 import { Injectable, Logger } from '@nestjs/common';
-import type { BestFriendCardResponse } from '@onyu/bot-api-client';
+import type { BestFriendCardResponse, CanvasCardLocale } from '@onyu/bot-api-client';
 import { BotApiClientService } from '@onyu/bot-api-client';
 import {
   ActionRowBuilder,
@@ -63,21 +63,23 @@ export class BestFriendCommand {
         (interaction.member as GuildMember)?.displayName ?? interaction.user.displayName;
       const avatarUrl = interaction.user.displayAvatarURL({ extension: 'png', size: 128 });
 
-      const result = await this.apiClient.getMyBestFriends(
-        interaction.guildId,
-        interaction.user.id,
+      const result = await this.apiClient.getMyBestFriends({
+        guildId: interaction.guildId,
+        userId: interaction.user.id,
         displayName,
         avatarUrl,
-        PERIOD,
-        LIMIT,
-      );
+        period: PERIOD,
+        limit: LIMIT,
+        locale: this.toCanvasLocale(locale),
+      });
 
       const linkButtonRow = this.buildLinkButtonRow(interaction.guildId, locale);
 
-      // errorCode 우선 처리 — PRIVATE, NO_DATA 등
-      if (result.errorCode) {
-        const message = this.resolveErrorMessage(result.errorCode, result.days, locale);
-        await interaction.editReply({ content: message, components: [linkButtonRow] });
+      if (!result.ok) {
+        await interaction.editReply({
+          content: this.i18n.t(locale, 'commands.bestFriendError'),
+          components: [linkButtonRow],
+        });
         return;
       }
 
@@ -99,16 +101,9 @@ export class BestFriendCommand {
     }
   }
 
-  /** errorCode를 사용자 친화적 메시지로 변환한다. */
-  private resolveErrorMessage(errorCode: string, days: number, locale: string): string {
-    if (errorCode === 'PRIVATE') {
-      return this.i18n.t(locale, 'commands.bestFriendPrivate');
-    }
-    if (errorCode === 'NO_DATA') {
-      return this.i18n.t(locale, 'commands.bestFriendNoData', { days });
-    }
-    // 예상치 못한 errorCode — 안내 메시지 fallback
-    return this.i18n.t(locale, 'commands.bestFriendUnknownError');
+  /** LocaleResolverService는 'ko' | 'en' 중 하나만 반환하므로 안전하게 캔버스 카드 로케일로 변환한다 */
+  private toCanvasLocale(locale: string): CanvasCardLocale {
+    return locale === 'ko' ? 'ko' : 'en';
   }
 
   private buildLinkButtonRow(guildId: string, locale: string): ActionRowBuilder<ButtonBuilder> {

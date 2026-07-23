@@ -280,19 +280,33 @@ export type ValidBestFriendPeriod = 7 | 30 | 90;
 /**
  * Bot ↔ API 캔버스 PNG 응답 공통 형식.
  * /me, /best-friend 모두 동일한 응답 셰이프를 사용한다.
+ * `ok: false`는 서버 렌더 실패 등 비정상 상황을, `ok: true, data: null`은
+ * 정상 처리됐으나 표시할 데이터가 없는 상황(예: 최근 활동 없음)을 의미한다.
  */
 export interface CanvasCardResponse {
   ok: boolean;
   data: { imageBase64: string } | null;
   days: number;
-  /** 비정상 응답 사유. 비공개·권한 없음 등. */
-  errorCode?: 'PRIVATE' | 'NOT_PERMITTED' | 'NO_DATA';
 }
 
 // 기존 MeProfileResponse를 CanvasCardResponse 별칭으로 치환 (하위 호환 유지)
 export type MeProfileResponse = CanvasCardResponse;
 
 export type BestFriendCardResponse = CanvasCardResponse;
+
+/** 카드 내 텍스트 로케일 (봇 인터랙션 locale 기반, 미지원 값은 'en'으로 처리) */
+export type CanvasCardLocale = 'ko' | 'en';
+
+/** getMyBestFriends 요청 옵션 */
+export interface GetMyBestFriendsOptions {
+  guildId: string;
+  userId: string;
+  displayName: string;
+  avatarUrl: string;
+  period: ValidBestFriendPeriod;
+  limit: number;
+  locale: CanvasCardLocale;
+}
 
 // ── Voice Sync (봇 시작 시 기존 음성 채널 사용자 동기화) ──
 

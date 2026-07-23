@@ -1,6 +1,7 @@
 {
   "meNoActivity": "No voice channel activity recorded in the last {days} days.",
   "meError": "An error occurred while fetching your profile.",
+  "meButtonLabel": "See more on My Page",
   "voiceFlushResult": "Flush complete: {flushed} sessions applied, {skipped} skipped",
   "voiceFlushFailed": "Flush failed: {message}",
   "stickyRegisterGuide": "You can configure sticky messages in the web dashboard.\n{url}",
@@ -17,8 +18,6 @@
   "stickyDeleteSuccess": "{count} sticky message(s) in <#{channelId}> have been deleted.",
   "stickyDeleteError": "An error occurred during deletion: {message}",
   "bestFriendNoData": "No friends recorded in the last {days} days. Join a voice channel and make some friends!",
-  "bestFriendPrivate": "Some users have set their profile to private.",
-  "bestFriendUnknownError": "An unknown error occurred while fetching your best friends.",
   "bestFriendError": "An error occurred while fetching your best friends.",
   "bestFriendButtonLabel": "See more on My Page",
   "autoChannelNotInVoice": "Please join a voice channel first, then click.",
