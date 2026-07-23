@@ -2,6 +2,7 @@ import { Command, Handler, InteractionEvent } from '@discord-nestjs/core';
 import { Injectable, Logger } from '@nestjs/common';
 import type { SelfDiagnosisResultData } from '@onyu/bot-api-client';
 import { BotApiClientService } from '@onyu/bot-api-client';
+import { VOICE_HEALTH_VERDICT_CATEGORY } from '@onyu/shared';
 import { CommandInteraction, EmbedBuilder } from 'discord.js';
 
 const EMBED_COLOR = 0x5b8def;
@@ -126,8 +127,12 @@ export class SelfDiagnosisCommand {
   }
 
   private buildActivitySection(result: SelfDiagnosisResultData): string {
-    const activityVerdict = result.verdicts.find((v) => v.category === '활동량');
-    const daysVerdict = result.verdicts.find((v) => v.category === '활동일수');
+    const activityVerdict = result.verdicts.find(
+      (v) => v.category === VOICE_HEALTH_VERDICT_CATEGORY.ACTIVITY,
+    );
+    const daysVerdict = result.verdicts.find(
+      (v) => v.category === VOICE_HEALTH_VERDICT_CATEGORY.ACTIVE_DAYS,
+    );
 
     const lines = [
       '**\u{1F4CA} 활동량**',
@@ -150,8 +155,12 @@ export class SelfDiagnosisCommand {
   }
 
   private buildRelationshipSection(result: SelfDiagnosisResultData): string {
-    const hhiVerdict = result.verdicts.find((v) => v.category === '관계 다양성');
-    const peerVerdict = result.verdicts.find((v) => v.category === '함께한 멤버');
+    const hhiVerdict = result.verdicts.find(
+      (v) => v.category === VOICE_HEALTH_VERDICT_CATEGORY.RELATIONSHIP_DIVERSITY,
+    );
+    const peerVerdict = result.verdicts.find(
+      (v) => v.category === VOICE_HEALTH_VERDICT_CATEGORY.PEER_COUNT,
+    );
 
     const diversityScore = Math.round((1 - result.hhiScore) * 100);
     const lines = [

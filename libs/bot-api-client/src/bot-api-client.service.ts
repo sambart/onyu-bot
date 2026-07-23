@@ -23,6 +23,7 @@ import type {
   MeProfileResponse,
   MessageCountedDto,
   MessageCreatedDto,
+  MissionMyResponse,
   MissionRefreshDto,
   MocoMyResponse,
   MocoRankResponse,
@@ -30,7 +31,6 @@ import type {
   RoleAssignedDto,
   RoleModifyDto,
   SelfDiagnosisResponse,
-  ServerDiagnosisResponse,
   StatusPrefixApplyDto,
   StatusPrefixApplyResult,
   StatusPrefixResetDto,
@@ -81,6 +81,11 @@ export class BotApiClientService {
 
   async getMyHuntingData(guildId: string, userId: string): Promise<MocoMyResponse> {
     return this.get(`/bot-api/newbie/moco-my?guildId=${guildId}&userId=${userId}`);
+  }
+
+  /** A4: "내 진행도" 셀프 조회 (F-NEWBIE-002). moco-my와 대칭. */
+  async getMyMissionData(guildId: string, memberId: string): Promise<MissionMyResponse> {
+    return this.get(`/bot-api/newbie/mission-my?guildId=${guildId}&memberId=${memberId}`);
   }
 
   async getNewbieConfig(guildId: string): Promise<NewbieConfigDto | null> {
@@ -159,13 +164,6 @@ export class BotApiClientService {
       `/bot-api/voice-analytics/self-diagnosis/llm-summary?guildId=${guildId}&userId=${userId}`,
       {},
       { timeout: 60_000 },
-    );
-  }
-
-  async getServerDiagnosis(guildId: string, days: number): Promise<ServerDiagnosisResponse> {
-    return this.post(
-      `/bot-api/voice-analytics/server-diagnosis?guildId=${guildId}&days=${days}`,
-      {},
     );
   }
 

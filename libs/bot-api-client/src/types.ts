@@ -1,3 +1,5 @@
+import type { VerdictCategory } from '@onyu/shared';
+
 /** Bot → API 요청/응답 DTO 타입 정의 */
 
 // ── Voice ──
@@ -205,29 +207,6 @@ export interface SelfDiagnosisResponse {
   remainingSeconds?: number;
 }
 
-export interface ServerDiagnosisResponse {
-  ok: boolean;
-  data: {
-    totalStats: {
-      totalUsers: number;
-      totalVoiceTime: number;
-      totalMicOnTime: number;
-      avgDailyActiveUsers: number;
-    };
-    topUsers: Array<{
-      rank: number;
-      userId: string;
-      nickName: string;
-      avatarUrl: string | null;
-      totalSec: number;
-      micOnSec: number;
-      activeDays: number;
-    }>;
-    aiSummary: string | null;
-    days: number;
-  } | null;
-}
-
 export interface SelfDiagnosisResultData {
   totalMinutes: number;
   activeDays: number;
@@ -248,7 +227,12 @@ export interface SelfDiagnosisResultData {
   mocoHelpedNewbies: number;
   micUsageRate: number;
   aloneRatio: number;
-  verdicts: Array<{ category: string; isPassed: boolean; criterion: string; actual: string }>;
+  verdicts: Array<{
+    category: VerdictCategory;
+    isPassed: boolean;
+    criterion: string;
+    actual: string;
+  }>;
   badges: string[];
   badgeGuides: Array<{
     code: string;
@@ -363,6 +347,25 @@ export interface MocoMyCanvasResponse {
 }
 
 export type MocoMyResponse = MocoMyEmbedResponse | MocoMyCanvasResponse;
+
+// ── Mission My Progress (A4) ──
+
+/** apps/api의 MissionStatus enum과 값 동일 — 패키지 경계상 리터럴 유니언으로 복제(의존 방향 유지) */
+export type MissionMyProgressStatus = 'IN_PROGRESS' | 'COMPLETED' | 'FAILED' | 'LEFT';
+
+export interface MissionMyProgress {
+  status: MissionMyProgressStatus;
+  playtimeSec: number;
+  playCount: number;
+  targetPlaytimeSec: number;
+  targetPlayCount: number | null;
+  endDate: string;
+  daysLeft: number;
+}
+
+export type MissionMyResponse =
+  | { ok: true; hasMission: false }
+  | { ok: true; hasMission: true; data: MissionMyProgress };
 
 // ── Guild Member ──
 

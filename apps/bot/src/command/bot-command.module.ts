@@ -8,7 +8,6 @@ import { StickyMessageListCommand } from './sticky-message/sticky-message-list.c
 import { StickyMessageRegisterCommand } from './sticky-message/sticky-message-register.command';
 import { VersionCommand } from './version.command';
 import { SelfDiagnosisCommand } from './voice-analytics/self-diagnosis.command';
-import { ServerDiagnosisCommand } from './voice-analytics/server-diagnosis.command';
 import { VoiceFlushCommand } from './voice-flush.command';
 
 /**
@@ -25,7 +24,6 @@ import { VoiceFlushCommand } from './voice-flush.command';
     StickyMessageListCommand,
     // Voice Analytics
     SelfDiagnosisCommand,
-    ServerDiagnosisCommand,
     // Me
     MeCommand,
     // Phase 5: 베스트 프렌드

@@ -1,6 +1,8 @@
 import { On } from '@discord-nestjs/core';
 import { Injectable, Logger } from '@nestjs/common';
 import type {
+  MissionMyProgressStatus,
+  MissionMyResponse,
   MocoMyCanvasResponse,
   MocoMyResponse,
   MocoRankCanvasResponse,
@@ -12,11 +14,20 @@ import type { APIEmbed, ButtonInteraction, Interaction } from 'discord.js';
 /** 뉴비 모듈 버튼 customId 접두사 */
 const NEWBIE_CUSTOM_ID = {
   MISSION_REFRESH: 'newbie_mission:refresh:',
+  MISSION_MY: 'newbie_mission:my:',
   MOCO_PREV: 'newbie_moco:prev:',
   MOCO_NEXT: 'newbie_moco:next:',
   MOCO_REFRESH: 'newbie_moco:refresh:',
   MOCO_MY: 'newbie_moco:my:',
 } as const;
+
+/** A4 "내 진행도" 상태 라벨(하드코딩 한국어) — newbie-template.constants.ts DEFAULT_STATUS_MAPPING과 정합 */
+const MISSION_STATUS_LABEL: Record<MissionMyProgressStatus, string> = {
+  IN_PROGRESS: '진행중',
+  COMPLETED: '완료',
+  FAILED: '실패',
+  LEFT: '퇴장',
+};
 
 function isMocoRankCanvasResponse(v: MocoRankResponse): v is MocoRankCanvasResponse {
   return v.mode === 'CANVAS';
@@ -41,7 +52,9 @@ export class BotNewbieInteractionHandler {
     if (!interaction.isButton()) return;
 
     const customId = interaction.customId;
-    const isMission = customId.startsWith(NEWBIE_CUSTOM_ID.MISSION_REFRESH);
+    const isMission =
+      customId.startsWith(NEWBIE_CUSTOM_ID.MISSION_REFRESH) ||
+      customId.startsWith(NEWBIE_CUSTOM_ID.MISSION_MY);
     const isMoco =
       customId.startsWith(NEWBIE_CUSTOM_ID.MOCO_PREV) ||
       customId.startsWith(NEWBIE_CUSTOM_ID.MOCO_NEXT) ||
@@ -79,11 +92,17 @@ export class BotNewbieInteractionHandler {
   }
 
   /**
-   * newbie_mission:refresh:{guildId} 버튼 처리.
-   * API에 미션 Embed 갱신을 요청한다.
+   * newbie_mission:refresh:{guildId} / newbie_mission:my:{guildId} 버튼 처리.
    */
   private async handleMissionButton(interaction: ButtonInteraction): Promise<void> {
-    const guildId = interaction.customId.slice(NEWBIE_CUSTOM_ID.MISSION_REFRESH.length);
+    const customId = interaction.customId;
+
+    if (customId.startsWith(NEWBIE_CUSTOM_ID.MISSION_MY)) {
+      await this.handleMissionMyButton(interaction);
+      return;
+    }
+
+    const guildId = customId.slice(NEWBIE_CUSTOM_ID.MISSION_REFRESH.length);
 
     if (!guildId) {
       await interaction.reply({ ephemeral: true, content: '잘못된 요청입니다.' });
@@ -93,6 +112,57 @@ export class BotNewbieInteractionHandler {
     await interaction.deferReply({ ephemeral: true });
     await this.apiClient.refreshMissionEmbed({ guildId });
     await interaction.editReply({ content: '미션 현황이 갱신되었습니다.' });
+  }
+
+  /**
+   * A4: newbie_mission:my:{guildId} 버튼 처리. 본인의 미션 진행도를 ephemeral로 조회한다.
+   */
+  private async handleMissionMyButton(interaction: ButtonInteraction): Promise<void> {
+    const guildId = interaction.customId.slice(NEWBIE_CUSTOM_ID.MISSION_MY.length);
+
+    if (!guildId) {
+      await interaction.reply({ ephemeral: true, content: '잘못된 요청입니다.' });
+      return;
+    }
+
+    const memberId = interaction.user.id;
+    await interaction.deferReply({ ephemeral: true });
+    const response = await this.apiClient.getMyMissionData(guildId, memberId);
+    await interaction.editReply({ content: this.formatMyMissionContent(response) });
+  }
+
+  /**
+   * A4 "내 진행도" ephemeral 응답 텍스트 구성 (하드코딩 한국어).
+   * missionUseMicTime 반영 플레이타임 라벨은 API가 계산한 초 값을 그대로 표기한다(봇은 형식 변환만).
+   */
+  private formatMyMissionContent(response: MissionMyResponse): string {
+    if (!response.hasMission) {
+      return '진행 중인 미션이 없습니다.';
+    }
+
+    const { data } = response;
+    const statusLabel = MISSION_STATUS_LABEL[data.status] ?? data.status;
+    const playtime = this.formatSecToHourMin(data.playtimeSec);
+    const targetPlaytime = this.formatSecToHourMin(data.targetPlaytimeSec);
+    const targetPlayCountText =
+      data.targetPlayCount === null ? '설정 없음' : `${data.targetPlayCount}회`;
+
+    const lines = [
+      `🧑‍🌾 **내 미션 진행도**`,
+      `상태: ${statusLabel}`,
+      `누적 플레이타임: ${playtime} / 목표 ${targetPlaytime}`,
+      `플레이 횟수: ${data.playCount}회 / 목표 ${targetPlayCountText}`,
+      `마감일: ${data.endDate} (D-${data.daysLeft})`,
+    ];
+
+    return lines.join('\n');
+  }
+
+  private formatSecToHourMin(totalSec: number): string {
+    const h = Math.floor(totalSec / 3600);
+    const m = Math.floor((totalSec % 3600) / 60);
+    if (m === 0) return `${h}시간`;
+    return `${h}시간 ${m}분`;
   }
 
   /**

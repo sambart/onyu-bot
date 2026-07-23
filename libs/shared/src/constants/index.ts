@@ -1,3 +1,5 @@
+export * from './voice-health';
+
 export const APP_NAME = 'Onyu';
 
 export const DATE_FORMAT = {

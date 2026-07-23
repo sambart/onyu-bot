@@ -41,34 +41,38 @@ export class BotNewbieMemberAddHandler {
       );
     }
 
-    try {
-      // 1. API에서 설정 조회
-      const config = await this.apiClient.getNewbieConfig(guildId);
-      if (!config) return;
+    // 1. API에서 설정 조회 (getNewbieConfig는 내부에서 실패를 흡수하고 null을 반환한다)
+    const config: NewbieConfigDto | null = await this.apiClient.getNewbieConfig(guildId);
+    if (!config) return;
 
-      // 2. 환영인사 (Bot에서 직접 Discord 메시지 전송)
-      if (config.welcomeEnabled && config.welcomeChannelId) {
-        await this.sendWelcomeMessage(member, config);
-      }
+    // 2. 환영인사 (Bot에서 직접 Discord 메시지 전송) — 자체 try/catch 보유
+    if (config.welcomeEnabled && config.welcomeChannelId) {
+      await this.sendWelcomeMessage(member, config);
+    }
 
-      // 3. 미션 생성 (API 호출)
-      if (config.missionEnabled) {
+    // P2: 3(미션 생성)과 4(역할 부여)를 개별 try/catch로 격리한다.
+    // API가 실패를 rethrow(HTTP 500)하게 되었으므로, 하나의 try/catch로 묶으면
+    // 미션 생성 실패가 역할 부여(step 4)까지 막는 회귀가 발생한다.
+
+    // 3. 미션 생성 (API 호출)
+    if (config.missionEnabled) {
+      try {
         await this.apiClient.sendMemberJoin({
           guildId,
           memberId: member.id,
           displayName: member.displayName,
         });
+      } catch (err) {
+        this.logger.error(
+          `[BOT] sendMemberJoin failed: guild=${guildId} member=${member.id}`,
+          err instanceof Error ? err.stack : err,
+        );
       }
+    }
 
-      // 4. 역할 부여 (Bot에서 직접 Discord API 호출)
-      if (config.roleEnabled && config.newbieRoleId) {
-        await this.assignRole(member, config.newbieRoleId, guildId);
-      }
-    } catch (err) {
-      this.logger.error(
-        `[BOT] guildMemberAdd failed: guild=${guildId} member=${member.id}`,
-        err instanceof Error ? err.stack : err,
-      );
+    // 4. 역할 부여 (Bot에서 직접 Discord API 호출) — 자체 try/catch 보유
+    if (config.roleEnabled && config.newbieRoleId) {
+      await this.assignRole(member, config.newbieRoleId, guildId);
     }
   }
 

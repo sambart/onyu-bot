@@ -51,10 +51,6 @@ export interface VoiceActivityData {
   }>;
 }
 
-export interface VoiceAnalysisResult {
-  text: string;
-}
-
 export type {
   ActivityDailyOverview,
   MessageDailyRecord,

@@ -3,10 +3,12 @@ export function todayYYYYMMDD(): string {
   return new Date().toISOString().slice(0, 10).replace(/-/g, '');
 }
 
-/** 오늘 날짜를 YYYYMMDD 형식 문자열로 반환한다 (KST 기준) */
-export function getKSTDateString(): string {
-  const now = new Date();
-  const kst = new Date(now.getTime() + 9 * 60 * 60 * 1000);
+/**
+ * 주어진 날짜를 YYYYMMDD 형식 문자열로 반환한다 (KST 기준).
+ * 인자를 생략하면 현재 시각(now) 기준으로 반환한다 (기존 호출부 하위호환).
+ */
+export function getKSTDateString(date: Date = new Date()): string {
+  const kst = new Date(date.getTime() + 9 * 60 * 60 * 1000);
   return kst.toISOString().slice(0, 10).replace(/-/g, '');
 }
 
