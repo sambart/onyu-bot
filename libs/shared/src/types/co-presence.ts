@@ -17,3 +17,12 @@ export interface MeTopPeersResponse {
   days: number;
   peers: MeTopPeerItem[];
 }
+
+/** GET /api/users/me/co-presence/pairs/:peerId 응답 (E2, F-COPRESENCE-022) */
+export interface MePairDetailResponse {
+  days: number;
+  peer: { userId: string; displayName: string; avatarUrl: string | null };
+  totalMinutes: number;
+  /** 'YYYY-MM-DD' ASC */
+  dailyData: { date: string; minutes: number }[];
+}
