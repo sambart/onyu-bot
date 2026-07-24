@@ -8,6 +8,9 @@ import type {
 import { BotApiClientService } from '@onyu/bot-api-client';
 import { ActivityType, ChannelType, Client } from 'discord.js';
 
+import { HeartbeatService } from '../monitoring/heartbeat/heartbeat.service';
+import { HEARTBEAT_SLUGS } from '../monitoring/heartbeat/heartbeat.slugs';
+
 /** 폴링 주기 (밀리초) */
 const INTERVAL_MS = 60_000;
 
@@ -24,6 +27,7 @@ export class BotCoPresenceScheduler implements OnApplicationBootstrap, OnApplica
   constructor(
     @InjectDiscordClient() private readonly client: Client,
     private readonly apiClient: BotApiClientService,
+    private readonly heartbeat: HeartbeatService,
   ) {}
 
   onApplicationBootstrap(): void {
@@ -63,6 +67,9 @@ export class BotCoPresenceScheduler implements OnApplicationBootstrap, OnApplica
         this.apiClient.pushCoPresenceSnapshots(snapshots, scannedGuildIds),
         this.apiClient.pushVoiceUserCounts(voiceUserCounts),
       ]);
+
+      // #6 heartbeat — 60초 tick이 실패 없이 도는지로 봇 프로세스 생존을 간접 감시
+      this.heartbeat.ping(HEARTBEAT_SLUGS.BOT_CO_PRESENCE_TICK);
     } catch (err) {
       const message = err instanceof Error ? err.stack : String(err);
       this.logger.error('[CO-PRESENCE] Tick failed', message);

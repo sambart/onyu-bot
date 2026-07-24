@@ -28,13 +28,43 @@ export interface LevelConfigDto {
 
 /**
  * `/me` 캔버스 레벨 카드 입력 (bot-api 내부 조립 — HTTP 응답 아님).
- * 레코드 없음/isEnabled=false면 `null`. 순위(rank) 필드 없음(U5 범위).
+ * 레코드 없음/isEnabled=false면 `null`.
  */
 export interface LevelSummary {
   level: number;
   xp: number;
   nextLevelRequiredXp: number;
   progressRatio: number;
+  /** 길드 내 순위(1-base, ROW_NUMBER 방식). U5 신규 — `LeaderboardService.getUserRank()` 재사용 (F-LVL-07) */
+  rank: number;
+}
+
+/**
+ * 리더보드 1행 (`GET /api/guilds/:guildId/level/leaderboard` 응답 요소, F-LVL-15).
+ * 이름에 `Level` 접두사를 붙여 diagnosis 도메인의 동명 `LeaderboardUser`/`LeaderboardResponse`
+ * (voice-analytics, `libs/shared/src/types/diagnosis.ts`)와 배럴(`index.ts`) re-export 충돌을 피한다
+ * (구현 시 발견 — endpoint-spec/PRD 원 명칭 `LeaderboardEntry`/`LeaderboardResponse`에서 변경).
+ */
+export interface LevelLeaderboardEntry {
+  /** 순위(1-base). `(page-1)*limit + 순번` — ROW_NUMBER 방식(순위 공유 없음) */
+  rank: number;
+  userId: string;
+  /** 길드 닉네임. 레코드 없으면 `userId` 폴백(inactive-member/co-presence 관례) */
+  nickName: string;
+  avatarUrl: string | null;
+  level: number;
+  xp: number;
+}
+
+/** 리더보드 응답 루트 (결정 A: 에코형 — `page`/`limit` 요청값 에코 포함) */
+export interface LevelLeaderboardResponse {
+  /** 봇 제외 후 전체 유효 인원. `isEnabled=false`면 `0` */
+  total: number;
+  /** 요청 page 에코 */
+  page: number;
+  /** 요청 limit 에코 */
+  limit: number;
+  users: LevelLeaderboardEntry[];
 }
 
 // ── Discord 고위험 권한 비트 (레벨 역할 자동 부여 안전장치 §5.2) ──

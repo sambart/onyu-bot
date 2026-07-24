@@ -42,6 +42,7 @@ lerna-debug.log*
 
 # Claude Code
 # .claude
+.claude/worktrees/
 
 # TypeScript build info
 *.tsbuildinfo

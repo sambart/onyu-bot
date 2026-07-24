@@ -12,6 +12,7 @@ import type { Client, Guild, GuildMember, VoiceChannel } from 'discord.js';
 import { ChannelType } from 'discord.js';
 import type { Mock } from 'vitest';
 
+import { HEARTBEAT_SLUGS } from '../monitoring/heartbeat/heartbeat.slugs';
 import { BotCoPresenceScheduler } from './bot-co-presence.scheduler';
 
 // ─── mock Collection 헬퍼 ─────────────────────────────────────────────────────
@@ -71,6 +72,7 @@ describe('BotCoPresenceScheduler', () => {
     pushVoiceUserCounts: Mock;
     pushCoPresenceFlush: Mock;
   };
+  let heartbeat: { ping: Mock };
   let scheduler: BotCoPresenceScheduler;
 
   beforeEach(() => {
@@ -79,6 +81,7 @@ describe('BotCoPresenceScheduler', () => {
       pushVoiceUserCounts: vi.fn().mockResolvedValue(undefined),
       pushCoPresenceFlush: vi.fn().mockResolvedValue(undefined),
     };
+    heartbeat = { ping: vi.fn() };
   });
 
   afterEach(() => {
@@ -97,7 +100,7 @@ describe('BotCoPresenceScheduler', () => {
       guilds: { cache: guildMap },
     } as unknown as Client;
 
-    scheduler = new BotCoPresenceScheduler(client, apiClient as never);
+    scheduler = new BotCoPresenceScheduler(client, apiClient as never, heartbeat as never);
     scheduler.onApplicationBootstrap();
 
     await vi.advanceTimersByTimeAsync(60_000);
@@ -123,7 +126,7 @@ describe('BotCoPresenceScheduler', () => {
     ]);
     const client = { guilds: { cache: guildMap } } as unknown as Client;
 
-    scheduler = new BotCoPresenceScheduler(client, apiClient as never);
+    scheduler = new BotCoPresenceScheduler(client, apiClient as never, heartbeat as never);
     scheduler.onApplicationBootstrap();
 
     await vi.advanceTimersByTimeAsync(60_000);
@@ -144,7 +147,7 @@ describe('BotCoPresenceScheduler', () => {
     ]);
     const client = { guilds: { cache: guildMap } } as unknown as Client;
 
-    scheduler = new BotCoPresenceScheduler(client, apiClient as never);
+    scheduler = new BotCoPresenceScheduler(client, apiClient as never, heartbeat as never);
     scheduler.onApplicationBootstrap();
 
     await vi.advanceTimersByTimeAsync(60_000);
@@ -155,5 +158,33 @@ describe('BotCoPresenceScheduler', () => {
     ];
     expect(snapshots).toEqual([]);
     expect(scannedGuildIds).toEqual(['guild-1', 'guild-2']);
+  });
+
+  describe('heartbeat ping 배선', () => {
+    it('tick이 정상 완료되면 BOT_CO_PRESENCE_TICK slug로 heartbeat.ping을 1회 호출한다', async () => {
+      vi.useFakeTimers();
+
+      const client = { guilds: { cache: new Map<string, Guild>() } } as unknown as Client;
+      scheduler = new BotCoPresenceScheduler(client, apiClient as never, heartbeat as never);
+      scheduler.onApplicationBootstrap();
+
+      await vi.advanceTimersByTimeAsync(60_000);
+
+      expect(heartbeat.ping).toHaveBeenCalledTimes(1);
+      expect(heartbeat.ping).toHaveBeenCalledWith(HEARTBEAT_SLUGS.BOT_CO_PRESENCE_TICK);
+    });
+
+    it('tick 중 API 호출이 실패하면(catch 진입) heartbeat.ping을 호출하지 않는다', async () => {
+      vi.useFakeTimers();
+      apiClient.pushCoPresenceSnapshots.mockRejectedValue(new Error('api down'));
+
+      const client = { guilds: { cache: new Map<string, Guild>() } } as unknown as Client;
+      scheduler = new BotCoPresenceScheduler(client, apiClient as never, heartbeat as never);
+      scheduler.onApplicationBootstrap();
+
+      await vi.advanceTimersByTimeAsync(60_000);
+
+      expect(heartbeat.ping).not.toHaveBeenCalled();
+    });
   });
 });

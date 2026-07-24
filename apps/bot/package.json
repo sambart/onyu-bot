@@ -28,6 +28,7 @@
     "@nestjs/schedule": "^6.1.1",
     "@onyu/bot-api-client": "workspace:*",
     "@onyu/shared": "workspace:*",
+    "@sentry/node": "^10.67.0",
     "axios": "^1.7.9",
     "discord.js": "^14.16.3",
     "dotenv": "^17.3.1",

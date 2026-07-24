@@ -1,5 +1,9 @@
+// Sentry 계측 + process 전역 훅은 앱 로드 전에 hooking 되어야 하므로 반드시 최상단에서 import한다
+import './monitoring/sentry/instrument';
+
 import { Logger } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
+import * as Sentry from '@sentry/node';
 import { Logger as PinoLogger } from 'nestjs-pino';
 
 import { AppModule } from './app.module';
@@ -17,4 +21,8 @@ async function bootstrap(): Promise<void> {
   Logger.log(`Bot process started on port ${port}`);
 }
 
-void bootstrap();
+bootstrap().catch((err: unknown) => {
+  Sentry.captureException(err);
+  Logger.error('Failed to start bot application', err);
+  process.exit(1);
+});
