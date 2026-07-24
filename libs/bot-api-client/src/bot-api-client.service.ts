@@ -9,7 +9,9 @@ import type {
   AutoChannelSubOptionDto,
   BestFriendCardResponse,
   BotApiResponse,
+  BotHealthSnapshotDto,
   BotRolePanelConfigDto,
+  CommandUsedDto,
   CoPresenceSnapshot,
   GetMyBestFriendsOptions,
   GuildMemberBulkUpsertDto,
@@ -150,6 +152,12 @@ export class BotApiClientService {
     await this.post('/bot-api/message-tracking/counted', dto);
   }
 
+  // ── Usage Analytics ──
+
+  async sendCommandUsed(dto: CommandUsedDto): Promise<void> {
+    await this.post('/bot-api/usage-analytics/command-used', dto);
+  }
+
   // ── Voice Analytics ──
 
   async runSelfDiagnosis(guildId: string, userId: string): Promise<SelfDiagnosisResponse> {
@@ -268,6 +276,14 @@ export class BotApiClientService {
   /** API 서버 연결 확인. 실패 시 예외를 throw한다. */
   async healthCheck(): Promise<void> {
     await firstValueFrom(this.http.get('/bot-api/health'));
+  }
+
+  /**
+   * 봇 헬스 스냅샷 push (F-SUPER-ADMIN-016). 호출측(스케줄러)에서 fire-and-forget으로
+   * 사용하며 실패를 흡수해야 한다 — 이 메서드는 실패 시 그대로 throw한다.
+   */
+  async sendHealthSnapshot(snapshot: BotHealthSnapshotDto): Promise<void> {
+    await this.post('/bot-api/health/snapshot', snapshot);
   }
 
   // ── Internal ──

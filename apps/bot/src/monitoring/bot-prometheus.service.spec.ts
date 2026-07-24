@@ -236,4 +236,161 @@ describe('BotPrometheusService', () => {
       expect(() => service.refreshMetrics()).not.toThrow();
     });
   });
+
+  // getSnapshot()은 F-SUPER-ADMIN-016(봇 헬스 스냅샷 push)용 raw 값 스냅샷이다.
+  // API 측 BotHealthSnapshotDto가 @IsInt() @Min(0) 계약이므로, 이 DTO 계약을 항상
+  // 만족하는지(정수 uptimeSeconds, 0 이상 gatewayPing) 를 반드시 검증한다.
+  describe('getSnapshot — Discord Client 미준비 상태', () => {
+    it('client.isReady()가 false면 전 필드가 0인 스냅샷을 반환한다', () => {
+      vi.mocked(client.isReady).mockReturnValue(false);
+      // 미준비 상태에서도 ws.ping/uptime 이 non-zero 값을 갖고 있을 수 있으나 무시되어야 함
+      (client.ws as { ping: number }).ping = 999;
+      (client as { uptime: number }).uptime = 999_000;
+
+      const snapshot = service.getSnapshot();
+
+      expect(snapshot).toEqual({
+        gatewayPing: 0,
+        guildCount: 0,
+        voiceUsersTotal: 0,
+        uptimeSeconds: 0,
+      });
+    });
+  });
+
+  describe('getSnapshot — DTO 계약(@IsInt @Min(0)) 준수', () => {
+    it('uptime(ms)이 나눗셈 시 소수가 되는 값이어도 uptimeSeconds는 정수(내림)이다', () => {
+      const NON_INTEGER_UPTIME_MS = 1_234_567; // 1234.567초 — 정수 아님
+      const EXPECTED_FLOORED_UPTIME_SECONDS = 1_234;
+      vi.mocked(client.isReady).mockReturnValue(true);
+      (client as { uptime: number }).uptime = NON_INTEGER_UPTIME_MS;
+
+      const snapshot = service.getSnapshot();
+
+      expect(snapshot.uptimeSeconds).toBe(EXPECTED_FLOORED_UPTIME_SECONDS);
+      expect(Number.isInteger(snapshot.uptimeSeconds)).toBe(true);
+    });
+
+    it('uptime이 정확히 초 단위로 나누어떨어지면 그 값을 그대로 사용한다', () => {
+      vi.mocked(client.isReady).mockReturnValue(true);
+      (client as { uptime: number }).uptime = 60_000;
+
+      const snapshot = service.getSnapshot();
+
+      expect(snapshot.uptimeSeconds).toBe(60);
+    });
+
+    it('client.ws.ping이 -1(하트비트 ACK 이전)이어도 gatewayPing은 0 이상으로 클램프된다', () => {
+      vi.mocked(client.isReady).mockReturnValue(true);
+      (client.ws as { ping: number }).ping = -1;
+
+      const snapshot = service.getSnapshot();
+
+      expect(snapshot.gatewayPing).toBe(0);
+      expect(snapshot.gatewayPing).toBeGreaterThanOrEqual(0);
+    });
+
+    it('client.ws.ping이 정상값(양수)이면 그대로 사용한다', () => {
+      const POSITIVE_PING_MS = 55;
+      vi.mocked(client.isReady).mockReturnValue(true);
+      (client.ws as { ping: number }).ping = POSITIVE_PING_MS;
+
+      const snapshot = service.getSnapshot();
+
+      expect(snapshot.gatewayPing).toBe(POSITIVE_PING_MS);
+    });
+  });
+
+  describe('getSnapshot — guildCount 집계', () => {
+    it('guildCount는 client.guilds.cache.size 이다', () => {
+      vi.mocked(client.isReady).mockReturnValue(true);
+      const guildMap = new Map([
+        ['guild-1', makeGuild('guild-1', [])],
+        ['guild-2', makeGuild('guild-2', [])],
+      ]);
+      (client.guilds as { cache: unknown }).cache = guildMap;
+
+      const snapshot = service.getSnapshot();
+
+      expect(snapshot.guildCount).toBe(2);
+    });
+
+    it('길드가 하나도 없으면 guildCount는 0이다', () => {
+      vi.mocked(client.isReady).mockReturnValue(true);
+      (client.guilds as { cache: unknown }).cache = new Map();
+
+      const snapshot = service.getSnapshot();
+
+      expect(snapshot.guildCount).toBe(0);
+    });
+  });
+
+  describe('getSnapshot — voiceUsersTotal 집계', () => {
+    it('voiceUsersTotal은 전 길드 음성 채널 사용자 수(봇 제외)의 합이다', () => {
+      vi.mocked(client.isReady).mockReturnValue(true);
+      const guildMap = new Map([
+        [
+          'guild-1',
+          makeGuild('guild-1', [
+            { channelId: 'ch-1', isBot: false },
+            { channelId: 'ch-1', isBot: false },
+          ]),
+        ],
+        ['guild-2', makeGuild('guild-2', [{ channelId: 'ch-2', isBot: false }])],
+      ]);
+      (client.guilds as { cache: unknown }).cache = guildMap;
+
+      const snapshot = service.getSnapshot();
+
+      expect(snapshot.voiceUsersTotal).toBe(3);
+    });
+
+    it('길드가 하나도 없으면 voiceUsersTotal은 0이다', () => {
+      vi.mocked(client.isReady).mockReturnValue(true);
+      (client.guilds as { cache: unknown }).cache = new Map();
+
+      const snapshot = service.getSnapshot();
+
+      expect(snapshot.voiceUsersTotal).toBe(0);
+    });
+  });
+
+  describe('getSnapshot — voiceUsersTotal 제외 조건', () => {
+    it('봇 계정(isBot=true)은 voiceUsersTotal 집계에서 제외된다', () => {
+      vi.mocked(client.isReady).mockReturnValue(true);
+      const guildMap = new Map([
+        [
+          'guild-1',
+          makeGuild('guild-1', [
+            { channelId: 'ch-1', isBot: false },
+            { channelId: 'ch-1', isBot: true },
+            { channelId: 'ch-1', isBot: true },
+          ]),
+        ],
+      ]);
+      (client.guilds as { cache: unknown }).cache = guildMap;
+
+      const snapshot = service.getSnapshot();
+
+      expect(snapshot.voiceUsersTotal).toBe(1);
+    });
+
+    it('channelId가 null(음성 채널 미접속)인 voiceState는 voiceUsersTotal 집계에서 제외된다', () => {
+      vi.mocked(client.isReady).mockReturnValue(true);
+      const guildMap = new Map([
+        [
+          'guild-1',
+          makeGuild('guild-1', [
+            { channelId: 'ch-1', isBot: false },
+            { channelId: null, isBot: false },
+          ]),
+        ],
+      ]);
+      (client.guilds as { cache: unknown }).cache = guildMap;
+
+      const snapshot = service.getSnapshot();
+
+      expect(snapshot.voiceUsersTotal).toBe(1);
+    });
+  });
 });

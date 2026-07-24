@@ -1,12 +1,15 @@
 import type {
   BadgeCriterionCode,
   BadgeCurrentCode,
+  CommandUsedDto,
   MessageCode,
   VerdictCategory,
   VerdictCategoryCode,
   VerdictCriterionCode,
   VerdictUnit,
 } from '@onyu/shared';
+
+export type { CommandUsedDto };
 
 /** Bot → API 요청/응답 DTO 타입 정의 */
 
@@ -450,4 +453,14 @@ export interface BotApiResponse<T = unknown> {
   ok: boolean;
   data?: T;
   error?: string;
+}
+
+// ── Health (U9a-2 F-SUPER-ADMIN-016) ──
+
+/** Bot → API 헬스 스냅샷 push payload. `@onyu/shared`의 `BotHealthSnapshot`과 동형. */
+export interface BotHealthSnapshotDto {
+  gatewayPing: number;
+  guildCount: number;
+  voiceUsersTotal: number;
+  uptimeSeconds: number;
 }

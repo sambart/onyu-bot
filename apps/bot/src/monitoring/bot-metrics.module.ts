@@ -8,5 +8,6 @@ import { BotPrometheusService } from './bot-prometheus.service';
   imports: [DiscordModule.forFeature()],
   controllers: [BotMetricsController],
   providers: [BotPrometheusService],
+  exports: [BotPrometheusService],
 })
 export class BotMetricsModule {}

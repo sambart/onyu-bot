@@ -16,6 +16,7 @@ import { BotRolePanelInteractionHandler } from './role-panel/bot-role-panel-inte
 import { RolePanelInteractionService } from './role-panel/bot-role-panel-interaction.service';
 import { BotStatusPrefixInteractionHandler } from './status-prefix/bot-status-prefix-interaction.handler';
 import { BotStickyMessageHandler } from './sticky-message/bot-sticky-message.handler';
+import { BotCommandUsageHandler } from './usage-analytics/bot-command-usage.handler';
 import { BotVoiceStateDispatcher } from './voice/bot-voice-state.dispatcher';
 import { BotVoiceSyncHandler } from './voice/bot-voice-sync.handler';
 
@@ -40,6 +41,7 @@ import { BotVoiceSyncHandler } from './voice/bot-voice-sync.handler';
     BotMemberUpdateHandler,
     BotMemberRemoveHandler,
     BotUserUpdateHandler,
+    BotCommandUsageHandler,
     // Role Panel
     BotRolePanelInteractionHandler,
     RolePanelInteractionService,

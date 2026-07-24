@@ -58,4 +58,17 @@ export type {
   MessageRankingRecord,
 } from './message-tracking';
 export * from './role-panel';
+export type {
+  AdminHealthResponse,
+  AiUsageDist,
+  AuditLogListResponse,
+  AuditLogView,
+  BotHealthSnapshot,
+  CommandUsageDist,
+  GuildUsageDetailResponse,
+  GuildUsageRow,
+  PlatformPageView,
+  UsageSummaryResponse,
+} from './super-admin';
+export type { CommandUsedDto, PageViewDto } from './usage-analytics';
 export * from './voice-game';
