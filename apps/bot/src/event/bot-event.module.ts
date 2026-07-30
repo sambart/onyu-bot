@@ -9,6 +9,7 @@ import { BotGuildMemberSyncHandler } from './guild-member/bot-guild-member-sync.
 import { BotMemberRemoveHandler } from './guild-member/bot-member-remove.handler';
 import { BotMemberUpdateHandler } from './guild-member/bot-member-update.handler';
 import { BotUserUpdateHandler } from './guild-member/bot-user-update.handler';
+import { BotMeInteractionHandler } from './me/bot-me-interaction.handler';
 import { BotMessageCountHandler } from './message-tracking/bot-message-count.handler';
 import { BotNewbieInteractionHandler } from './newbie/bot-newbie-interaction.handler';
 import { BotNewbieMemberAddHandler } from './newbie/bot-newbie-member-add.handler';
@@ -17,6 +18,7 @@ import { RolePanelInteractionService } from './role-panel/bot-role-panel-interac
 import { BotStatusPrefixInteractionHandler } from './status-prefix/bot-status-prefix-interaction.handler';
 import { BotStickyMessageHandler } from './sticky-message/bot-sticky-message.handler';
 import { BotCommandUsageHandler } from './usage-analytics/bot-command-usage.handler';
+import { BotGuildLifecycleHandler } from './usage-analytics/bot-guild-lifecycle.handler';
 import { BotVoiceStateDispatcher } from './voice/bot-voice-state.dispatcher';
 import { BotVoiceSyncHandler } from './voice/bot-voice-sync.handler';
 
@@ -42,9 +44,12 @@ import { BotVoiceSyncHandler } from './voice/bot-voice-sync.handler';
     BotMemberRemoveHandler,
     BotUserUpdateHandler,
     BotCommandUsageHandler,
+    BotGuildLifecycleHandler,
     // Role Panel
     BotRolePanelInteractionHandler,
     RolePanelInteractionService,
+    // Me (F-VOICE-064/065)
+    BotMeInteractionHandler,
   ],
 })
 export class BotEventModule {}

@@ -10,3 +10,42 @@ export interface PageViewDto {
   path: string;
   country: string; // 현재 항상 'XX' (F-USAGE-008)
 }
+
+// ── U9a-3 성장 관측(Growth Observability) 수집 ──
+
+/** 길드 생애주기 이벤트 유형 화이트리스트 (F-USAGE-013/014) */
+export const GUILD_LIFECYCLE_EVENT_TYPES = ['join', 'leave'] as const;
+export type GuildLifecycleEventType = (typeof GUILD_LIFECYCLE_EVENT_TYPES)[number];
+
+/** 랜딩 유입 채널 화이트리스트 6종 (F-USAGE-017) — 원본 리퍼러 URL 대신 이 값으로 치환해 수집 */
+export const REFERRER_GROUPS = [
+  'topgg',
+  'koreanbots',
+  'discord_directory',
+  'google_organic',
+  'direct',
+  'other',
+] as const;
+export type ReferrerGroup = (typeof REFERRER_GROUPS)[number];
+
+/** 랜딩 CTA 클릭 이벤트 유형 화이트리스트 (F-USAGE-018) */
+export const LANDING_EVENT_TYPES = ['cta_invite_click', 'cta_features_click'] as const;
+export type LandingEventType = (typeof LANDING_EVENT_TYPES)[number];
+
+/** Bot → API 길드 생애주기 수집 payload — 유저 ID·길드명·멤버수 미포함 (개인 미식별 🔒) */
+export interface GuildLifecycleEventDto {
+  guildId: string;
+  eventType: GuildLifecycleEventType;
+}
+
+/** Web(api route) → API 랜딩 리퍼러 수집 payload — 방문자 미식별 🔒 (그룹/캠페인 화이트리스트 치환 완료) */
+export interface LandingReferrerDto {
+  referrerGroup: ReferrerGroup;
+  campaign: string; // utm_campaign 화이트리스트 값, 없으면 'none' (F-USAGE-017)
+}
+
+/** Web(api route) → API 랜딩 CTA 클릭 수집 payload — 방문자 미식별 🔒 */
+export interface LandingEventDto {
+  eventType: LandingEventType;
+  referrerGroup: ReferrerGroup;
+}

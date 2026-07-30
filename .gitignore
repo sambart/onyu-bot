@@ -5,6 +5,9 @@
 /build
 node_modules
 .pnpm-store
+
+# 머신 로컬 pnpm 설정 (store-dir 등) — 공용 설정은 pnpm-workspace.yaml
+.npmrc
 .next
 .turbo
 

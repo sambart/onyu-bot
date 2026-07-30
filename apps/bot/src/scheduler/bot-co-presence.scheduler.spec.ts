@@ -41,12 +41,17 @@ function makeMember(id: string, isBot = false): GuildMember {
   } as unknown as GuildMember;
 }
 
-/** 음성 채널이 있는 길드(멤버 목록 포함) mock */
-function makeGuildWithVoiceChannel(guildId: string, memberIds: string[]): Guild {
+/** 음성 채널이 있는 길드(멤버 목록 포함) mock. parentId 는 카테고리 소속 여부(I1) 검증용. */
+function makeGuildWithVoiceChannel(
+  guildId: string,
+  memberIds: string[],
+  parentId: string | null = null,
+): Guild {
   const members = makeCollection(memberIds.map((id) => makeMember(id)));
   const voiceChannel = {
     type: ChannelType.GuildVoice,
     id: `${guildId}-ch-1`,
+    parentId,
     members,
   } as unknown as VoiceChannel;
 
@@ -185,6 +190,151 @@ describe('BotCoPresenceScheduler', () => {
       await vi.advanceTimersByTimeAsync(60_000);
 
       expect(heartbeat.ping).not.toHaveBeenCalled();
+    });
+  });
+
+  // ── I1: 카테고리 단위 제외 채널 관통 — parentCategoryId 수집 ────────────────
+  describe('카테고리 ID 수집 (I1)', () => {
+    it('T-BOT-CAT-01: 카테고리에 속한 음성 채널의 스냅샷은 parentCategoryId를 담는다', async () => {
+      vi.useFakeTimers();
+
+      const guildMap = new Map<string, Guild>([
+        ['guild-1', makeGuildWithVoiceChannel('guild-1', ['user-1', 'user-2'], 'cat-1')],
+      ]);
+      const client = { guilds: { cache: guildMap } } as unknown as Client;
+
+      scheduler = new BotCoPresenceScheduler(client, apiClient as never, heartbeat as never);
+      scheduler.onApplicationBootstrap();
+
+      await vi.advanceTimersByTimeAsync(60_000);
+
+      const [snapshots] = apiClient.pushCoPresenceSnapshots.mock.calls[0] as [
+        Array<{ parentCategoryId: string | null }>,
+        string[],
+      ];
+      expect(snapshots[0].parentCategoryId).toBe('cat-1');
+    });
+
+    it('T-BOT-CAT-02: 카테고리 없는(최상위) 음성 채널의 스냅샷은 parentCategoryId가 null이다(undefined 아님)', async () => {
+      vi.useFakeTimers();
+
+      const guildMap = new Map<string, Guild>([
+        ['guild-1', makeGuildWithVoiceChannel('guild-1', ['user-1', 'user-2'])],
+      ]);
+      const client = { guilds: { cache: guildMap } } as unknown as Client;
+
+      scheduler = new BotCoPresenceScheduler(client, apiClient as never, heartbeat as never);
+      scheduler.onApplicationBootstrap();
+
+      await vi.advanceTimersByTimeAsync(60_000);
+
+      const [snapshots] = apiClient.pushCoPresenceSnapshots.mock.calls[0] as [
+        Array<{ parentCategoryId: string | null }>,
+        string[],
+      ];
+      expect(snapshots[0].parentCategoryId).toBeNull();
+      expect(snapshots[0].parentCategoryId).not.toBeUndefined();
+    });
+  });
+
+  // ── I3: tick 중첩 가드 ───────────────────────────────────────────────────
+  describe('tick 중첩 가드 (I3)', () => {
+    it('T-BOT-TICK-01: API 응답이 지연되면(미해결 Promise) 다음 tick 주기가 되어도 pushCoPresenceSnapshots는 1회만 호출된다', async () => {
+      vi.useFakeTimers();
+      let resolveFirst!: () => void;
+      apiClient.pushCoPresenceSnapshots.mockImplementation(
+        () =>
+          new Promise<void>((resolve) => {
+            resolveFirst = resolve;
+          }),
+      );
+
+      const client = { guilds: { cache: new Map<string, Guild>() } } as unknown as Client;
+      scheduler = new BotCoPresenceScheduler(client, apiClient as never, heartbeat as never);
+      scheduler.onApplicationBootstrap();
+
+      // 60초(tick1 진입, 응답 대기 중) + 60초(tick2 시도 — isTickRunning 가드로 skip) 경과
+      await vi.advanceTimersByTimeAsync(120_000);
+
+      expect(apiClient.pushCoPresenceSnapshots).toHaveBeenCalledTimes(1);
+
+      resolveFirst(); // pending promise 방치 방지(cleanup)
+    });
+
+    it('T-BOT-TICK-02: 지연되던 응답이 resolve된 후 다음 60초가 지나면 다시 호출된다(가드 해제 확인)', async () => {
+      vi.useFakeTimers();
+      let resolveFirst!: () => void;
+      apiClient.pushCoPresenceSnapshots.mockImplementationOnce(
+        () =>
+          new Promise<void>((resolve) => {
+            resolveFirst = resolve;
+          }),
+      );
+
+      const client = { guilds: { cache: new Map<string, Guild>() } } as unknown as Client;
+      scheduler = new BotCoPresenceScheduler(client, apiClient as never, heartbeat as never);
+      scheduler.onApplicationBootstrap();
+
+      await vi.advanceTimersByTimeAsync(60_000); // tick1 진입 — 응답 대기 중
+      expect(apiClient.pushCoPresenceSnapshots).toHaveBeenCalledTimes(1);
+
+      resolveFirst();
+      await vi.advanceTimersByTimeAsync(60_000); // tick1 완료 flush + tick2 실행
+
+      expect(apiClient.pushCoPresenceSnapshots).toHaveBeenCalledTimes(2);
+    });
+
+    it('T-BOT-TICK-03: tick이 예외로 실패해도 다음 주기에는 정상 실행된다(finally 해제 — 영구 잠김 없음)', async () => {
+      vi.useFakeTimers();
+      apiClient.pushCoPresenceSnapshots.mockRejectedValueOnce(new Error('api down'));
+
+      const client = { guilds: { cache: new Map<string, Guild>() } } as unknown as Client;
+      scheduler = new BotCoPresenceScheduler(client, apiClient as never, heartbeat as never);
+      scheduler.onApplicationBootstrap();
+
+      await vi.advanceTimersByTimeAsync(60_000); // tick1 실패
+      expect(heartbeat.ping).not.toHaveBeenCalled();
+
+      await vi.advanceTimersByTimeAsync(60_000); // tick2 정상 실행
+
+      expect(apiClient.pushCoPresenceSnapshots).toHaveBeenCalledTimes(2);
+      expect(heartbeat.ping).toHaveBeenCalledTimes(1);
+    });
+
+    it('T-BOT-TICK-04: 이전 tick 미완료로 skip되면 heartbeat.ping을 호출하지 않는다', async () => {
+      vi.useFakeTimers();
+      let resolveFirst!: () => void;
+      apiClient.pushCoPresenceSnapshots.mockImplementation(
+        () =>
+          new Promise<void>((resolve) => {
+            resolveFirst = resolve;
+          }),
+      );
+
+      const client = { guilds: { cache: new Map<string, Guild>() } } as unknown as Client;
+      scheduler = new BotCoPresenceScheduler(client, apiClient as never, heartbeat as never);
+      scheduler.onApplicationBootstrap();
+
+      await vi.advanceTimersByTimeAsync(120_000); // tick1 진행 중, tick2는 skip
+
+      expect(heartbeat.ping).not.toHaveBeenCalled();
+
+      resolveFirst();
+    });
+
+    it('T-BOT-TICK-05: onApplicationShutdown 이후에는 타이머가 진행돼도 tick이 실행되지 않는다(기존 isShuttingDown 회귀)', async () => {
+      vi.useFakeTimers();
+
+      const client = { guilds: { cache: new Map<string, Guild>() } } as unknown as Client;
+      scheduler = new BotCoPresenceScheduler(client, apiClient as never, heartbeat as never);
+      scheduler.onApplicationBootstrap();
+
+      await scheduler.onApplicationShutdown();
+      apiClient.pushCoPresenceSnapshots.mockClear();
+
+      await vi.advanceTimersByTimeAsync(60_000);
+
+      expect(apiClient.pushCoPresenceSnapshots).not.toHaveBeenCalled();
     });
   });
 });

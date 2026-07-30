@@ -1,5 +1,6 @@
 import { HttpService } from '@nestjs/axios';
 import { Injectable, Logger } from '@nestjs/common';
+import type { LevelLeaderboardResponse } from '@onyu/shared';
 import type { AxiosRequestConfig } from 'axios';
 import { firstValueFrom } from 'rxjs';
 
@@ -13,14 +14,16 @@ import type {
   BotRolePanelConfigDto,
   CommandUsedDto,
   CoPresenceSnapshot,
+  GetMeProfileOptions,
   GetMyBestFriendsOptions,
+  GuildLifecycleEventDto,
   GuildMemberBulkUpsertDto,
   GuildMemberDeactivateDto,
   GuildMemberUpsertDto,
   GuildMemberUserUpdateDto,
   GuildVoiceUserCount,
   KickMemberDto,
-  LlmSummaryResponse,
+  MeActivityDetailResponse,
   MemberDisplayNameResponse,
   MemberJoinDto,
   MeProfileResponse,
@@ -33,7 +36,6 @@ import type {
   NewbieConfigDto,
   RoleAssignedDto,
   RoleModifyDto,
-  SelfDiagnosisResponse,
   StatusPrefixApplyDto,
   StatusPrefixApplyResult,
   StatusPrefixResetDto,
@@ -42,6 +44,12 @@ import type {
   VoiceStateUpdateDto,
   VoiceSyncDto,
 } from './types';
+
+/**
+ * 멘트 포함 `/me` 요청 per-request 타임아웃(F-VOICE-079 R3.5) — LLM 단위 8초 + 카드
+ * 조회/렌더 여유. 전역 타임아웃(10s)은 무옵션 경로에서 불변이다(PRD 명시).
+ */
+const ME_PROFILE_MENT_TIMEOUT_MS = 20_000;
 
 /**
  * Bot → API HTTP 클라이언트.
@@ -57,10 +65,6 @@ export class BotApiClientService {
 
   async sendVoiceStateUpdate(dto: VoiceStateUpdateDto): Promise<void> {
     await this.post('/bot-api/voice/state-update', dto);
-  }
-
-  async voiceFlush(): Promise<{ flushed: number; skipped: number }> {
-    return this.post('/bot-api/voice/flush', {});
   }
 
   async pushVoiceSync(dto: VoiceSyncDto): Promise<void> {
@@ -158,21 +162,9 @@ export class BotApiClientService {
     await this.post('/bot-api/usage-analytics/command-used', dto);
   }
 
-  // ── Voice Analytics ──
-
-  async runSelfDiagnosis(guildId: string, userId: string): Promise<SelfDiagnosisResponse> {
-    return this.post(
-      `/bot-api/voice-analytics/self-diagnosis?guildId=${guildId}&userId=${userId}`,
-      {},
-    );
-  }
-
-  async getSelfDiagnosisLlmSummary(guildId: string, userId: string): Promise<LlmSummaryResponse> {
-    return this.post(
-      `/bot-api/voice-analytics/self-diagnosis/llm-summary?guildId=${guildId}&userId=${userId}`,
-      {},
-      { timeout: 60_000 },
-    );
+  /** 길드 생애주기(join/leave) 수집 — 유저 ID·길드명 미포함 (F-USAGE-013, U9a-3) */
+  async sendGuildLifecycleEvent(dto: GuildLifecycleEventDto): Promise<void> {
+    await this.post('/bot-api/usage-analytics/guild-lifecycle', dto);
   }
 
   // ── Voice User Count ──
@@ -210,14 +202,29 @@ export class BotApiClientService {
 
   // ── Me ──
 
-  async getMeProfile(
+  /**
+   * 닉네임·아바타 URL 등 개인정보가 액세스 로그(query string)에 남지 않도록 POST body로 전송한다(R3, F-VOICE-082).
+   * `mentType` 지정 시(F-VOICE-079 R3.5) LLM 단위 타임아웃(8초)+카드 조회/렌더 여유를 반영해
+   * per-request 타임아웃을 오버라이드한다 — 전역 타임아웃(10s)은 무옵션 경로에서 불변이다.
+   */
+  async getMeProfile(options: GetMeProfileOptions): Promise<MeProfileResponse> {
+    const config = options.mentType ? { timeout: ME_PROFILE_MENT_TIMEOUT_MS } : undefined;
+    return this.post('/bot-api/me/profile', options, config);
+  }
+
+  /** [💬 활동 상세] 버튼(F-VOICE-064) — 음성×메시지 순위 분해 조회. */
+  async getMeActivityDetail(guildId: string, userId: string): Promise<MeActivityDetailResponse> {
+    const params = new URLSearchParams({ guildId, userId });
+    return this.post(`/bot-api/me/activity-detail?${params.toString()}`, {});
+  }
+
+  /** [🏆 서버 리더보드] 버튼(F-VOICE-065) — 길드 레벨 TOP N 조회. */
+  async getGuildLevelLeaderboard(
     guildId: string,
-    userId: string,
-    displayName: string,
-    avatarUrl: string,
-  ): Promise<MeProfileResponse> {
-    const params = new URLSearchParams({ guildId, userId, displayName, avatarUrl });
-    return this.post(`/bot-api/me/profile?${params.toString()}`, {});
+    limit: number,
+  ): Promise<LevelLeaderboardResponse> {
+    const params = new URLSearchParams({ guildId, limit: String(limit) });
+    return this.get(`/bot-api/level/leaderboard?${params.toString()}`);
   }
 
   // ── Guild ──

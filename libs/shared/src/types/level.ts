@@ -37,6 +37,31 @@ export interface LevelSummary {
   progressRatio: number;
   /** 길드 내 순위(1-base, ROW_NUMBER 방식). U5 신규 — `LeaderboardService.getUserRank()` 재사용 (F-LVL-07) */
   rank: number;
+  /**
+   * 리더보드 전체 유효 인원(봇 제외) — `LeaderboardService.getUserRankWithTotal()`이
+   * `countLeaderboard()`(페이지네이션용 기존 카운트 쿼리)를 재사용해 함께 산출한다(R2, F-VOICE-063 §665).
+   * `/미` 카드 레이아웃 A 히어로의 "#{rank} / {totalUsers}명" · 상위% · 순위 진행바 계산에 사용.
+   * 조회 실패 시(rank와 함께 Promise.all로 조회되므로 실패하면 summary 자체가 null) 정의되지 않을 수 있어
+   * optional — 소비처(렌더러)는 없으면 순위만 표시하는 안전 폴백을 유지한다.
+   */
+  totalUsers?: number;
+}
+
+/** GET /api/users/me/level 응답 (트랙 D) */
+export interface MeLevelResponse {
+  level: number;
+  xp: number;
+  /** 다음 레벨까지 필요한 총 XP */
+  nextLevelRequiredXp: number;
+  /** 다음 레벨까지 남은 XP = max(0, nextLevelRequiredXp - xp) */
+  remainingXp: number;
+  progressRatio: number;
+  rank: number;
+  totalUsers: number | null;
+  /** 길드 레벨 역할 보상 — roleName 은 웹이 별도 조회해 해석(D 아래) */
+  roleRewards: { level: number; roleId: string }[];
+  /** 다음으로 받게 될 보상(현재 레벨 초과 중 최소). 없으면 null */
+  nextRoleReward: { level: number; roleId: string } | null;
 }
 
 /**

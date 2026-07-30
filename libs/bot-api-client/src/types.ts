@@ -1,15 +1,6 @@
-import type {
-  BadgeCriterionCode,
-  BadgeCurrentCode,
-  CommandUsedDto,
-  MessageCode,
-  VerdictCategory,
-  VerdictCategoryCode,
-  VerdictCriterionCode,
-  VerdictUnit,
-} from '@onyu/shared';
+import type { CommandUsedDto, GuildLifecycleEventDto, MessageCode } from '@onyu/shared';
 
-export type { CommandUsedDto };
+export type { CommandUsedDto, GuildLifecycleEventDto };
 
 /** Bot → API 요청/응답 DTO 타입 정의 */
 
@@ -210,73 +201,6 @@ export interface MessageCountedDto {
   userName: string;
 }
 
-// ── Voice Analytics ──
-
-export interface SelfDiagnosisResponse {
-  ok: boolean;
-  data: {
-    result: SelfDiagnosisResultData;
-    analysisDays: number;
-    isCooldownEnabled: boolean;
-    cooldownHours: number;
-  } | null;
-  reason?: 'not_enabled' | 'cooldown' | 'quota_exhausted';
-  remainingSeconds?: number;
-}
-
-export interface SelfDiagnosisResultData {
-  totalMinutes: number;
-  activeDays: number;
-  totalDays: number;
-  activeDaysRatio: number;
-  avgDailyMinutes: number;
-  activityRank: number;
-  activityTotalUsers: number;
-  activityTopPercent: number;
-  peerCount: number;
-  hhiScore: number;
-  topPeers: Array<{ userId: string; userName: string; minutes: number; ratio: number }>;
-  hasMocoActivity: boolean;
-  mocoScore: number;
-  mocoRank: number;
-  mocoTotalUsers: number;
-  mocoTopPercent: number;
-  mocoHelpedNewbies: number;
-  micUsageRate: number;
-  aloneRatio: number;
-  verdicts: Array<{
-    category: VerdictCategory;
-    categoryCode?: VerdictCategoryCode;
-    isPassed: boolean;
-    criterion: string;
-    actual: string;
-    actualValue?: number;
-    actualUnit?: VerdictUnit;
-    criterionCode?: VerdictCriterionCode;
-    criterionParams?: Record<string, number>;
-  }>;
-  badges: string[];
-  badgeGuides: Array<{
-    code: string;
-    name: string;
-    icon: string;
-    isEarned: boolean;
-    criterion: string;
-    current: string;
-    criterionCode?: BadgeCriterionCode;
-    criterionParams?: Record<string, number>;
-    currentCode?: BadgeCurrentCode;
-    currentParams?: Record<string, string | number>;
-  }>;
-  llmSummary?: string;
-}
-
-export interface LlmSummaryResponse {
-  ok: boolean;
-  data: { llmSummary: string } | null;
-  reason?: 'quota_exhausted';
-}
-
 /** 베스트 프렌드 집계 허용 기간(일) */
 export type ValidBestFriendPeriod = 7 | 30 | 90;
 
@@ -300,6 +224,25 @@ export type BestFriendCardResponse = CanvasCardResponse;
 /** 카드 내 텍스트 로케일 (봇 인터랙션 locale 기반, 미지원 값은 'en'으로 처리) */
 export type CanvasCardLocale = 'ko' | 'en';
 
+/**
+ * 활동 상세(F-VOICE-064) 응답 소스별 섹션 셰이프 — endpoint-spec §7-1.
+ * 활동 없음 → `null` · 조회 실패 → `{ error: true }`.
+ */
+export type ActivityDetailSection<T> =
+  | (T & { rank: number; totalUsers: number; upPercent: number })
+  | null
+  | { error: true };
+
+/** POST /bot-api/me/activity-detail 응답 (R1, F-VOICE-064) */
+export interface MeActivityDetailResponse {
+  ok: boolean;
+  days: number;
+  data: {
+    voice: ActivityDetailSection<{ totalSec: number }>;
+    message: ActivityDetailSection<{ totalCount: number }>;
+  };
+}
+
 /** getMyBestFriends 요청 옵션 */
 export interface GetMyBestFriendsOptions {
   guildId: string;
@@ -309,6 +252,18 @@ export interface GetMyBestFriendsOptions {
   period: ValidBestFriendPeriod;
   limit: number;
   locale: CanvasCardLocale;
+}
+
+/** getMeProfile 요청 옵션(R3, F-VOICE-082) — API `MeProfileRequestDto`와 수기 정합 필수 */
+export interface GetMeProfileOptions {
+  guildId: string;
+  userId: string;
+  displayName: string;
+  avatarUrl: string;
+  viewOption?: 'level' | 'voice';
+  locale: CanvasCardLocale;
+  /** `/미 멘트` 옵션(F-VOICE-079 R3.5). 미지정 시 멘트 파이프라인 미진입 */
+  mentType?: 'analysis';
 }
 
 // ── Voice Sync (봇 시작 시 기존 음성 채널 사용자 동기화) ──
@@ -349,6 +304,8 @@ export interface CoPresenceSnapshot {
   userIds: string[];
   /** Phase 2: 멤버별 게임 활동 정보 (optional, 하위 호환) */
   memberActivities?: CoPresenceMemberActivity[];
+  /** 카테고리 단위 제외 채널 매칭용 부모 카테고리 ID (optional, 하위 호환 — 구버전 봇은 미전송) */
+  parentCategoryId?: string | null;
 }
 
 export interface CoPresenceMemberActivity {

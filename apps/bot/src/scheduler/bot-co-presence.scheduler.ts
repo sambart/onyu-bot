@@ -23,6 +23,7 @@ export class BotCoPresenceScheduler implements OnApplicationBootstrap, OnApplica
   private readonly logger = new Logger(BotCoPresenceScheduler.name);
   private intervalId: ReturnType<typeof setInterval> | null = null;
   private isShuttingDown = false;
+  private isTickRunning = false;
 
   constructor(
     @InjectDiscordClient() private readonly client: Client,
@@ -55,7 +56,12 @@ export class BotCoPresenceScheduler implements OnApplicationBootstrap, OnApplica
 
   private async tick(): Promise<void> {
     if (this.isShuttingDown) return;
+    if (this.isTickRunning) {
+      this.logger.warn('[CO-PRESENCE] 이전 tick 미완료 — 이번 주기 skip (API 응답 지연 의심)');
+      return;
+    }
 
+    this.isTickRunning = true;
     try {
       const snapshots = this.collectSnapshots();
       // 완전히 빈 길드(음성 채널 멤버 0명)도 포함한 전체 스캔 대상 길드 ID.
@@ -73,6 +79,8 @@ export class BotCoPresenceScheduler implements OnApplicationBootstrap, OnApplica
     } catch (err) {
       const message = err instanceof Error ? err.stack : String(err);
       this.logger.error('[CO-PRESENCE] Tick failed', message);
+    } finally {
+      this.isTickRunning = false;
     }
   }
 
@@ -119,6 +127,7 @@ export class BotCoPresenceScheduler implements OnApplicationBootstrap, OnApplica
           channelId: channel.id,
           userIds: nonBotMembers.map((m) => m.id),
           memberActivities,
+          parentCategoryId: channel.parentId ?? null,
         });
       }
     }

@@ -8,8 +8,6 @@ import { StickyMessageDeleteCommand } from './sticky-message/sticky-message-dele
 import { StickyMessageListCommand } from './sticky-message/sticky-message-list.command';
 import { StickyMessageRegisterCommand } from './sticky-message/sticky-message-register.command';
 import { VersionCommand } from './version.command';
-import { SelfDiagnosisCommand } from './voice-analytics/self-diagnosis.command';
-import { VoiceFlushCommand } from './voice-flush.command';
 
 /**
  * Bot 슬래시 커맨드 모듈.
@@ -19,12 +17,9 @@ import { VoiceFlushCommand } from './voice-flush.command';
   imports: [DiscordModule.forFeature(), BotCommonModule],
   providers: [
     VersionCommand,
-    VoiceFlushCommand,
     StickyMessageRegisterCommand,
     StickyMessageDeleteCommand,
     StickyMessageListCommand,
-    // Voice Analytics
-    SelfDiagnosisCommand,
     // Me
     MeCommand,
     // Phase 5: 베스트 프렌드
