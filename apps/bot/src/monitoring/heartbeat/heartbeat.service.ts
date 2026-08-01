@@ -1,8 +1,15 @@
+import { setDefaultAutoSelectFamilyAttemptTimeout } from 'node:net';
+
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 
 const HEALTHCHECKS_BASE_URL = 'https://hc-ping.com';
-const HEARTBEAT_TIMEOUT_MS = 2500;
+const HEARTBEAT_TIMEOUT_MS = 5000;
+// Node 20 Happy Eyeballs 의 connect 시도 타임아웃 기본값(250ms)이 서울→Hetzner(hc-ping.com) RTT(~300ms)보다
+// 짧아 모든 heartbeat fetch 가 ETIMEDOUT 으로 잘린다(2026-08-01 prod 실측). 원거리 리전에 충분한 값으로 상향.
+const AUTO_SELECT_FAMILY_ATTEMPT_TIMEOUT_MS = 1500;
+
+setDefaultAutoSelectFamilyAttemptTimeout(AUTO_SELECT_FAMILY_ATTEMPT_TIMEOUT_MS);
 
 /**
  * Healthchecks.io 크론 heartbeat 유틸(bot) — `HEALTHCHECKS_PING_KEY` 미설정 시 완전 no-op.
