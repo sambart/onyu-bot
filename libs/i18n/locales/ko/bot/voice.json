@@ -28,5 +28,7 @@
   "communityHealthAnalysisOverflow": "\n\n📄 **전체 분석은 아래 메시지를 확인하세요.**",
   "communityHealthFieldPeriod": "📅 분석 기간",
   "communityHealthPeriodValue": "최근 {days}일",
-  "communityHealthFooter": "AI 기반 분석 결과"
+  "communityHealthFooter": "AI 기반 분석 결과",
+  "autoChannelDefaultName": "{username}의 {label}",
+  "autoChannelDefaultInstantName": "{username}의 방"
 }

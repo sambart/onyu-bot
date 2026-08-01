@@ -28,5 +28,7 @@
   "communityHealthAnalysisOverflow": "\n\n📄 **See the messages below for the full analysis.**",
   "communityHealthFieldPeriod": "📅 Analysis Period",
   "communityHealthPeriodValue": "Last {days} days",
-  "communityHealthFooter": "AI-based analysis result"
+  "communityHealthFooter": "AI-based analysis result",
+  "autoChannelDefaultName": "{username}'s {label}",
+  "autoChannelDefaultInstantName": "{username}'s room"
 }

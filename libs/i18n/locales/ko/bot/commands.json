@@ -10,6 +10,9 @@
   "meActivityFetchError": "조회 중 오류가 발생했습니다.",
   "meActivityFooter": "레벨 순위는 /미 카드 참고 · 웹 대시보드는 최근 30일 기준",
   "meActivityRankLine": "서버 내 {rank}위 / {total}명 (상위 {percent}%)",
+  "meActivityChannelsLabel": "📊 채널 TOP{count}",
+  "meActivityChannelRow": "{index}. {channel} — {value}",
+  "meActivityVoiceStatsLine": "📅 활동 {activeDays}일 · 일평균 {avgDaily} · 🎤 마이크 {micRate}%",
   "meLeaderboardTitle": "🏆 서버 레벨 리더보드 TOP 10",
   "meLeaderboardRow": "**{rank}.** {nickName} — Lv.{level} ({xp} XP)",
   "meLeaderboardDisabled": "이 서버는 레벨 시스템이 비활성화되어 있습니다.",
@@ -42,5 +45,7 @@
   "statusPrefixApplyError": "접두사 적용 중 오류가 발생했습니다. 잠시 후 다시 시도하세요.",
   "statusPrefixResetNoChange": "변경된 닉네임이 없습니다.",
   "statusPrefixResetDone": "닉네임이 원래대로 복원되었습니다.",
-  "statusPrefixResetError": "닉네임 복원 중 오류가 발생했습니다. 잠시 후 다시 시도하세요."
+  "statusPrefixResetError": "닉네임 복원 중 오류가 발생했습니다. 잠시 후 다시 시도하세요.",
+  "statusPrefixDisabled": "기능이 비활성화되어 있습니다. 관리자에게 문의하세요.",
+  "statusPrefixNicknameTooLong": "닉네임이 너무 길어 접두사를 적용할 수 없습니다. 관리자에게 문의하세요."
 }

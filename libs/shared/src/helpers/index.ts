@@ -1,3 +1,5 @@
+export * from './auto-channel-name';
+
 /** 오늘 날짜를 YYYYMMDD 형식 문자열로 반환한다 (로컬 시간 기준) */
 export function todayYYYYMMDD(): string {
   return new Date().toISOString().slice(0, 10).replace(/-/g, '');

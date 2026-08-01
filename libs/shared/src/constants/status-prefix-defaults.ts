@@ -35,4 +35,16 @@ export function createStatusPrefixConfigDefaults() {
   };
 }
 
+/** `status_prefix_button` 컬럼 default 정본 — 엔티티 `@Column({ default })`가 참조한다. */
+export const STATUS_PREFIX_BUTTON_DEFAULTS = {
+  sortOrder: 0,
+} as const;
+
 export type StatusPrefixConfigDefaults = typeof STATUS_PREFIX_CONFIG_DEFAULTS;
+
+/**
+ * Discord 닉네임 최대 길이(문자 수). 접두사 적용 후 닉네임이 이를 초과하면
+ * Discord API가 400을 반환하므로, 적용 전 잘라내기(truncate) 판단에 사용한다
+ * (`status-prefix-apply.service.ts`의 `buildNicknameWithLimit`).
+ */
+export const DISCORD_NICKNAME_MAX_LENGTH = 32;

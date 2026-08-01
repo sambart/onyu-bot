@@ -233,13 +233,37 @@ export type ActivityDetailSection<T> =
   | null
   | { error: true };
 
-/** POST /bot-api/me/activity-detail 응답 (R1, F-VOICE-064) */
+/** 활동 상세 음성 채널 TOP 항목 (F-VOICE-064 R7) */
+export interface ActivityDetailVoiceChannel {
+  channelName: string;
+  durationSec: number;
+}
+
+/** 활동 상세 메시지 채널 TOP 항목 (F-VOICE-064 R7) */
+export interface ActivityDetailMessageChannel {
+  channelName: string;
+  messageCount: number;
+}
+
+/** POST /bot-api/me/activity-detail 응답 (R1, F-VOICE-064 · R7 채널 TOP3/파생 통계 확장) */
 export interface MeActivityDetailResponse {
   ok: boolean;
   days: number;
   data: {
-    voice: ActivityDetailSection<{ totalSec: number }>;
-    message: ActivityDetailSection<{ totalCount: number }>;
+    voice: ActivityDetailSection<{
+      totalSec: number;
+      /** durationSec 내림차순 최대 3건. 활동 채널 3개 미만이면 있는 만큼만 */
+      channels: ActivityDetailVoiceChannel[];
+      activeDays: number;
+      avgDailySec: number;
+      /** 마이크 사용률 % (소수 1자리) */
+      micUsageRate: number;
+    }>;
+    message: ActivityDetailSection<{
+      totalCount: number;
+      /** messageCount 내림차순 최대 3건 */
+      channels: ActivityDetailMessageChannel[];
+    }>;
   };
 }
 

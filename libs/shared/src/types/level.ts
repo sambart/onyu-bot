@@ -9,6 +9,18 @@ export interface RoleReward {
 }
 
 /**
+ * `level_config.curveParams` jsonb 셰이프 — 증분형(2026-07-23 확정 전환).
+ * 의미: 레벨 n→n+1 증분 XP = a*n² + b*n + c (누적 필요 XP는 `LevelService.requiredXp` 닫힌 식 참조).
+ * 원본 정의처는 `apps/api/src/level/infrastructure/level-config.orm-entity.ts` — 그쪽은
+ * `export type { LevelCurveParams } from '@onyu/shared';` 재수출로 전환될 예정이다(S1, P4).
+ */
+export interface LevelCurveParams {
+  a: number;
+  b: number;
+  c: number;
+}
+
+/**
  * 레벨 설정 (GET/PUT `/api/guilds/:guildId/level-config` 응답).
  * `curveType`/`curveParams`는 U4 UI 미노출(시스템 고정값) — 포함하지 않는다.
  */
@@ -90,6 +102,12 @@ export interface LevelLeaderboardResponse {
   /** 요청 limit 에코 */
   limit: number;
   users: LevelLeaderboardEntry[];
+  /**
+   * 길드 레벨 시스템 활성 여부 (✅ 2026-08-01 신규, F-LVL-15).
+   * `level_config` 행 부재 시 `true`(컬럼 기본값과 동일), 명시적 `false` 만 `false`.
+   * 웹이 "레벨 비활성" vs "활성인데 아직 집계 전" 빈 상태를 구분하는 데 쓴다(F-WEB-008).
+   */
+  isEnabled: boolean;
 }
 
 // ── Discord 고위험 권한 비트 (레벨 역할 자동 부여 안전장치 §5.2) ──

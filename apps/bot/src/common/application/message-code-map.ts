@@ -24,6 +24,8 @@ export const MESSAGE_CODE_TO_BOT_KEY: Partial<Record<MessageCode, string>> = {
   ERR_STATUS_PREFIX_SERVER_CONFIG_NOT_FOUND: 'commands.statusPrefixServerConfigNotFound',
   ERR_STATUS_PREFIX_APPLY_FAILED: 'commands.statusPrefixApplyError',
   ERR_STATUS_PREFIX_RESET_FAILED: 'commands.statusPrefixResetError',
+  ERR_STATUS_PREFIX_DISABLED: 'commands.statusPrefixDisabled',
+  ERR_STATUS_PREFIX_NICKNAME_TOO_LONG: 'commands.statusPrefixNicknameTooLong',
 };
 
 /** result.code 가 매핑 테이블에 등록된 MessageCode 인지 판별하는 타입 가드 (unsafe `as` 단언 대체). */

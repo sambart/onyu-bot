@@ -10,6 +10,9 @@
   "meActivityFetchError": "An error occurred while fetching this data.",
   "meActivityFooter": "See the /me card for level rank · Web dashboard uses the last 30 days",
   "meActivityRankLine": "#{rank} / {total} in server (top {percent}%)",
+  "meActivityChannelsLabel": "📊 Top {count} channels",
+  "meActivityChannelRow": "{index}. {channel} — {value}",
+  "meActivityVoiceStatsLine": "📅 {activeDays} active days · {avgDaily}/day · 🎤 mic {micRate}%",
   "meLeaderboardTitle": "🏆 Server Level Leaderboard TOP 10",
   "meLeaderboardRow": "**{rank}.** {nickName} — Lv.{level} ({xp} XP)",
   "meLeaderboardDisabled": "The level system is disabled on this server.",
@@ -42,5 +45,7 @@
   "statusPrefixApplyError": "An error occurred while applying the prefix. Please try again shortly.",
   "statusPrefixResetNoChange": "There is no changed nickname to reset.",
   "statusPrefixResetDone": "Your nickname has been restored.",
-  "statusPrefixResetError": "An error occurred while restoring your nickname. Please try again shortly."
+  "statusPrefixResetError": "An error occurred while restoring your nickname. Please try again shortly.",
+  "statusPrefixDisabled": "This feature is currently disabled. Please contact an admin.",
+  "statusPrefixNicknameTooLong": "Your nickname is too long to apply the prefix. Please contact an admin."
 }
