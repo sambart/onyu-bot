@@ -1,12 +1,24 @@
 // 역할 패널 공유 타입·상수·헬퍼 (api/bot/web 공통 사용)
 
+import { type SupportedLocale } from '../constants/locale';
+
 // ── Enum ──
 
 /** 버튼 클릭 동작 모드 (DB role_panel_button_mode_enum 값과 일치) */
 export enum RolePanelButtonMode {
   GRANT = 'GRANT',
   TOGGLE = 'TOGGLE',
+  EXCLUSIVE = 'EXCLUSIVE', // 신규 (F-ROLE-PANEL-009)
 }
+
+/** 버튼 1개에 매핑 가능한 최대 역할 수 — 🟨 Discord 제약 아닌 남용 방지 가정값 */
+export const ROLE_PANEL_MAX_ROLES_PER_BUTTON = 10;
+
+/** exclusiveGroupKey 최대 길이 — DB varchar(64) 보다 작게 잡아 DTO 에서 먼저 거른다 🟨 */
+export const ROLE_PANEL_EXCLUSIVE_GROUP_KEY_MAX_LENGTH = 50;
+
+/** 버튼 클릭 시 저장할 봇 응답 언어 태그 (F-ROLE-PANEL-010) */
+export type RolePanelLocaleTag = SupportedLocale;
 
 /** 버튼 스타일 (DB role_panel_button_style_enum 값과 일치) */
 export enum RolePanelButtonStyle {

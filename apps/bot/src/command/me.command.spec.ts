@@ -49,7 +49,12 @@ describe('MeCommand', () => {
     command = new MeCommand(
       apiClient as unknown as BotApiClientService,
       i18n,
-      new LocaleResolverService(),
+      // CM-5 — LocaleResolverService 가 BotApiClientService 를 DI 받도록 확장됨(F-GENERAL-005).
+      // `{ locale: null }` 을 반환시켜 리졸버가 2순위(interaction.locale)로 폴백하게 하여
+      // 기존 기대값을 그대로 유지한다.
+      new LocaleResolverService({
+        getUserLocale: vi.fn().mockResolvedValue({ locale: null }),
+      } as unknown as BotApiClientService),
     );
   });
 

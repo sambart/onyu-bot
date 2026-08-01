@@ -51,7 +51,6 @@ export interface VoiceActivityData {
   }>;
 }
 
-export * from './level';
 export type {
   CommandUsedDto,
   GuildLifecycleEventDto,

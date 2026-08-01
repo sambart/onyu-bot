@@ -41,6 +41,7 @@ import type {
   StatusPrefixResetDto,
   StatusPrefixResetResult,
   StickyMessageConfigItem,
+  UserLocaleResponse,
   VoiceStateUpdateDto,
   VoiceSyncDto,
 } from './types';
@@ -278,6 +279,18 @@ export class BotApiClientService {
     return this.get(`/bot-api/role-panel/config?guildId=${guildId}`);
   }
 
+  // ── Locale ──
+
+  /** 저장된 user locale 조회 (F-GENERAL-005). 봇 리졸버 1순위. */
+  async getUserLocale(userId: string): Promise<UserLocaleResponse> {
+    return this.get(`/bot-api/locale/user/${userId}`);
+  }
+
+  /** user locale 저장 (F-GENERAL-005). role-panel 게이트 버튼(F-ROLE-PANEL-010)이 1차 호출자. */
+  async setUserLocale(userId: string, locale: 'ko' | 'en'): Promise<UserLocaleResponse> {
+    return this.put(`/bot-api/locale/user/${userId}`, { locale });
+  }
+
   // ── Health ──
 
   /** API 서버 연결 확인. 실패 시 예외를 throw한다. */
@@ -321,6 +334,16 @@ export class BotApiClientService {
       return response.data;
     } catch (err) {
       this.logger.error(`[BOT-API] DELETE ${path} failed`, err);
+      throw err;
+    }
+  }
+
+  private async put<T>(path: string, body: unknown, config?: AxiosRequestConfig): Promise<T> {
+    try {
+      const response = await firstValueFrom(this.http.put<T>(path, body, config));
+      return response.data;
+    } catch (err) {
+      this.logger.error(`[BOT-API] PUT ${path} failed`, err);
       throw err;
     }
   }

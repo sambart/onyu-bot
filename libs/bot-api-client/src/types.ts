@@ -423,9 +423,18 @@ export interface BotRolePanelConfigDto {
   panelId: number;
   buttons: Array<{
     buttonId: number;
-    roleId: string;
-    mode: 'GRANT' | 'TOGGLE';
+    roleIds: string[];
+    mode: 'GRANT' | 'TOGGLE' | 'EXCLUSIVE';
+    exclusiveGroupKey: string | null;
+    localeTag: 'ko' | 'en' | null;
   }>;
+}
+
+// ── Locale ──
+
+/** GET /bot-api/locale/user/:userId 응답 — 🔒 `?? 'en'` 폴백 없음 */
+export interface UserLocaleResponse {
+  locale: 'ko' | 'en' | null;
 }
 
 // ── Common ──

@@ -1,6 +1,7 @@
 export * from './health-score-band';
 export * from './inactive-member-defaults';
 export * from './level-defaults';
+export * from './locale';
 export * from './message-codes';
 export * from './newbie-defaults';
 export * from './newbie-template-defaults';

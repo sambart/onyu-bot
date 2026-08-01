@@ -5,6 +5,8 @@
   "notFound": "Role button configuration not found.",
   "noPermission": "I don't have permission to assign this role. Please contact a server administrator.",
   "unknownRole": "The specified role could not be found.",
+  "swapped": "Your roles have been updated.",
+  "alreadySelected": "You have already selected this.",
   "locked": "Your request is being processed. Please try again in a moment.",
   "invalid": "Invalid request.",
   "genericError": "An error occurred. Please try again later."

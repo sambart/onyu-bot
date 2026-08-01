@@ -33,5 +33,11 @@ export const MESSAGE_CODE = {
   PREFIX_DUPLICATE: 'PREFIX_DUPLICATE',
   CONFIG_NOT_FOUND: 'CONFIG_NOT_FOUND',
   NOT_APPLICABLE: 'NOT_APPLICABLE',
+
+  // ── Discord 권한 실패 (permission-error-guidance, 5개 도메인 공유) ──
+  /** 50001 Missing Access — 봇이 채널을 볼 수 없음. params: { channelId } */
+  ERR_DISCORD_MISSING_ACCESS: 'ERR_DISCORD_MISSING_ACCESS',
+  /** 50013 Missing Permissions — 채널은 보이나 필요 권한 없음. params: { channelId } */
+  ERR_DISCORD_MISSING_PERMISSIONS: 'ERR_DISCORD_MISSING_PERMISSIONS',
 } as const;
 export type MessageCode = (typeof MESSAGE_CODE)[keyof typeof MESSAGE_CODE];
