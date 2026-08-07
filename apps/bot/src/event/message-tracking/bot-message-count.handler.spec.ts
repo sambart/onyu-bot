@@ -10,7 +10,8 @@ const RETRY_DELAY_MS = 1000;
 interface FakeMessage {
   guildId: string | null;
   channelId: string;
-  author: { id: string; username: string; bot: boolean };
+  author: { id: string; username: string; bot: boolean; displayName: string };
+  member: { displayName: string } | null;
   system: boolean;
   webhookId: string | null;
   channel: { name: string; isThread: () => boolean };
@@ -20,7 +21,8 @@ function makeMessage(overrides: Partial<FakeMessage> = {}): Message {
   const fake: FakeMessage = {
     guildId: 'guild-1',
     channelId: 'channel-1',
-    author: { id: 'user-1', username: 'Alice', bot: false },
+    author: { id: 'user-1', username: 'Alice', bot: false, displayName: 'Alice(글로벌)' },
+    member: { displayName: '앨리스(서버)' },
     system: false,
     webhookId: null,
     channel: {
@@ -58,7 +60,7 @@ describe('BotMessageCountHandler', () => {
 
   it('author.bot이 true면 드롭한다', async () => {
     const message = makeMessage({
-      author: { id: 'user-1', username: 'Alice', bot: true },
+      author: { id: 'user-1', username: 'Alice', bot: true, displayName: 'Alice(글로벌)' },
     });
 
     await handler.handleMessageCreate(message);
@@ -95,9 +97,44 @@ describe('BotMessageCountHandler', () => {
       channelName: 'general',
       isThread: false,
       userId: 'user-1',
-      userName: 'Alice',
+      userName: '앨리스(서버)',
     });
     expect(payload).not.toHaveProperty('content');
+  });
+
+  describe('userName 소스 교정 — 서버 표시명 우선 (R3, F-MSG-001)', () => {
+    it('member.displayName이 있으면 그 값을 보낸다(서버 표시명 우선)', async () => {
+      const message = makeMessage({
+        member: { displayName: '서버닉네임' },
+        author: { id: 'user-1', username: 'Alice', bot: false, displayName: '글로벌표시명' },
+      });
+
+      await handler.handleMessageCreate(message);
+
+      const payload = apiClient.sendMessageCounted.mock.calls[0][0];
+      expect(payload.userName).toBe('서버닉네임');
+    });
+
+    it('member가 null이면 author.displayName으로 폴백한다', async () => {
+      const message = makeMessage({
+        member: null,
+        author: { id: 'user-1', username: 'Alice', bot: false, displayName: '글로벌표시명' },
+      });
+
+      await handler.handleMessageCreate(message);
+
+      const payload = apiClient.sendMessageCounted.mock.calls[0][0];
+      expect(payload.userName).toBe('글로벌표시명');
+    });
+
+    it('payload에 여전히 content가 없다(프라이버시 회귀 방어)', async () => {
+      const message = makeMessage();
+
+      await handler.handleMessageCreate(message);
+
+      const payload = apiClient.sendMessageCounted.mock.calls[0][0];
+      expect(payload).not.toHaveProperty('content');
+    });
   });
 
   it('스레드 메시지는 isThread=true, channelId=스레드ID로 전달한다', async () => {

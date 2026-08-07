@@ -417,6 +417,25 @@ export interface GuildMemberUserUpdateDto {
   username: string;
 }
 
+/**
+ * bulk sync 직후 "이번에 확인된 재적자 집합 밖" 의 기존 활성 행을 비활성화(soft delete)하기 위한
+ * 요청. `activeUserIds`는 봇이 `guild.members.fetch()`로 **전량 확보에 성공했을 때만** 채워
+ * 보내야 한다 — 부분 목록으로 호출하면 재적자를 대량 오탐 비활성화할 수 있다. 최종 안전 가드
+ * (빈 집합/과도한 비율)는 API 측이 판단한다(GuildMemberReconcileResult 참조).
+ */
+export interface GuildMemberReconcileDto {
+  guildId: string;
+  activeUserIds: string[];
+}
+
+/** POST /bot-api/guild-member/reconcile 응답. `skipped=true`이면 안전 가드에 의해 비활성화가 수행되지 않았다. */
+export interface GuildMemberReconcileResult {
+  ok: boolean;
+  deactivated: number;
+  skipped: boolean;
+  skipReason?: 'empty-active-set' | 'ratio-exceeded' | 'error';
+}
+
 // ── Role Panel ──
 
 export interface BotRolePanelConfigDto {

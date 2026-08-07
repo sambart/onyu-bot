@@ -1,5 +1,5 @@
 /**
- * 신입사용자(newbie) 미션/모코코 임베드 템플릿 기본값 + 허용 변수 단일 정본.
+ * 신입사용자(newbie) 미션/새싹 임베드 템플릿 기본값 + 허용 변수 단일 정본.
  * 원본은 `apps/api/src/newbie/infrastructure/newbie-template.constants.ts` (108줄) —
  * 값은 그대로 옮긴 것이며 신설은 값 변경이 아니다. api 원본 파일은 재수출(re-export) shim 으로
  * 전환될 예정이라(S2a) 기존 import 경로는 그대로 유지된다.
@@ -77,10 +77,10 @@ export const MISSION_ITEM_ALLOWED_VARS = [
 
 export const MISSION_FOOTER_ALLOWED_VARS = ['{updatedAt}'] as const;
 
-// ---- 모코코 템플릿 기본값 ----
+// ---- 새싹 템플릿 기본값 ----
 
 // A6: Embed 모드 10명/페이지 — titleTemplate은 페이지 단위(1회), bodyTemplate은 사냥꾼 1명당 반복.
-export const DEFAULT_MOCO_TITLE_TEMPLATE = '🏆 모코코 사냥 순위';
+export const DEFAULT_MOCO_TITLE_TEMPLATE = '🏆 새싹 사냥 순위';
 
 export const DEFAULT_MOCO_BODY_TEMPLATE =
   '**TOP {rank} — {hunterName} 🌱**\n**🏆 {score}점**\n⏱️ {totalMinutes}분 · 🎮 {sessionCount}회 · 🌱 {uniqueNewbieCount}명\n\n{mocoList}';
@@ -92,7 +92,7 @@ export const DEFAULT_MOCO_FOOTER_TEMPLATE =
 
 export const DEFAULT_MOCO_FOOTER_TEMPLATE_NO_INTERVAL = '페이지 {currentPage}/{totalPages}';
 
-// ---- 모코코 템플릿 허용 변수 ----
+// ---- 새싹 템플릿 허용 변수 ----
 
 // titleTemplate은 페이지 단위 1회 렌더 — {rank}/{hunterName}은 더 이상 title에서 사용 불가(bodyTemplate로 이동, A6)
 export const MOCO_TITLE_ALLOWED_VARS = ['{currentPage}', '{totalPages}'] as const;
@@ -123,7 +123,7 @@ export const MOCO_FOOTER_ALLOWED_VARS = [
   '{periodEnd}',
 ] as const;
 
-// ---- 모코코 점수 산정 템플릿 ----
+// ---- 새싹 점수 산정 템플릿 ----
 
 export const DEFAULT_MOCO_SCORING_TEMPLATE =
   '── 점수 산정 ──\n🎮 {scorePerSession}점/회 · ⏱️ {scorePerMinute}점/분 · 🌱 {scorePerUnique}점/명\n⏳ 최소 {minCoPresence}분 동시접속';

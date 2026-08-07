@@ -3,6 +3,7 @@ import { Module } from '@nestjs/common';
 
 import { BotCommonModule } from '../common/bot-common.module';
 import { BestFriendCommand } from './friend/best-friend.command';
+import { HelpCommand } from './help.command';
 import { MeCommand } from './me.command';
 import { StickyMessageDeleteCommand } from './sticky-message/sticky-message-delete.command';
 import { StickyMessageListCommand } from './sticky-message/sticky-message-list.command';
@@ -17,6 +18,7 @@ import { VersionCommand } from './version.command';
   imports: [DiscordModule.forFeature(), BotCommonModule],
   providers: [
     VersionCommand,
+    HelpCommand,
     StickyMessageRegisterCommand,
     StickyMessageDeleteCommand,
     StickyMessageListCommand,

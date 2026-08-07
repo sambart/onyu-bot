@@ -47,5 +47,10 @@
   "statusPrefixResetDone": "닉네임이 원래대로 복원되었습니다.",
   "statusPrefixResetError": "닉네임 복원 중 오류가 발생했습니다. 잠시 후 다시 시도하세요.",
   "statusPrefixDisabled": "기능이 비활성화되어 있습니다. 관리자에게 문의하세요.",
-  "statusPrefixNicknameTooLong": "닉네임이 너무 길어 접두사를 적용할 수 없습니다. 관리자에게 문의하세요."
+  "statusPrefixNicknameTooLong": "닉네임이 너무 길어 접두사를 적용할 수 없습니다. 관리자에게 문의하세요.",
+  "helpTitle": "Onyu 사용 안내",
+  "helpIntro": "음성 활동을 추적하고 서버 운영을 돕는 디스코드 봇이에요.",
+  "helpFeatures": "🎙️ 음성 활동 추적 · 랭킹\n👋 신규 멤버 환영 · 미션\n🤖 AI 서버 진단 리포트\n📈 레벨 · 뱃지 · 친한친구\n📌 고정메세지 · 역할 패널",
+  "helpDashboardLink": "🔗 웹 대시보드: {url}",
+  "helpGettingStartedLink": "🚀 서버 관리자라면 시작 가이드부터: {url}"
 }

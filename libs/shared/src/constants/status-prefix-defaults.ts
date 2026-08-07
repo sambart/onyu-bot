@@ -10,6 +10,13 @@ export const STATUS_PREFIX_CONFIG_DEFAULTS = {
 } as const;
 
 /**
+ * Discord embed 렌더 폴백 — `embedColor` 미지정(NULL) 시 API가 적용하는 색.
+ * 웹 미리보기·컬러 피커가 표시하는 색과 동일해야 한다(OB-4). newbie
+ * `NEWBIE_EMBED_FALLBACK_COLOR_INT`와 같은 역할 — status-prefix는 hex 문자열을 그대로 쓴다.
+ */
+export const STATUS_PREFIX_EMBED_FALLBACK_COLOR = '#5865F2';
+
+/**
  * 웹 폼 프리필 전용 — 엔티티 컬럼은 전부 nullable이라 시스템 기본값이 아니다.
  * ⚠️ `embedTitle`·`embedDescription`의 한국어 값은 web-dashboard-consistency HITL-4 미결 사안이다.
  * 본 상수 신설은 값 변경·i18n화가 아니라 기존 값을 그대로 옮기는 것뿐이며,
@@ -18,7 +25,7 @@ export const STATUS_PREFIX_CONFIG_DEFAULTS = {
 export const STATUS_PREFIX_FORM_DEFAULTS = {
   embedTitle: '게임방 상태 설정 시스템',
   embedDescription: '아래 버튼을 클릭하여 닉네임 접두사를 변경할 수 있습니다.',
-  embedColor: '#5865F2',
+  embedColor: STATUS_PREFIX_EMBED_FALLBACK_COLOR,
 } as const;
 
 /**

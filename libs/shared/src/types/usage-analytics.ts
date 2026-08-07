@@ -49,3 +49,18 @@ export interface LandingEventDto {
   eventType: LandingEventType;
   referrerGroup: ReferrerGroup;
 }
+
+/**
+ * 랜딩 공개 스탯 스냅샷(F-WEB-024) — 길드 수는 의도적으로 포함하지 않는다
+ * (소셜 프루프 역효과 — 계획 landing-live-stats.md §2.2).
+ */
+export interface LandingStatsDto {
+  /** 누적 음성 활동 초(전 길드 합, GLOBAL 센티널 제외) */
+  totalVoiceSeconds: number;
+  /** 초당 증가율 — 최근 7일 합계 ÷ 604800. 클라이언트 외삽의 기울기 */
+  voiceSecondsPerSecond: number;
+  /** 활성·비봇 멤버 수(전 길드 합) */
+  activeMemberCount: number;
+  /** 스냅샷 산출 시각(ISO 8601 UTC) — 클라이언트가 경과시간 보정에 사용 */
+  capturedAt: string;
+}

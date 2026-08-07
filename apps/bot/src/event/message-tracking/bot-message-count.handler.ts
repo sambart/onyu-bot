@@ -38,7 +38,9 @@ export class BotMessageCountHandler {
       channelName: 'name' in channel ? (channel.name ?? '') : '',
       isThread: channel.isThread(),
       userId: message.author.id,
-      userName: message.author.username,
+      // 서버 표시명 우선(R3, F-MSG-001) — 길드 멤버 캐시 미스 시 글로벌 표시명 폴백.
+      // Discord API 추가 호출 없음: member/author 모두 이벤트 페이로드에 포함된 객체다.
+      userName: message.member?.displayName ?? message.author.displayName,
     };
 
     try {

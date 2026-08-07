@@ -1,5 +1,6 @@
 import { Command, EventParams, Handler } from '@discord-nestjs/core';
 import { Injectable } from '@nestjs/common';
+import { BRAND_INT } from '@onyu/shared';
 import { ClientEvents, EmbedBuilder } from 'discord.js';
 
 import * as packageJson from '../../package.json';
@@ -19,7 +20,7 @@ export class VersionCommand {
     const embed = new EmbedBuilder()
       .setTitle('Onyu')
       .setDescription(`v${packageJson.version}`)
-      .setColor(0x4f46e5)
+      .setColor(BRAND_INT)
       .setTimestamp();
 
     await interaction.reply({ embeds: [embed], ephemeral: true });

@@ -47,5 +47,10 @@
   "statusPrefixResetDone": "Your nickname has been restored.",
   "statusPrefixResetError": "An error occurred while restoring your nickname. Please try again shortly.",
   "statusPrefixDisabled": "This feature is currently disabled. Please contact an admin.",
-  "statusPrefixNicknameTooLong": "Your nickname is too long to apply the prefix. Please contact an admin."
+  "statusPrefixNicknameTooLong": "Your nickname is too long to apply the prefix. Please contact an admin.",
+  "helpTitle": "Onyu Help",
+  "helpIntro": "Onyu tracks voice activity and helps you run your server.",
+  "helpFeatures": "🎙️ Voice activity tracking · rankings\n👋 New member welcome · missions\n🤖 AI server diagnosis reports\n📈 Levels · badges · best friends\n📌 Sticky messages · role panels",
+  "helpDashboardLink": "🔗 Web dashboard: {url}",
+  "helpGettingStartedLink": "🚀 Server admins — start here: {url}"
 }

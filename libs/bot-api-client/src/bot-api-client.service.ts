@@ -19,6 +19,8 @@ import type {
   GuildLifecycleEventDto,
   GuildMemberBulkUpsertDto,
   GuildMemberDeactivateDto,
+  GuildMemberReconcileDto,
+  GuildMemberReconcileResult,
   GuildMemberUpsertDto,
   GuildMemberUserUpdateDto,
   GuildVoiceUserCount,
@@ -271,6 +273,14 @@ export class BotApiClientService {
 
   async updateGuildMemberByUserUpdate(dto: GuildMemberUserUpdateDto): Promise<void> {
     await this.post('/bot-api/guild-member/update-global-profile', dto);
+  }
+
+  /**
+   * bulk sync 완료(전량 확보 성공) 후 재적자 집합 밖 기존 활성 행을 비활성화한다(다운타임 중
+   * 퇴장 반영 보정). 호출측은 부분 목록으로 절대 호출해서는 안 된다 — {@link GuildMemberReconcileDto} 참조.
+   */
+  async reconcileGuildMembers(dto: GuildMemberReconcileDto): Promise<GuildMemberReconcileResult> {
+    return this.post('/bot-api/guild-member/reconcile', dto);
   }
 
   // ── Role Panel ──

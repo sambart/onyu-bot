@@ -2,6 +2,7 @@ import { On } from '@discord-nestjs/core';
 import { Injectable, Logger } from '@nestjs/common';
 import type { ActivityDetailSection } from '@onyu/bot-api-client';
 import { BotApiClientService } from '@onyu/bot-api-client';
+import { BRAND_INT } from '@onyu/shared';
 import { type ButtonInteraction, EmbedBuilder, type Interaction } from 'discord.js';
 
 import { BotI18nService } from '../../common/application/bot-i18n.service';
@@ -15,7 +16,7 @@ const CUSTOM_ID_LEADERBOARD = 'me:leaderboard';
 const LEADERBOARD_LIMIT = 10;
 const SECONDS_PER_MINUTE = 60;
 const SECONDS_PER_HOUR = 3600;
-const EMBED_COLOR = 0x5865f2;
+const EMBED_COLOR = BRAND_INT;
 /** embed field value 1024자 상한 방어 — 채널명 절단 길이(F-VOICE-064 R7) */
 const CHANNEL_NAME_MAX_LEN = 32;
 const CHANNEL_NAME_ELLIPSIS = '…';

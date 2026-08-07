@@ -14,9 +14,10 @@ import {
 import { BotI18nService } from '../../common/application/bot-i18n.service';
 import { LocaleResolverService } from '../../common/application/locale-resolver.service';
 
-// 집계 기간 (일) — 30일 고정.
+// 집계 기간 (일) — 90일 고정.
+// 2026-08-07 리뷰 D1 사용자 결정: 30일 → 90일 고정 확대(옵션 파라미터 재도입 아님 — simplify 결정 유지)
 // getMyBestFriends period 파라미터가 7 | 30 | 90 리터럴 유니온이므로 as const 필수
-const PERIOD = 30 as const;
+const PERIOD = 90 as const;
 // TOP N — 5명 고정
 const LIMIT = 5;
 // 대시보드 기본 URL (WEB_URL 미설정 시 prod 도메인)
@@ -109,10 +110,11 @@ export class BestFriendCommand {
   private buildLinkButtonRow(guildId: string, locale: string): ActionRowBuilder<ButtonBuilder> {
     // WEB_URL은 런타임에 읽는다 — 모듈 import 시점에 평가하면 ConfigModule의 .env 로드 전이라 fallback이 굳을 수 있다
     const webUrl = process.env['WEB_URL'] ?? DEFAULT_WEB_URL;
+    // days=PERIOD — 카드(90일 고정) ↔ 마이페이지 진입 뷰 기간 정합 (F-COPRESENCE-019 화이트리스트 7|30|90)
     const button = new ButtonBuilder()
       .setLabel(this.i18n.t(locale, 'commands.bestFriendButtonLabel'))
       .setStyle(ButtonStyle.Link)
-      .setURL(`${webUrl}/my/friends?guildId=${guildId}`);
+      .setURL(`${webUrl}/my/friends?guildId=${guildId}&days=${PERIOD}`);
 
     return new ActionRowBuilder<ButtonBuilder>().addComponents(button);
   }

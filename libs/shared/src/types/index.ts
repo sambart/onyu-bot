@@ -51,6 +51,35 @@ export interface VoiceActivityData {
   }>;
 }
 
+export type { AuthTokenPair } from './auth';
+export type {
+  CoPresenceDailyTrendPoint,
+  CoPresenceGraphData,
+  CoPresenceGraphEdge,
+  CoPresenceGraphNode,
+  CoPresenceIsolatedMember,
+  CoPresencePairDetail,
+  CoPresencePairItem,
+  CoPresencePairsResponse,
+  CoPresencePairsSortBy,
+  CoPresencePairsSortOrder,
+  CoPresencePairUser,
+  CoPresenceSummary,
+  CoPresenceTopPair,
+  MePairDetailResponse,
+  MeTopPeerItem,
+  MeTopPeersResponse,
+} from './co-presence';
+export type { DiscordFailureEnvelope } from './discord-failure';
+export * from './level';
+export type {
+  ActivityDailyOverview,
+  MessageDailyRecord,
+  MessageRankingRecord,
+  VoiceRankingRecord,
+} from './message-tracking';
+export type { GuildQuotaItem, GuildQuotaResponse, MeQuotaItem, MeQuotaResponse } from './quota';
+export * from './role-panel';
 export type {
   CommandUsedDto,
   GuildLifecycleEventDto,
@@ -58,6 +87,7 @@ export type {
   LandingEventDto,
   LandingEventType,
   LandingReferrerDto,
+  LandingStatsDto,
   PageViewDto,
   ReferrerGroup,
 } from './usage-analytics';

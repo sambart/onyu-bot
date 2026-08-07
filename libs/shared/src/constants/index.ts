@@ -1,3 +1,4 @@
+export * from './brand-colors';
 export * from './health-score-band';
 export * from './inactive-member-defaults';
 export * from './level-defaults';

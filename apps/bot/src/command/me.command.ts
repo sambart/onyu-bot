@@ -119,7 +119,9 @@ export class MeCommand {
     const linkButton = new ButtonBuilder()
       .setLabel(this.i18n.t(locale, 'commands.meButtonLabel'))
       .setStyle(ButtonStyle.Link)
-      .setURL(`${webUrl}/my/voice?guildId=${guildId}`);
+      // 뱃지·레벨(성장) 맥락 카드이므로 /my/growth로 연결한다 — 구 경로 /my/voice는
+      // next.config.mjs 리다이렉트로 /my/activity(음성 통계 탭)에 떨어져 뱃지 상세와 무관해진다.
+      .setURL(`${webUrl}/my/growth?guildId=${guildId}`);
 
     if (!hasData) {
       return new ActionRowBuilder<ButtonBuilder>().addComponents(linkButton);

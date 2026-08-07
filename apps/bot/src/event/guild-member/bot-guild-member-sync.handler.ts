@@ -47,13 +47,30 @@ export class BotGuildMemberSyncHandler {
   /**
    * 단일 길드의 전체 멤버를 fetch하여 bulk upsert한다.
    * guildCreate 핸들러에서도 재사용된다.
-   * @returns 동기화된 멤버 수 (실패 시 0)
+   *
+   * 전체 멤버 확보(fetch) + 모든 upsert 배치 전송이 **전부 성공한 경우에만** reconcile을
+   * 호출해 "이번에 확인된 재적자 집합 밖" 의 기존 활성 행을 비활성화한다(다운타임 중 퇴장
+   * 반영 보정, 2026-08-07 사용자 확정). fetch 실패나 배치 중간 실패 시에는 부분 목록으로
+   * reconcile을 호출하지 않는다 — 재적자를 대량 오탐 비활성화하는 사고를 막기 위한 안전 가드다.
+   * (최종 방어선은 API 측 `reconcileActiveMembers`의 빈 집합/비율 가드가 담당한다.)
+   *
+   * @returns 동기화된 멤버 수 (fetch 실패 시 0)
    */
   async syncGuild(guild: Guild): Promise<number> {
+    let memberList: GuildMember[];
+
     try {
       const members = await guild.members.fetch({ withPresences: false });
-      const memberList = [...members.values()];
+      memberList = [...members.values()];
+    } catch (err) {
+      this.logger.error(
+        `[GUILD-MEMBER-SYNC] guild=${guild.id} fetch failed`,
+        err instanceof Error ? err.stack : err,
+      );
+      return 0;
+    }
 
+    try {
       const batches = this.chunk(memberList, BATCH_SIZE);
 
       for (const batch of batches) {
@@ -66,13 +83,44 @@ export class BotGuildMemberSyncHandler {
       this.logger.log(
         `[GUILD-MEMBER-SYNC] guild=${guild.id} synced ${memberList.length} member(s)`,
       );
-      return memberList.length;
     } catch (err) {
       this.logger.error(
-        `[GUILD-MEMBER-SYNC] guild=${guild.id} sync failed`,
+        `[GUILD-MEMBER-SYNC] guild=${guild.id} upsert failed — skipping reconcile`,
         err instanceof Error ? err.stack : err,
       );
       return 0;
+    }
+
+    await this.reconcile(guild.id, memberList);
+
+    return memberList.length;
+  }
+
+  /**
+   * 전량 확보·전송이 확인된 멤버 목록으로 reconcile을 호출한다.
+   * 실패해도 sync 자체의 성공 여부에는 영향을 주지 않는다(보정은 best-effort).
+   */
+  private async reconcile(guildId: string, memberList: GuildMember[]): Promise<void> {
+    try {
+      const result = await this.apiClient.reconcileGuildMembers({
+        guildId,
+        activeUserIds: memberList.map((m) => m.id),
+      });
+
+      if (result.skipped) {
+        this.logger.warn(
+          `[GUILD-MEMBER-SYNC] guild=${guildId} reconcile skipped: reason=${result.skipReason}`,
+        );
+      } else if (result.deactivated > 0) {
+        this.logger.log(
+          `[GUILD-MEMBER-SYNC] guild=${guildId} reconcile deactivated ${result.deactivated} stale member(s)`,
+        );
+      }
+    } catch (err) {
+      this.logger.error(
+        `[GUILD-MEMBER-SYNC] guild=${guildId} reconcile call failed`,
+        err instanceof Error ? err.stack : err,
+      );
     }
   }
 
