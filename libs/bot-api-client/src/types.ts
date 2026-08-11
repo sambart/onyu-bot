@@ -472,4 +472,10 @@ export interface BotHealthSnapshotDto {
   guildCount: number;
   voiceUsersTotal: number;
   uptimeSeconds: number;
+  /** 상주 메모리(RSS) — bytes, 정수 */
+  rssBytes: number;
+  /** V8 heap 사용량 — bytes, 정수 */
+  heapUsedBytes: number;
+  /** 직전 샘플 대비 CPU 사용률(%) — 단일 코어 100% 기준, 소수 1자리 */
+  cpuPercent: number;
 }

@@ -5,3 +5,9 @@ export interface AuthTokenPair {
   /** 불투명 refresh 토큰 (12h) */
   refreshToken: string;
 }
+
+/** POST /auth/access-token 응답 — 회전 없는(비소모) access 전용 재발급 계약 */
+export interface AccessTokenPayload {
+  /** access JWT (1h) */
+  token: string;
+}

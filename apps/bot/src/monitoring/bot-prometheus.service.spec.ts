@@ -66,6 +66,10 @@ describe('BotPrometheusService', () => {
     service.onModuleInit();
   });
 
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   describe('getMetrics', () => {
     it('Prometheus 텍스트 형식의 문자열을 반환한다', async () => {
       const result = await service.getMetrics();
@@ -241,7 +245,7 @@ describe('BotPrometheusService', () => {
   // API 측 BotHealthSnapshotDto가 @IsInt() @Min(0) 계약이므로, 이 DTO 계약을 항상
   // 만족하는지(정수 uptimeSeconds, 0 이상 gatewayPing) 를 반드시 검증한다.
   describe('getSnapshot — Discord Client 미준비 상태', () => {
-    it('client.isReady()가 false면 전 필드가 0인 스냅샷을 반환한다', () => {
+    it('Discord 게이지 4필드는 0이지만 리소스 3필드는 실제 값을 담는다', () => {
       vi.mocked(client.isReady).mockReturnValue(false);
       // 미준비 상태에서도 ws.ping/uptime 이 non-zero 값을 갖고 있을 수 있으나 무시되어야 함
       (client.ws as { ping: number }).ping = 999;
@@ -249,12 +253,136 @@ describe('BotPrometheusService', () => {
 
       const snapshot = service.getSnapshot();
 
-      expect(snapshot).toEqual({
-        gatewayPing: 0,
-        guildCount: 0,
-        voiceUsersTotal: 0,
-        uptimeSeconds: 0,
-      });
+      expect(snapshot).toEqual(
+        expect.objectContaining({
+          gatewayPing: 0,
+          guildCount: 0,
+          voiceUsersTotal: 0,
+          uptimeSeconds: 0,
+        }),
+      );
+      expect(snapshot.rssBytes).toBeGreaterThan(0);
+    });
+  });
+
+  // PLATFORM-HEALTH-RESOURCE-METRICS(F-SUPER-ADMIN-035) — 리소스 3필드(RSS/heap/CPU%) 회귀 가드
+  describe('getSnapshot — 리소스 지표(RSS/heap/CPU%)', () => {
+    it('BP-R1: rssBytes/heapUsedBytes가 0 이상 정수다', () => {
+      vi.mocked(client.isReady).mockReturnValue(true);
+
+      const snapshot = service.getSnapshot();
+
+      expect(Number.isInteger(snapshot.rssBytes)).toBe(true);
+      expect(snapshot.rssBytes).toBeGreaterThanOrEqual(0);
+      expect(Number.isInteger(snapshot.heapUsedBytes)).toBe(true);
+      expect(snapshot.heapUsedBytes).toBeGreaterThanOrEqual(0);
+    });
+
+    it('BP-R2: 최초 getSnapshot() 호출의 cpuPercent는 정확히 0이다(첫 샘플, UC-09 §5.3)', () => {
+      vi.mocked(client.isReady).mockReturnValue(true);
+
+      const snapshot = service.getSnapshot();
+
+      expect(snapshot.cpuPercent).toBe(0);
+    });
+
+    it('BP-R3: 2회째 호출부터 cpuPercent는 0 이상의 유한수다', () => {
+      vi.mocked(client.isReady).mockReturnValue(true);
+      service.getSnapshot();
+
+      const snapshot = service.getSnapshot();
+
+      expect(snapshot.cpuPercent).toBeGreaterThanOrEqual(0);
+      expect(Number.isFinite(snapshot.cpuPercent)).toBe(true);
+    });
+
+    it('BP-R4: cpuPercent는 소수 1자리 이하다', () => {
+      vi.mocked(client.isReady).mockReturnValue(true);
+      service.getSnapshot();
+
+      const snapshot = service.getSnapshot();
+
+      expect(snapshot.cpuPercent).toBe(Number(snapshot.cpuPercent.toFixed(1)));
+    });
+
+    it('BP-R5: isReady() === false 인 첫 호출에서도 CPU 샘플이 전진해, 이후 정상 호출이 0이 아닌 델타 계산 경로를 탄다', () => {
+      const START_MS = 1_000_000;
+      const ELAPSED_MS = 1000;
+      const nowSpy = vi.spyOn(Date, 'now');
+      nowSpy.mockReturnValueOnce(START_MS);
+      vi.spyOn(process, 'cpuUsage').mockReturnValueOnce({ user: 0, system: 0 });
+
+      vi.mocked(client.isReady).mockReturnValue(false);
+      service.getSnapshot(); // 미준비 상태 — 첫 샘플, cpuPercent 0 이지만 상태는 전진해야 함
+
+      nowSpy.mockReturnValueOnce(START_MS + ELAPSED_MS);
+      vi.spyOn(process, 'cpuUsage').mockReturnValueOnce({ user: 500_000, system: 0 });
+      vi.mocked(client.isReady).mockReturnValue(true);
+      const snapshot = service.getSnapshot();
+
+      expect(snapshot.cpuPercent).toBeGreaterThan(0);
+    });
+
+    it('BP-R6: process.cpuUsage가 감소하는 누적치(비정상 입력)를 반환해도 cpuPercent는 음수가 되지 않는다', () => {
+      vi.mocked(client.isReady).mockReturnValue(true);
+      vi.spyOn(process, 'cpuUsage').mockReturnValueOnce({ user: 500_000, system: 0 });
+      service.getSnapshot();
+
+      vi.spyOn(process, 'cpuUsage').mockReturnValueOnce({ user: 100_000, system: 0 });
+      const snapshot = service.getSnapshot();
+
+      expect(snapshot.cpuPercent).toBeGreaterThanOrEqual(0);
+    });
+
+    it('BP-R7: 리소스 3필드가 항상 스냅샷 객체에 존재한다(송신 DTO required 계약)', () => {
+      vi.mocked(client.isReady).mockReturnValue(true);
+
+      const snapshot = service.getSnapshot();
+
+      expect(snapshot).toHaveProperty('rssBytes');
+      expect(snapshot).toHaveProperty('heapUsedBytes');
+      expect(snapshot).toHaveProperty('cpuPercent');
+    });
+
+    it('BP-R8: 3회 연속 호출 시 각 호출은 직전 호출(최초 호출 아님)을 기준으로 델타를 계산한다', () => {
+      const T0 = 1_000_000;
+      const T1 = T0 + 1000;
+      const T2 = T1 + 1000;
+      vi.mocked(client.isReady).mockReturnValue(true);
+      const nowSpy = vi.spyOn(Date, 'now');
+      const cpuSpy = vi.spyOn(process, 'cpuUsage');
+
+      nowSpy.mockReturnValueOnce(T0);
+      cpuSpy.mockReturnValueOnce({ user: 0, system: 0 });
+      service.getSnapshot(); // 1회차 — 첫 샘플, cpuPercent 0
+
+      nowSpy.mockReturnValueOnce(T1);
+      cpuSpy.mockReturnValueOnce({ user: 500_000, system: 0 });
+      const second = service.getSnapshot(); // 2회차 — 델타 500,000µs/1000ms = 50%
+
+      nowSpy.mockReturnValueOnce(T2);
+      cpuSpy.mockReturnValueOnce({ user: 700_000, system: 0 });
+      const third = service.getSnapshot(); // 3회차 — 델타 200,000µs/1000ms = 20% (1회차 대비가 아님)
+
+      expect(second.cpuPercent).toBe(50);
+      expect(third.cpuPercent).toBe(20);
+    });
+
+    it('결정론적 CPU 델타 계산: 경과 1000ms, 델타 500,000µs → cpuPercent 50', () => {
+      const START_MS = 2_000_000;
+      const ELAPSED_MS = 1000;
+      const EXPECTED_PERCENT = 50;
+      const nowSpy = vi.spyOn(Date, 'now');
+      nowSpy.mockReturnValueOnce(START_MS);
+      vi.spyOn(process, 'cpuUsage').mockReturnValueOnce({ user: 0, system: 0 });
+      vi.mocked(client.isReady).mockReturnValue(true);
+      service.getSnapshot(); // 첫 샘플
+
+      nowSpy.mockReturnValueOnce(START_MS + ELAPSED_MS);
+      vi.spyOn(process, 'cpuUsage').mockReturnValueOnce({ user: 500_000, system: 0 });
+      const snapshot = service.getSnapshot();
+
+      expect(snapshot.cpuPercent).toBe(EXPECTED_PERCENT);
     });
   });
 

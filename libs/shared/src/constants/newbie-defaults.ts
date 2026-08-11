@@ -61,3 +61,25 @@ export const MOCO_SCORE_PER_MINUTE_MIN = 1;
 export const MOCO_SCORE_PER_MINUTE_MAX = 10;
 
 export type NewbieConfigDefaults = typeof NEWBIE_CONFIG_DEFAULTS;
+
+/**
+ * `missionDisplayMode` / `mocoDisplayMode` 허용값 정본 — DB enum 정의
+ * (`newbie-config.orm-entity.ts`)와 값이 동일하다. 신설은 값 변경이 아니라
+ * DTO `@IsIn` 검증과 엔티티 enum 배열의 드리프트를 막기 위한 단일 소스화다.
+ */
+export const NEWBIE_DISPLAY_MODES = ['EMBED', 'CANVAS'] as const;
+
+/**
+ * `mocoResetPeriod` 허용값 정본 — DB enum 정의(`newbie-config.orm-entity.ts`)와
+ * 값이 동일하다. 신설은 값 변경이 아니다.
+ */
+export const NEWBIE_MOCO_RESET_PERIODS = ['NONE', 'MONTHLY', 'CUSTOM'] as const;
+
+/** getting-started 위저드가 미션 기능을 켤 때 함께 넣는 권장 기본값.
+ *  값은 설정 페이지 입력 placeholder(`newbie.mission.durationDaysPlaceholder`="예: 7",
+ *  `targetPlaytimePlaceholder`="예: 10")와 동일하다 — 신설은 정책 변경이 아니라 위저드가
+ *  기간/목표시간을 비운 채 missionEnabled만 켜던 결함(B)의 보정이다. */
+export const NEWBIE_PRESET_DEFAULTS = {
+  missionDurationDays: 7,
+  missionTargetPlaytimeHours: 10,
+} as const;

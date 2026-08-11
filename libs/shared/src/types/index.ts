@@ -51,7 +51,7 @@ export interface VoiceActivityData {
   }>;
 }
 
-export type { AuthTokenPair } from './auth';
+export type { AccessTokenPayload, AuthTokenPair } from './auth';
 export type {
   CoPresenceDailyTrendPoint,
   CoPresenceGraphData,
