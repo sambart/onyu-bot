@@ -5,7 +5,11 @@
  * fetch + 전체 upsert 배치가 "모두" 성공했을 때만 호출돼야 한다. 부분 확보 상태에서
  * 호출되면 재적자를 대량 오탐 비활성화할 수 있다 — 이 스펙이 그 안전 가드를 고정한다.
  */
-import type { BotApiClientService, GuildMemberReconcileResult } from '@onyu/bot-api-client';
+import type {
+  BotApiClientService,
+  GuildDirectoryReconcileResult,
+  GuildMemberReconcileResult,
+} from '@onyu/bot-api-client';
 import type { Client, Guild, GuildMember } from 'discord.js';
 import { Collection } from 'discord.js';
 import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from 'vitest';
@@ -33,10 +37,38 @@ function makeGuild(members: GuildMember[], fetchImpl?: Mock): Guild {
   } as unknown as Guild;
 }
 
+/** clientReady 시 client.guilds.cache 항목으로 사용할 최소 Guild mock(id/name/icon + members.fetch). */
+function makeReadyGuild(id: string, name: string, icon: string | null): Guild {
+  return {
+    id,
+    name,
+    icon,
+    members: {
+      fetch: vi
+        .fn()
+        .mockResolvedValue(
+          new Collection([[`${id}-user-1`, makeGuildMember({ id: `${id}-user-1` })]]),
+        ),
+    },
+  } as unknown as Guild;
+}
+
+function makeClientWithGuilds(guilds: Guild[]): Client {
+  return {
+    guilds: { cache: new Collection(guilds.map((g) => [g.id, g])) },
+  } as unknown as Client;
+}
+
 function makeReconcileResult(
   overrides: Partial<GuildMemberReconcileResult> = {},
 ): GuildMemberReconcileResult {
   return { ok: true, deactivated: 0, skipped: false, ...overrides };
+}
+
+function makeDirectoryReconcileResult(
+  overrides: Partial<GuildDirectoryReconcileResult> = {},
+): GuildDirectoryReconcileResult {
+  return { ok: true, upserted: 0, deactivated: 0, skipped: false, ...overrides };
 }
 
 describe('BotGuildMemberSyncHandler', () => {
@@ -44,6 +76,8 @@ describe('BotGuildMemberSyncHandler', () => {
   let apiClient: {
     bulkUpsertGuildMembers: Mock;
     reconcileGuildMembers: Mock;
+    healthCheck: Mock;
+    reconcileGuildDirectory: Mock;
   };
   let loggerErrorSpy: ReturnType<typeof vi.spyOn>;
   let loggerWarnSpy: ReturnType<typeof vi.spyOn>;
@@ -52,6 +86,8 @@ describe('BotGuildMemberSyncHandler', () => {
     apiClient = {
       bulkUpsertGuildMembers: vi.fn().mockResolvedValue(undefined),
       reconcileGuildMembers: vi.fn().mockResolvedValue(makeReconcileResult()),
+      healthCheck: vi.fn().mockResolvedValue(undefined),
+      reconcileGuildDirectory: vi.fn().mockResolvedValue(makeDirectoryReconcileResult()),
     };
 
     handler = new BotGuildMemberSyncHandler(
@@ -141,6 +177,87 @@ describe('BotGuildMemberSyncHandler', () => {
       expect(synced).toBe(0);
       expect(apiClient.reconcileGuildMembers).not.toHaveBeenCalled();
       expect(loggerErrorSpy).toHaveBeenCalled();
+    });
+  });
+
+  /**
+   * handleReady — 길드-레벨 guild_directory reconcile(F-SUPER-ADMIN-039) 호출 검증.
+   * 핵심 회귀 방지: reconcileGuildDirectory는 waitForApi 성공 직후 · 멤버 순회 이전에
+   * 호출돼야 하고, 실패해도 이후 멤버 동기화를 막지 않아야 한다(계획 §2.4, TC-UC17-09/10).
+   */
+  describe('handleReady', () => {
+    let client: Client;
+
+    beforeEach(() => {
+      client = makeClientWithGuilds([
+        makeReadyGuild('guild-1', 'Guild One', 'icon-1'),
+        makeReadyGuild('guild-2', 'Guild Two', null),
+      ]);
+      handler = new BotGuildMemberSyncHandler(client, apiClient as unknown as BotApiClientService);
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- private logger 스파이 (파일 상단 기존 패턴과 동일)
+      const internalLogger = (handler as any).logger;
+      loggerErrorSpy = vi.spyOn(internalLogger, 'error').mockImplementation(() => undefined);
+      loggerWarnSpy = vi.spyOn(internalLogger, 'warn').mockImplementation(() => undefined);
+    });
+
+    it('reconcileGuildDirectory가 캐시 전 길드의 {id,name,icon}으로 1회 호출된다', async () => {
+      await handler.handleReady();
+
+      expect(apiClient.reconcileGuildDirectory).toHaveBeenCalledTimes(1);
+      expect(apiClient.reconcileGuildDirectory).toHaveBeenCalledWith({
+        guilds: [
+          { id: 'guild-1', name: 'Guild One', icon: 'icon-1' },
+          { id: 'guild-2', name: 'Guild Two', icon: null },
+        ],
+      });
+    });
+
+    it('reconcileGuildDirectory 호출이 syncGuild 순회(bulkUpsertGuildMembers)보다 먼저 일어난다', async () => {
+      await handler.handleReady();
+
+      const directoryCallOrder = apiClient.reconcileGuildDirectory.mock.invocationCallOrder[0];
+      const syncCallOrder = apiClient.bulkUpsertGuildMembers.mock.invocationCallOrder[0];
+
+      expect(directoryCallOrder).toBeLessThan(syncCallOrder);
+    });
+
+    it('reconcile 호출이 reject해도 이후 멤버 동기화가 계속 수행되고 handleReady가 정상 종료한다', async () => {
+      apiClient.reconcileGuildDirectory.mockRejectedValue(new Error('directory reconcile 500'));
+
+      await expect(handler.handleReady()).resolves.toBeUndefined();
+
+      expect(apiClient.bulkUpsertGuildMembers).toHaveBeenCalled();
+      expect(loggerErrorSpy).toHaveBeenCalledWith(
+        '[GUILD-DIRECTORY-RECONCILE] reconcile call failed',
+        expect.anything(),
+      );
+    });
+
+    it('waitForApi 실패(healthCheck 계속 reject) 시 reconcileGuildDirectory도 호출되지 않는다', async () => {
+      vi.useFakeTimers();
+      apiClient.healthCheck.mockRejectedValue(new Error('api down'));
+
+      const readyPromise = handler.handleReady();
+      await vi.runAllTimersAsync();
+      await readyPromise;
+
+      expect(apiClient.reconcileGuildDirectory).not.toHaveBeenCalled();
+
+      vi.useRealTimers();
+    });
+
+    it('skipped:true 응답 시 warn 로그를 1회 남긴다', async () => {
+      apiClient.reconcileGuildDirectory.mockResolvedValue(
+        makeDirectoryReconcileResult({ skipped: true, skipReason: 'ratio-exceeded' }),
+      );
+
+      await handler.handleReady();
+
+      expect(loggerWarnSpy).toHaveBeenCalledWith(
+        expect.stringContaining('[GUILD-DIRECTORY-RECONCILE]'),
+      );
+      expect(loggerWarnSpy).toHaveBeenCalledWith(expect.stringContaining('ratio-exceeded'));
     });
   });
 });

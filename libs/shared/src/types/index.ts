@@ -52,6 +52,13 @@ export interface VoiceActivityData {
 }
 
 export type { AccessTokenPayload, AuthTokenPair } from './auth';
+export type { MeCardThemeKey } from './card-theme';
+export {
+  DEFAULT_ME_CARD_THEME,
+  isMeCardThemeKey,
+  ME_CARD_THEME_KEYS,
+  ME_CARD_THEME_SWATCH,
+} from './card-theme';
 export type {
   CoPresenceDailyTrendPoint,
   CoPresenceGraphData,
@@ -80,6 +87,14 @@ export type {
 } from './message-tracking';
 export type { GuildQuotaItem, GuildQuotaResponse, MeQuotaItem, MeQuotaResponse } from './quota';
 export * from './role-panel';
+export type {
+  PlanScope,
+  PlanTier,
+  PremiumEntitlementState,
+  PremiumFeatureKey,
+  PremiumUnavailableReason,
+} from './subscription';
+export { PREMIUM_FEATURE_CATALOG } from './subscription';
 export type {
   CommandUsedDto,
   GuildLifecycleEventDto,

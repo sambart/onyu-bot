@@ -436,6 +436,33 @@ export interface GuildMemberReconcileResult {
   skipReason?: 'empty-active-set' | 'ratio-exceeded' | 'error';
 }
 
+// ── Guild Directory ──
+
+/** 봇이 실제 참여 중인 길드 1개의 스냅샷(F-SUPER-ADMIN-039). icon 미설정 길드는 null. */
+export interface GuildDirectoryReconcileGuild {
+  id: string;
+  name: string | null;
+  icon: string | null;
+}
+
+/**
+ * 봇 clientReady 시 실제 참여 중인 길드 전체 목록으로 guild_directory를 정정하기 위한 요청.
+ * 목록 밖 기존 isBotActive=true 행을 비활성화 후보로 삼는다 — 안전 가드는
+ * {@link GuildDirectoryReconcileResult} 참조.
+ */
+export interface GuildDirectoryReconcileDto {
+  guilds: GuildDirectoryReconcileGuild[];
+}
+
+/** POST /bot-api/super-admin/guild-directory/reconcile 응답. `skipped=true`면 안전 가드에 의해 비활성화가 수행되지 않았다. */
+export interface GuildDirectoryReconcileResult {
+  ok: boolean;
+  upserted: number;
+  deactivated: number;
+  skipped: boolean;
+  skipReason?: 'empty-guild-list' | 'ratio-exceeded' | 'error';
+}
+
 // ── Role Panel ──
 
 export interface BotRolePanelConfigDto {

@@ -16,6 +16,8 @@ import type {
   CoPresenceSnapshot,
   GetMeProfileOptions,
   GetMyBestFriendsOptions,
+  GuildDirectoryReconcileDto,
+  GuildDirectoryReconcileResult,
   GuildLifecycleEventDto,
   GuildMemberBulkUpsertDto,
   GuildMemberDeactivateDto,
@@ -281,6 +283,15 @@ export class BotApiClientService {
    */
   async reconcileGuildMembers(dto: GuildMemberReconcileDto): Promise<GuildMemberReconcileResult> {
     return this.post('/bot-api/guild-member/reconcile', dto);
+  }
+
+  // ── Guild Directory ──
+
+  /** 봇 기동 시 실제 참여 중인 길드 목록으로 guild_directory 를 정정한다(F-SUPER-ADMIN-039). */
+  async reconcileGuildDirectory(
+    dto: GuildDirectoryReconcileDto,
+  ): Promise<GuildDirectoryReconcileResult> {
+    return this.post('/bot-api/super-admin/guild-directory/reconcile', dto);
   }
 
   // ── Role Panel ──

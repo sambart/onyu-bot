@@ -30,6 +30,8 @@ export class BotGuildMemberSyncHandler {
       return;
     }
 
+    await this.reconcileGuildDirectory();
+
     this.logger.log('[GUILD-MEMBER-SYNC] API connected — syncing all guild members...');
 
     let totalSynced = 0;
@@ -119,6 +121,36 @@ export class BotGuildMemberSyncHandler {
     } catch (err) {
       this.logger.error(
         `[GUILD-MEMBER-SYNC] guild=${guildId} reconcile call failed`,
+        err instanceof Error ? err.stack : err,
+      );
+    }
+  }
+
+  /**
+   * 봇이 실제로 참여 중인 길드 목록 전체를 API 로 1회 전송해 guild_directory 를 정정한다
+   * (F-SUPER-ADMIN-039, super-admin 도메인 소유 — 본 핸들러는 clientReady 트리거만 공유한다).
+   * 실패는 로그만 남기고 재시도하지 않는다 — 다음 봇 재기동이 자연 재시도 지점이다(UC-17 §6.1).
+   */
+  private async reconcileGuildDirectory(): Promise<void> {
+    try {
+      const guilds = [...this.client.guilds.cache.values()].map((g) => ({
+        id: g.id,
+        name: g.name,
+        icon: g.icon,
+      }));
+
+      const result = await this.apiClient.reconcileGuildDirectory({ guilds });
+
+      if (result.skipped) {
+        this.logger.warn(`[GUILD-DIRECTORY-RECONCILE] skipped: reason=${result.skipReason}`);
+      } else if (result.deactivated > 0) {
+        this.logger.log(
+          `[GUILD-DIRECTORY-RECONCILE] deactivated ${result.deactivated} stale guild(s), upserted ${result.upserted}`,
+        );
+      }
+    } catch (err) {
+      this.logger.error(
+        '[GUILD-DIRECTORY-RECONCILE] reconcile call failed',
         err instanceof Error ? err.stack : err,
       );
     }
