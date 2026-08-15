@@ -10,6 +10,8 @@ export interface MeTopPeerItem {
   avatarUrl: string | null;
   totalMinutes: number;
   sessionCount: number;
+  /** 기간 내 함께한 서로 다른 날의 수. 0분 기록일은 제외 (F-COPRESENCE-028) */
+  meetDays: number;
   // ── F-COPRESENCE-025 (2026-08-04) ──
   /** 직전 동기간(동일 길이 이전 구간) 분. 기록 없으면 0 */
   prevMinutes: number;
@@ -88,6 +90,8 @@ export interface CoPresenceTopPair {
   userB: CoPresencePairUser;
   totalMinutes: number;
   sessionCount: number;
+  /** 기간 내 함께한 서로 다른 날의 수. 0분 기록일은 제외 (F-COPRESENCE-028) */
+  meetDays: number;
 }
 
 /** GET /api/guilds/:guildId/co-presence/isolated 응답 항목 (F-COPRESENCE-010) */
@@ -99,7 +103,7 @@ export interface CoPresenceIsolatedMember {
 }
 
 /** GET /api/guilds/:guildId/co-presence/pairs 정렬 컬럼 화이트리스트 (F-COPRESENCE-011) */
-export type CoPresencePairsSortBy = 'totalMinutes' | 'sessionCount' | 'lastDate';
+export type CoPresencePairsSortBy = 'totalMinutes' | 'sessionCount' | 'meetDays' | 'lastDate';
 
 /** GET /api/guilds/:guildId/co-presence/pairs 정렬 방향 화이트리스트 (F-COPRESENCE-011) */
 export type CoPresencePairsSortOrder = 'ASC' | 'DESC';
@@ -110,6 +114,8 @@ export interface CoPresencePairItem {
   userB: { userId: string; userName: string };
   totalMinutes: number;
   sessionCount: number;
+  /** 기간 내 함께한 서로 다른 날의 수. 0분 기록일은 제외 (F-COPRESENCE-028) */
+  meetDays: number;
   lastDate: string;
 }
 

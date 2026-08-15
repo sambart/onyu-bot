@@ -11,6 +11,7 @@ export const WEEKLY_REPORT_CONFIG_DEFAULTS = {
   dayOfWeek: 1,
   hour: 9,
   timezone: 'Asia/Seoul',
+  locale: 'ko',
 } as const satisfies WeeklyReportConfigDto;
 
 export type WeeklyReportConfigDefaults = typeof WEEKLY_REPORT_CONFIG_DEFAULTS;
