@@ -1,7 +1,9 @@
-import { Controller, Get, Header } from '@nestjs/common';
+import { Controller, Get, Header, UseGuards } from '@nestjs/common';
 
 import { BotPrometheusService } from './bot-prometheus.service';
+import { MetricsAuthGuard } from './metrics-auth.guard';
 
+@UseGuards(MetricsAuthGuard)
 @Controller('metrics')
 export class BotMetricsController {
   constructor(private readonly prometheus: BotPrometheusService) {}
