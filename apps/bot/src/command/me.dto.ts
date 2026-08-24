@@ -10,8 +10,8 @@ export class MeCommandDto {
   // 멘트는 옵션이 아니다: 레이아웃 A 렌더 시 항상 자동 요청한다(F-VOICE-079 후속 개정, 2026-07-30).
   // 흥미용(AI 페르소나, premium-policy §6.2) 개방 시 UI 재도입 여부는 미결이다.
   @Choice({
-    레벨: MeViewOption.Level,
-    음성: MeViewOption.Voice,
+    Level: { value: MeViewOption.Level, nameLocalizations: { ko: '레벨' } },
+    Voice: { value: MeViewOption.Voice, nameLocalizations: { ko: '음성' } },
   })
   @Param({
     name: 'view',
