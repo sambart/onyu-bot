@@ -12,6 +12,7 @@ export const VOICE_HEALTH_BADGE_CODES = [
   'MIC',
   'STREAK',
   'CHATTER',
+  'STREAM',
 ] as const;
 
 export type VoiceHealthBadgeCode = (typeof VOICE_HEALTH_BADGE_CODES)[number];

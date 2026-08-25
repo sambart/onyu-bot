@@ -18,6 +18,10 @@ export interface VoiceActivityData {
     totalUsers: number;
     totalVoiceTime: number;
     totalMicOnTime: number;
+    /** 🆕 F-GEMINI-024 — 전체 화면공유 시간 (초, 길드 합계) */
+    totalStreamingTime: number;
+    /** 🆕 F-GEMINI-024 — 전체 카메라 ON 시간 (초, 길드 합계) */
+    totalVideoTime: number;
     avgDailyActiveUsers: number;
   };
   userActivities: Array<{

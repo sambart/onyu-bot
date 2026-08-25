@@ -181,6 +181,8 @@ export interface AutoChannelButtonResult {
 export interface MessageCreatedDto {
   guildId: string;
   channelId: string;
+  /** 🟨 전환기 optional — sticky-pin 무한루프 판정(F-STICKY-011)에 사용. 구버전 봇은 미전송 가능 */
+  messageId?: string;
   authorId: string;
   isBot: boolean;
 }

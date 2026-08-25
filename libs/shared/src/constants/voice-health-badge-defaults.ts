@@ -14,6 +14,9 @@ export const VOICE_HEALTH_BADGE_DEFAULTS = {
   // badge-expansion-r1(F-SD-014) 추가분
   badgeStreakMinDays: 7,
   badgeChatterTopPercent: 10,
+  // STREAM-STAR-BADGE(F-SD-020) 추가분
+  badgeStreamTopPercent: 10,
+  badgeStreamMinSec: 3600,
 } as const;
 
 export type VoiceHealthBadgeDefaults = typeof VOICE_HEALTH_BADGE_DEFAULTS;

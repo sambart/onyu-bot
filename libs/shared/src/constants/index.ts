@@ -7,6 +7,7 @@ export * from './message-codes';
 export * from './newbie-defaults';
 export * from './newbie-template-defaults';
 export * from './status-prefix-defaults';
+export * from './sticky-pin-defaults';
 export * from './voice-health-badge-assets';
 export * from './voice-health-badge-defaults';
 export * from './weekly-report-defaults';

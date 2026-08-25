@@ -21,6 +21,7 @@ export class BotStickyMessageHandler {
     const payload = {
       guildId,
       channelId: message.channelId,
+      messageId: message.id,
       authorId: message.author.id,
       isBot: message.author.bot,
     };

@@ -33,6 +33,7 @@ export const MESSAGE_CODE = {
   PREFIX_DUPLICATE: 'PREFIX_DUPLICATE',
   CONFIG_NOT_FOUND: 'CONFIG_NOT_FOUND',
   NOT_APPLICABLE: 'NOT_APPLICABLE',
+  STICKY_PIN_CHANNEL_LIMIT_EXCEEDED: 'STICKY_PIN_CHANNEL_LIMIT_EXCEEDED',
 
   // ── Discord 권한 실패 (permission-error-guidance, 5개 도메인 공유) ──
   /** 50001 Missing Access — 봇이 채널을 볼 수 없음. params: { channelId } */
