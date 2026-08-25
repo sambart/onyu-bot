@@ -1,6 +1,6 @@
 import { HttpService } from '@nestjs/axios';
 import { Injectable, Logger } from '@nestjs/common';
-import type { LevelLeaderboardResponse } from '@onyu/shared';
+import type { LevelLeaderboardResponse, SupportedLocale } from '@onyu/shared';
 import type { AxiosRequestConfig } from 'axios';
 import { firstValueFrom } from 'rxjs';
 
@@ -308,7 +308,7 @@ export class BotApiClientService {
   }
 
   /** user locale 저장 (F-GENERAL-005). role-panel 게이트 버튼(F-ROLE-PANEL-010)이 1차 호출자. */
-  async setUserLocale(userId: string, locale: 'ko' | 'en'): Promise<UserLocaleResponse> {
+  async setUserLocale(userId: string, locale: SupportedLocale): Promise<UserLocaleResponse> {
     return this.put(`/bot-api/locale/user/${userId}`, { locale });
   }
 

@@ -1,4 +1,9 @@
-import type { CommandUsedDto, GuildLifecycleEventDto, MessageCode } from '@onyu/shared';
+import type {
+  CommandUsedDto,
+  GuildLifecycleEventDto,
+  MessageCode,
+  SupportedLocale,
+} from '@onyu/shared';
 
 export type { CommandUsedDto, GuildLifecycleEventDto };
 
@@ -222,7 +227,7 @@ export type MeProfileResponse = CanvasCardResponse;
 export type BestFriendCardResponse = CanvasCardResponse;
 
 /** 카드 내 텍스트 로케일 (봇 인터랙션 locale 기반, 미지원 값은 'en'으로 처리) */
-export type CanvasCardLocale = 'ko' | 'en';
+export type CanvasCardLocale = SupportedLocale;
 
 /**
  * 활동 상세(F-VOICE-064) 응답 소스별 섹션 셰이프 — endpoint-spec §7-1.
@@ -472,7 +477,7 @@ export interface BotRolePanelConfigDto {
     roleIds: string[];
     mode: 'GRANT' | 'TOGGLE' | 'EXCLUSIVE';
     exclusiveGroupKey: string | null;
-    localeTag: 'ko' | 'en' | null;
+    localeTag: SupportedLocale | null;
   }>;
 }
 
@@ -480,7 +485,7 @@ export interface BotRolePanelConfigDto {
 
 /** GET /bot-api/locale/user/:userId 응답 — 🔒 `?? 'en'` 폴백 없음 */
 export interface UserLocaleResponse {
-  locale: 'ko' | 'en' | null;
+  locale: SupportedLocale | null;
 }
 
 // ── Common ──

@@ -32,7 +32,6 @@ export default defineConfig({
           'reflect-metadata',
           'class-transformer',
           'class-validator',
-          'ioredis',
         ],
       },
     },
