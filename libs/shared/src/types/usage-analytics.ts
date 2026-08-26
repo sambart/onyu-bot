@@ -8,7 +8,7 @@ export interface CommandUsedDto {
 /** Web(api route) → API 페이지뷰 수집 payload — 방문자 미식별 🔒 (path 는 route 에서 정규화 완료) */
 export interface PageViewDto {
   path: string;
-  country: string; // 현재 항상 'XX' (F-USAGE-008)
+  country: string; // cloudfront-viewer-country 헤더 검증값 또는 'XX' 폴백 (F-USAGE-008, CloudFront 컷오버 완료)
 }
 
 // ── U9a-3 성장 관측(Growth Observability) 수집 ──
@@ -63,4 +63,31 @@ export interface LandingStatsDto {
   activeMemberCount: number;
   /** 스냅샷 산출 시각(ISO 8601 UTC) — 클라이언트가 경과시간 보정에 사용 */
   capturedAt: string;
+}
+
+// ── Web Vitals RUM 수집 (WEB-VITALS-RUM, F-USAGE-021~027) ──
+
+/** Web Vitals RUM 수집 지표 화이트리스트 2종 (F-USAGE-021, §16-1 OUT — CLS/INP/FCP 제외) */
+export const WEB_VITALS_METRICS = ['TTFB', 'LCP'] as const;
+export type WebVitalsMetric = (typeof WEB_VITALS_METRICS)[number];
+
+/** 지표별 값 상한(ms) — 초과 시 폴백 없이 폐기 (F-USAGE-022, 계획 D3) */
+export const WEB_VITALS_MAX_MS: Record<WebVitalsMetric, number> = { TTFB: 60_000, LCP: 120_000 };
+
+/** DTO 정적 검증용 절대 상한 — class-validator @Max()가 지표별 값을 표현할 수 없어 둔다(계획 D3) */
+export const WEB_VITALS_ABSOLUTE_MAX_MS = 120_000;
+
+/**
+ * Web Vitals Redis 버퍼 키(국가×지표×일)당 표본 상한. 무인증 비컨 경로의 남용이 공유 Redis
+ * (maxmemory 256mb / noeviction)를 고갈시키지 못하도록 카디널리티를 묶는다(PR #401 리뷰 ④).
+ * 초과분은 조용히 드롭한다 — 분위수(p50/p75)는 이 표본 수에서 이미 충분히 안정적이다.
+ * 운영 판독: `web_vitals_daily.sampleCount` 가 정확히 이 값이면 그 키는 포화 상태다.
+ */
+export const WEB_VITALS_MAX_SAMPLES_PER_KEY = 5_000;
+
+/** Web(api route) → API Web Vitals 수집 payload — 방문자 미식별 🔒 (country 는 route 가 헤더로 판정) */
+export interface WebVitalsDto {
+  metric: WebVitalsMetric;
+  value: number;
+  country: string;
 }

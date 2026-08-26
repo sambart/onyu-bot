@@ -87,3 +87,6 @@ infra/terraform/**/*.tfstate.*
 infra/terraform/**/*.tfvars
 infra/terraform/**/crash.log
 infra/terraform/**/crash.*.log
+# plan 파일 — 민감 값 포함 가능한 일회성 산출물
+infra/terraform/**/*.tfplan
+infra/terraform/**/tfplan*

@@ -109,10 +109,16 @@ export type {
   LandingStatsDto,
   PageViewDto,
   ReferrerGroup,
+  WebVitalsDto,
+  WebVitalsMetric,
 } from './usage-analytics';
 export {
   GUILD_LIFECYCLE_EVENT_TYPES,
   LANDING_EVENT_TYPES,
   REFERRER_GROUPS,
+  WEB_VITALS_ABSOLUTE_MAX_MS,
+  WEB_VITALS_MAX_MS,
+  WEB_VITALS_MAX_SAMPLES_PER_KEY,
+  WEB_VITALS_METRICS,
 } from './usage-analytics';
 export * from './voice-game';
