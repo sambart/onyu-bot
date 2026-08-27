@@ -21,10 +21,27 @@ export interface MeTopPeerItem {
   isNew: boolean;
 }
 
+/**
+ * GET /api/users/me/co-presence/top-peers 응답의 본인 관계 폭 요약 (F-COPRESENCE-032).
+ * 본인 시점 전용 — 타 유저 비교·랭킹·백분위를 포함하지 않는다. 상대방 식별 정보 없음(카운트만).
+ */
+export interface MeFriendsSummary {
+  /** 현재 기간 함께한(minutes > 0) distinct 피어 수 */
+  friendCount: number;
+  /** 직전 동기간 대비 차이(절대값, 명). 직전 기간 데이터 전무 시 null (EC-CP-58) */
+  friendCountDelta: number | null;
+  /** 현재 기간 피어 중 직전 동기간 0분이었던 수 */
+  newFriendCount: number;
+  /** 직전 동기간 대비 차이(절대값, 명). 직전 기간 데이터 전무 시 null (EC-CP-58) */
+  newFriendCountDelta: number | null;
+}
+
 /** GET /api/users/me/co-presence/top-peers 응답 */
 export interface MeTopPeersResponse {
   days: number;
   peers: MeTopPeerItem[];
+  /** F-COPRESENCE-032. 산출 실패 시 null — 목록(peers)은 정상 반환된다 (EC-CP-61) */
+  summary: MeFriendsSummary | null;
 }
 
 /** GET /api/users/me/co-presence/pairs/:peerId 응답 (E2, F-COPRESENCE-022) */

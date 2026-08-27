@@ -56,10 +56,12 @@ export interface VoiceActivityData {
 }
 
 export type { AccessTokenPayload, AuthTokenPair } from './auth';
-export type { MeCardThemeKey } from './card-theme';
+export type { MeCardThemeCategory, MeCardThemeKey } from './card-theme';
 export {
   DEFAULT_ME_CARD_THEME,
   isMeCardThemeKey,
+  ME_CARD_THEME_CATEGORIES,
+  ME_CARD_THEME_CATEGORY_ORDER,
   ME_CARD_THEME_KEYS,
   ME_CARD_THEME_SWATCH,
 } from './card-theme';
@@ -77,6 +79,7 @@ export type {
   CoPresencePairUser,
   CoPresenceSummary,
   CoPresenceTopPair,
+  MeFriendsSummary,
   MePairDetailResponse,
   MeTopPeerItem,
   MeTopPeersResponse,
