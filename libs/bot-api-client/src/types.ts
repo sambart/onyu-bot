@@ -285,6 +285,25 @@ export interface GetMyBestFriendsOptions {
   locale: CanvasCardLocale;
 }
 
+/**
+ * getDuoChemistry 요청 옵션(F-COPRESENCE-029) — API `DuoChemistryRequestDto`와 수기 정합 필수.
+ * 🔒 불변식(계획 §2-F): `userId`는 언제나 커맨드 실행자(`interaction.user.id`)다. `상대`
+ * 옵션값은 `peerId`로만 전달하며, 어떤 분기에서도 두 필드가 뒤바뀌어선 안 된다.
+ */
+export interface GetDuoChemistryOptions {
+  guildId: string;
+  userId: string;
+  peerId: string;
+  selfDisplayName: string;
+  selfAvatarUrl: string;
+  peerDisplayName: string;
+  peerAvatarUrl: string;
+  locale: CanvasCardLocale;
+}
+
+/** POST /bot-api/co-presence/duo 응답 — 기존 CanvasCardResponse와 동일 셰이프(신규 타입 아님) */
+export type DuoChemistryCardResponse = CanvasCardResponse;
+
 /** getMeProfile 요청 옵션(R3, F-VOICE-082) — API `MeProfileRequestDto`와 수기 정합 필수 */
 export interface GetMeProfileOptions {
   guildId: string;

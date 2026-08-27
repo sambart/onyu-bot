@@ -4,6 +4,7 @@ import { Module } from '@nestjs/common';
 import { BotCommonModule } from '../common/bot-common.module';
 import { BotAutoChannelInteractionHandler } from './auto-channel/bot-auto-channel-interaction.handler';
 import { BotChannelStateHandler } from './channel/bot-channel-state.handler';
+import { BotDuoChemistryInteractionHandler } from './friend/bot-duo-chemistry-interaction.handler';
 import { BotGuildCreateHandler } from './guild-member/bot-guild-create.handler';
 import { BotGuildMemberSyncHandler } from './guild-member/bot-guild-member-sync.handler';
 import { BotMemberRemoveHandler } from './guild-member/bot-member-remove.handler';
@@ -50,6 +51,8 @@ import { BotVoiceSyncHandler } from './voice/bot-voice-sync.handler';
     RolePanelInteractionService,
     // Me (F-VOICE-064/065)
     BotMeInteractionHandler,
+    // Friend — 듀오 케미 카드 [🔗 채널에 공개하기] 버튼(F-COPRESENCE-029)
+    BotDuoChemistryInteractionHandler,
   ],
 })
 export class BotEventModule {}

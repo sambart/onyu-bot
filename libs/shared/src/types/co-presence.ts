@@ -54,6 +54,12 @@ export interface CoPresenceSummary {
   totalPairCount: number;
   totalCoPresenceMinutes: number;
   avgPairsPerMember: number;
+  /**
+   * F-COPRESENCE-031 — 직전 동기간 대비 신규 연결 쌍 수(서버 수준 카운트).
+   * 직전 동기간에 비교 기준이 전무하거나(EC-CP-50) 산출 실패 시(EC-CP-51) null.
+   * null 을 0 으로 대체 표기하지 않는다 — EC-CP-25/34 의 `changePct: null` 원칙 계승.
+   */
+  newPairCount: number | null;
 }
 
 /** GET /api/guilds/:guildId/co-presence/graph 응답 노드 (F-COPRESENCE-008) */

@@ -14,6 +14,8 @@ import type {
   BotRolePanelConfigDto,
   CommandUsedDto,
   CoPresenceSnapshot,
+  DuoChemistryCardResponse,
+  GetDuoChemistryOptions,
   GetMeProfileOptions,
   GetMyBestFriendsOptions,
   GuildDirectoryReconcileDto,
@@ -203,6 +205,15 @@ export class BotApiClientService {
    */
   async getMyBestFriends(options: GetMyBestFriendsOptions): Promise<BestFriendCardResponse> {
     return this.post('/bot-api/co-presence/best-friends', options);
+  }
+
+  /**
+   * 듀오 케미 카드(F-COPRESENCE-029) — 닉네임·아바타 URL 등 개인정보가 액세스 로그(query string)에
+   * 남지 않도록 POST body로 전송한다. 🔒 불변식(계획 §2-F): `options.userId`는 언제나 커맨드
+   * 실행자(`interaction.user.id`)다.
+   */
+  async getDuoChemistry(options: GetDuoChemistryOptions): Promise<DuoChemistryCardResponse> {
+    return this.post('/bot-api/co-presence/duo', options);
   }
 
   // ── Me ──
