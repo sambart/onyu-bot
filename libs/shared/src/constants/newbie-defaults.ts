@@ -5,6 +5,7 @@
  */
 export const NEWBIE_CONFIG_DEFAULTS = {
   welcomeEnabled: false,
+  welcomeDisplayMode: 'EMBED',
   missionEnabled: false,
   missionUseMicTime: false,
   missionDisplayMode: 'EMBED',

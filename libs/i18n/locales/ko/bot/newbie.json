@@ -14,5 +14,7 @@
   "missionTargetCount": "{count}회",
   "durationHour": "{h}시간",
   "durationHourMin": "{h}시간 {m}분",
-  "mocoDataUnavailable": "데이터를 불러올 수 없습니다."
+  "mocoDataUnavailable": "데이터를 불러올 수 없습니다.",
+  "welcomeCardGreeting": "{username}님, 환영합니다!",
+  "welcomeCardMemberChip": "{count}번째 멤버"
 }

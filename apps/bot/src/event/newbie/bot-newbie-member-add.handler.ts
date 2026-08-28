@@ -1,7 +1,11 @@
 import { InjectDiscordClient, On } from '@discord-nestjs/core';
 import { Injectable, Logger } from '@nestjs/common';
 import { BotApiClientService, type NewbieConfigDto } from '@onyu/bot-api-client';
-import { Client, EmbedBuilder, type GuildMember } from 'discord.js';
+import type { SendableChannels } from 'discord.js';
+import { AttachmentBuilder, Client, EmbedBuilder, type GuildMember } from 'discord.js';
+
+/** 환영인사 Canvas 카드 첨부파일 고정 파일명 — best-friend.command.ts:186 관례 */
+const WELCOME_CARD_ATTACHMENT_NAME = 'welcome-card.png';
 
 /**
  * Discord guildMemberAdd 이벤트를 수신하여 신입 온보딩을 처리한다.
@@ -76,6 +80,11 @@ export class BotNewbieMemberAddHandler {
     }
   }
 
+  /**
+   * 환영인사 진입점 — 채널 fetch + vars 구성 + 표시모드 분기를 담당한다.
+   * F-NEWBIE-001-CANVAS: CANVAS 모드는 실패 시 재시도 없이 즉시 EMBED로 강등한다(D12) —
+   * 환영 메시지 발송 자체는 어떤 경우에도 보장돼야 하는 핵심 불변식이다.
+   */
   private async sendWelcomeMessage(member: GuildMember, config: NewbieConfigDto): Promise<void> {
     if (!config.welcomeChannelId) return;
     try {
@@ -88,29 +97,17 @@ export class BotNewbieMemberAddHandler {
         memberCount: String(member.guild.memberCount),
         serverName: member.guild.name,
       };
-
-      const embed = new EmbedBuilder();
-
-      if (config.welcomeEmbedTitle) {
-        embed.setTitle(this.applyTemplate(config.welcomeEmbedTitle, vars));
-      }
-      if (config.welcomeEmbedDescription) {
-        embed.setDescription(this.applyTemplate(config.welcomeEmbedDescription, vars));
-      }
-      if (config.welcomeEmbedColor) {
-        embed.setColor(config.welcomeEmbedColor as `#${string}`);
-      }
-      if (config.welcomeEmbedThumbnailUrl) {
-        embed.setThumbnail(config.welcomeEmbedThumbnailUrl);
-      } else {
-        embed.setThumbnail(member.displayAvatarURL({ size: 128 }));
-      }
-
       const content = config.welcomeContent
         ? this.applyTemplate(config.welcomeContent, vars)
         : undefined;
 
-      await channel.send({ content, embeds: [embed.toJSON()] });
+      if (config.welcomeDisplayMode === 'CANVAS') {
+        const sent = await this.sendWelcomeCanvas(channel, member, content);
+        if (sent) return;
+        // 재시도 없음 — 즉시 EMBED 강등(TC-02-06/TC-02-10)
+      }
+
+      await this.sendWelcomeEmbed(channel, member, config, content, vars);
     } catch (err) {
       this.logger.error(
         `[BOT] Welcome message failed: guild=${member.guild.id} member=${member.id}`,
@@ -119,9 +116,76 @@ export class BotNewbieMemberAddHandler {
     }
   }
 
+  /**
+   * Canvas 카드 발송을 시도한다. E4 호출 실패(5xx/타임아웃/401)·빈 imageBase64·첨부 구성 실패는
+   * 전부 여기서 흡수해 false를 반환한다 — 호출부가 재시도 없이 EMBED로 강등한다(D12 강등 불변식).
+   * @returns true면 Canvas 발송 성공(호출부는 EMBED를 건너뛴다)
+   */
+  private async sendWelcomeCanvas(
+    channel: SendableChannels,
+    member: GuildMember,
+    content: string | undefined,
+  ): Promise<boolean> {
+    try {
+      const res = await this.apiClient.getWelcomeCard({
+        guildId: member.guild.id,
+        memberId: member.id,
+        displayName: member.displayName,
+        avatarUrl: member.displayAvatarURL({ size: 128 }),
+        memberCount: member.guild.memberCount,
+        serverName: member.guild.name,
+      });
+      if (!res.imageBase64) {
+        throw new Error('welcome card render returned empty imageBase64');
+      }
+      const attachment = new AttachmentBuilder(Buffer.from(res.imageBase64, 'base64'), {
+        name: WELCOME_CARD_ATTACHMENT_NAME,
+      });
+
+      await channel.send({ content, files: [attachment] });
+      return true;
+    } catch (err) {
+      this.logger.warn(
+        `[BOT] welcome card render failed → EMBED 강등: guild=${member.guild.id} member=${member.id}`,
+        err instanceof Error ? err.stack : err,
+      );
+      return false;
+    }
+  }
+
+  /** 기존 Embed 환영인사 로직 — 동작 무변경(회귀 금지, §1-1) */
+  private async sendWelcomeEmbed(
+    channel: SendableChannels,
+    member: GuildMember,
+    config: NewbieConfigDto,
+    content: string | undefined,
+    vars: Record<string, string>,
+  ): Promise<void> {
+    const embed = new EmbedBuilder();
+
+    if (config.welcomeEmbedTitle) {
+      embed.setTitle(this.applyTemplate(config.welcomeEmbedTitle, vars));
+    }
+    if (config.welcomeEmbedDescription) {
+      embed.setDescription(this.applyTemplate(config.welcomeEmbedDescription, vars));
+    }
+    if (config.welcomeEmbedColor) {
+      embed.setColor(config.welcomeEmbedColor as `#${string}`);
+    }
+    if (config.welcomeEmbedThumbnailUrl) {
+      embed.setThumbnail(config.welcomeEmbedThumbnailUrl);
+    } else {
+      embed.setThumbnail(member.displayAvatarURL({ size: 128 }));
+    }
+
+    await channel.send({ content, embeds: [embed.toJSON()] });
+  }
+
   private applyTemplate(template: string, vars: Record<string, string>): string {
+    // replacement를 함수로 전달 — 문자열로 넘기면 user-controlled value(닉네임 등) 내부의
+    // `$&`, `$$`, `$'` 같은 특수 패턴이 String.replace의 치환 메타문자로 오해석돼 메시지가 훼손된다.
     return Object.entries(vars).reduce(
-      (result, [key, value]) => result.replace(new RegExp(`\\{${key}\\}`, 'g'), value),
+      (result, [key, value]) => result.replace(new RegExp(`\\{${key}\\}`, 'g'), () => value),
       template,
     );
   }

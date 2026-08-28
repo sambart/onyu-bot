@@ -30,6 +30,7 @@ function makeConfig(overrides: Partial<NewbieConfigDto> = {}): NewbieConfigDto {
     welcomeEnabled: false,
     welcomeChannelId: null,
     welcomeContent: null,
+    welcomeDisplayMode: 'EMBED',
     welcomeEmbedTitle: null,
     welcomeEmbedDescription: null,
     welcomeEmbedColor: null,
@@ -49,6 +50,7 @@ describe('BotNewbieMemberAddHandler', () => {
     getNewbieConfig: Mock;
     sendMemberJoin: Mock;
     notifyRoleAssigned: Mock;
+    getWelcomeCard: Mock;
   };
   let discordClient: { channels: { fetch: Mock } };
   let loggerErrorSpy: ReturnType<typeof vi.spyOn>;
@@ -59,6 +61,7 @@ describe('BotNewbieMemberAddHandler', () => {
       getNewbieConfig: vi.fn().mockResolvedValue(null),
       sendMemberJoin: vi.fn().mockResolvedValue(undefined),
       notifyRoleAssigned: vi.fn().mockResolvedValue(undefined),
+      getWelcomeCard: vi.fn().mockResolvedValue({ ok: true, imageBase64: 'ZmFrZS1wbmc=' }),
     };
     discordClient = {
       channels: { fetch: vi.fn().mockResolvedValue(null) },
@@ -178,6 +181,37 @@ describe('BotNewbieMemberAddHandler', () => {
       expect(apiClient.sendMemberJoin).toHaveBeenCalledTimes(1);
       expect(member.roles.add).toHaveBeenCalledWith('role-1');
     });
+
+    // ────────────────────────────────────────────────────
+    // EC-NEWBIE-51 / QA O7 — Discord 발송(channel.send) 자체가 실패해도 강등이 아니라
+    // 로그 후 조용히 실패한다(재시도 없음). CANVAS 강등 유발 실패(O1 대응 범위)와 달리,
+    // 이 테스트는 EMBED 전용 경로(welcomeDisplayMode 미설정=CANVAS 아님)에서 channel.send가
+    // throw할 때도 미션 생성·역할 부여(병렬 로직)가 계속 진행되는지 확인한다.
+    // ────────────────────────────────────────────────────
+    it('EMBED 전용 경로에서 channel.send가 실패해도(권한 부족 등) 재시도 없이 로그만 남기고, 미션/역할 로직은 계속 진행된다(EC-NEWBIE-51)', async () => {
+      apiClient.getNewbieConfig.mockResolvedValue(
+        makeConfig({
+          welcomeEnabled: true,
+          welcomeChannelId: 'ch-1',
+          welcomeDisplayMode: 'EMBED',
+          missionEnabled: true,
+          roleEnabled: true,
+          newbieRoleId: 'role-1',
+        }),
+      );
+      const send = vi.fn().mockRejectedValue(new Error('Missing Permissions'));
+      discordClient.channels.fetch.mockResolvedValue({ isTextBased: () => true, send });
+      const member = makeMember();
+
+      await expect(handler.handleGuildMemberAdd(member)).resolves.toBeUndefined();
+
+      // EMBED 전용 경로는 CANVAS 강등 재시도 대상이 아니므로 send는 정확히 1회만 호출된다.
+      expect(send).toHaveBeenCalledTimes(1);
+      expect(loggerErrorSpy).toHaveBeenCalled();
+      // 예외가 핸들러 밖으로 전파되지 않아 미션 생성·역할 부여가 계속 진행된다.
+      expect(apiClient.sendMemberJoin).toHaveBeenCalledTimes(1);
+      expect(member.roles.add).toHaveBeenCalledWith('role-1');
+    });
   });
 
   // ──────────────────────────────────────────────────────
@@ -291,6 +325,292 @@ describe('BotNewbieMemberAddHandler', () => {
       const member = makeMember();
 
       await expect(handler.handleGuildMemberAdd(member)).resolves.toBeUndefined();
+    });
+  });
+
+  // ──────────────────────────────────────────────────────
+  // F-NEWBIE-001-CANVAS — welcomeDisplayMode 분기 + EMBED 강등 폴백 (D12)
+  // ──────────────────────────────────────────────────────
+  describe('환영인사 표시모드 (welcomeDisplayMode 분기)', () => {
+    it("welcomeDisplayMode: 'EMBED'이면 getWelcomeCard를 호출하지 않고 Embed로 발송한다(TC-02-04)", async () => {
+      apiClient.getNewbieConfig.mockResolvedValue(
+        makeConfig({ welcomeEnabled: true, welcomeChannelId: 'ch-1', welcomeDisplayMode: 'EMBED' }),
+      );
+      const send = vi.fn().mockResolvedValue(undefined);
+      discordClient.channels.fetch.mockResolvedValue({ isTextBased: () => true, send });
+      const member = makeMember();
+
+      await handler.handleGuildMemberAdd(member);
+
+      expect(apiClient.getWelcomeCard).not.toHaveBeenCalled();
+      expect(send).toHaveBeenCalledTimes(1);
+      expect(send.mock.calls[0][0]).toHaveProperty('embeds');
+    });
+
+    it('welcomeDisplayMode가 undefined(구 캐시)이면 Embed 경로로 처리한다', async () => {
+      apiClient.getNewbieConfig.mockResolvedValue(
+        makeConfig({
+          welcomeEnabled: true,
+          welcomeChannelId: 'ch-1',
+          welcomeDisplayMode: undefined as unknown as 'EMBED',
+        }),
+      );
+      const send = vi.fn().mockResolvedValue(undefined);
+      discordClient.channels.fetch.mockResolvedValue({ isTextBased: () => true, send });
+      const member = makeMember();
+
+      await handler.handleGuildMemberAdd(member);
+
+      expect(apiClient.getWelcomeCard).not.toHaveBeenCalled();
+      expect(send.mock.calls[0][0]).toHaveProperty('embeds');
+    });
+
+    it("welcomeDisplayMode: 'CANVAS' 정상이면 getWelcomeCard를 정확히 1회 호출하고 files로 발송한다(TC-02-02)", async () => {
+      apiClient.getNewbieConfig.mockResolvedValue(
+        makeConfig({
+          welcomeEnabled: true,
+          welcomeChannelId: 'ch-1',
+          welcomeDisplayMode: 'CANVAS',
+        }),
+      );
+      const send = vi.fn().mockResolvedValue(undefined);
+      discordClient.channels.fetch.mockResolvedValue({ isTextBased: () => true, send });
+      const member = makeMember();
+
+      await handler.handleGuildMemberAdd(member);
+
+      expect(apiClient.getWelcomeCard).toHaveBeenCalledTimes(1);
+      expect(send).toHaveBeenCalledTimes(1);
+      const sentArg = send.mock.calls[0][0] as { files?: unknown[]; embeds?: unknown[] };
+      expect(sentArg.files).toHaveLength(1);
+      expect(sentArg.embeds).toBeUndefined();
+    });
+
+    it('getWelcomeCard 호출 인자가 멤버 컨텍스트와 일치한다(TC-02-02)', async () => {
+      apiClient.getNewbieConfig.mockResolvedValue(
+        makeConfig({
+          welcomeEnabled: true,
+          welcomeChannelId: 'ch-1',
+          welcomeDisplayMode: 'CANVAS',
+        }),
+      );
+      discordClient.channels.fetch.mockResolvedValue({
+        isTextBased: () => true,
+        send: vi.fn().mockResolvedValue(undefined),
+      });
+      const member = makeMember();
+
+      await handler.handleGuildMemberAdd(member);
+
+      expect(apiClient.getWelcomeCard).toHaveBeenCalledWith({
+        guildId: 'guild-1',
+        memberId: 'member-1',
+        displayName: '동현',
+        avatarUrl: 'https://example.com/avatar.png',
+        memberCount: 100,
+        serverName: '테스트 서버',
+      });
+    });
+
+    it('getWelcomeCard가 reject(5xx)되면 재시도 없이 Embed로 강등 발송한다(TC-02-06)', async () => {
+      apiClient.getNewbieConfig.mockResolvedValue(
+        makeConfig({
+          welcomeEnabled: true,
+          welcomeChannelId: 'ch-1',
+          welcomeDisplayMode: 'CANVAS',
+        }),
+      );
+      apiClient.getWelcomeCard.mockRejectedValue(new Error('API 500'));
+      const send = vi.fn().mockResolvedValue(undefined);
+      discordClient.channels.fetch.mockResolvedValue({ isTextBased: () => true, send });
+      const member = makeMember();
+
+      await handler.handleGuildMemberAdd(member);
+
+      expect(apiClient.getWelcomeCard).toHaveBeenCalledTimes(1);
+      expect(send).toHaveBeenCalledTimes(1);
+      const sentArg = send.mock.calls[0][0] as { embeds?: unknown[] };
+      expect(sentArg.embeds).toBeDefined();
+    });
+
+    it('getWelcomeCard가 reject(401)되어도 동일하게 Embed로 강등한다(TC-02-10)', async () => {
+      apiClient.getNewbieConfig.mockResolvedValue(
+        makeConfig({
+          welcomeEnabled: true,
+          welcomeChannelId: 'ch-1',
+          welcomeDisplayMode: 'CANVAS',
+        }),
+      );
+      apiClient.getWelcomeCard.mockRejectedValue(new Error('401 Unauthorized'));
+      const send = vi.fn().mockResolvedValue(undefined);
+      discordClient.channels.fetch.mockResolvedValue({ isTextBased: () => true, send });
+      const member = makeMember();
+
+      await handler.handleGuildMemberAdd(member);
+
+      const sentArg = send.mock.calls[0][0] as { embeds?: unknown[] };
+      expect(sentArg.embeds).toBeDefined();
+    });
+
+    it('imageBase64가 빈 문자열이면 강등 발송으로 처리한다', async () => {
+      apiClient.getNewbieConfig.mockResolvedValue(
+        makeConfig({
+          welcomeEnabled: true,
+          welcomeChannelId: 'ch-1',
+          welcomeDisplayMode: 'CANVAS',
+        }),
+      );
+      apiClient.getWelcomeCard.mockResolvedValue({ ok: true, imageBase64: '' });
+      const send = vi.fn().mockResolvedValue(undefined);
+      discordClient.channels.fetch.mockResolvedValue({ isTextBased: () => true, send });
+      const member = makeMember();
+
+      await handler.handleGuildMemberAdd(member);
+
+      const sentArg = send.mock.calls[0][0] as { embeds?: unknown[] };
+      expect(sentArg.embeds).toBeDefined();
+    });
+
+    it('강등 Embed는 저장된 Embed 설정값을 그대로 사용한다(TC-02-06c)', async () => {
+      apiClient.getNewbieConfig.mockResolvedValue(
+        makeConfig({
+          welcomeEnabled: true,
+          welcomeChannelId: 'ch-1',
+          welcomeDisplayMode: 'CANVAS',
+          welcomeEmbedTitle: '환영합니다 {username}',
+        }),
+      );
+      apiClient.getWelcomeCard.mockRejectedValue(new Error('API 500'));
+      const send = vi.fn().mockResolvedValue(undefined);
+      discordClient.channels.fetch.mockResolvedValue({ isTextBased: () => true, send });
+      const member = makeMember();
+
+      await handler.handleGuildMemberAdd(member);
+
+      const sentArg = send.mock.calls[0][0] as { embeds: Array<{ title?: string }> };
+      expect(sentArg.embeds[0].title).toBe('환영합니다 동현');
+    });
+
+    it("welcomeEnabled: false이면 'CANVAS' 설정이어도 환영 발송 자체가 없다(TC-02-09)", async () => {
+      apiClient.getNewbieConfig.mockResolvedValue(
+        makeConfig({
+          welcomeEnabled: false,
+          welcomeChannelId: 'ch-1',
+          welcomeDisplayMode: 'CANVAS',
+        }),
+      );
+      const member = makeMember();
+
+      await handler.handleGuildMemberAdd(member);
+
+      expect(discordClient.channels.fetch).not.toHaveBeenCalled();
+      expect(apiClient.getWelcomeCard).not.toHaveBeenCalled();
+    });
+
+    // ────────────────────────────────────────────────────
+    // PR#443 리뷰 결함 #1 — applyTemplate의 String.replace 치환 메타문자 훼손 방지.
+    // replacement를 함수로 전달하지 않으면 사용자 제어값(닉네임·서버명) 안의 `$&`/`$$`/`$'` 등이
+    // "정규식 치환 특수 패턴"으로 오해석되어 메시지가 훼손된다.
+    // ────────────────────────────────────────────────────
+    describe('applyTemplate — 특수 치환 메타문자 방지(PR#443 리뷰 결함 #1)', () => {
+      it('displayName에 $&(전체 매치 참조 메타문자)가 포함되어도 welcomeContent에 리터럴로 치환된다', async () => {
+        const member = makeMember({ displayName: 'user$&name' });
+        apiClient.getNewbieConfig.mockResolvedValue(
+          makeConfig({
+            welcomeEnabled: true,
+            welcomeChannelId: 'ch-1',
+            welcomeContent: 'Hello {username}!',
+          }),
+        );
+        const send = vi.fn().mockResolvedValue(undefined);
+        discordClient.channels.fetch.mockResolvedValue({ isTextBased: () => true, send });
+
+        await handler.handleGuildMemberAdd(member);
+
+        // 버그 재현 시: '{username}'가 매치 전체이므로 $&가 '{username}' 자신으로 치환되어
+        // 'Hello user{username}name!'처럼 훼손된다.
+        expect((send.mock.calls[0][0] as { content?: string }).content).toBe('Hello user$&name!');
+      });
+
+      it('displayName에 $$(리터럴 $ 이스케이프 메타문자)가 포함되어도 $ 하나가 소실되지 않는다', async () => {
+        const member = makeMember({ displayName: 'user$$name' });
+        apiClient.getNewbieConfig.mockResolvedValue(
+          makeConfig({
+            welcomeEnabled: true,
+            welcomeChannelId: 'ch-1',
+            welcomeContent: 'Hello {username}!',
+          }),
+        );
+        const send = vi.fn().mockResolvedValue(undefined);
+        discordClient.channels.fetch.mockResolvedValue({ isTextBased: () => true, send });
+
+        await handler.handleGuildMemberAdd(member);
+
+        // 버그 재현 시: '$$'가 리터럴 '$' 하나로 축약되어 'Hello user$name!'이 된다.
+        expect((send.mock.calls[0][0] as { content?: string }).content).toBe('Hello user$$name!');
+      });
+
+      it("displayName에 $'(매치 이후 문자열 참조 메타문자)가 포함되어도 리터럴로 치환된다", async () => {
+        const member = makeMember({ displayName: "user$'name" });
+        apiClient.getNewbieConfig.mockResolvedValue(
+          makeConfig({
+            welcomeEnabled: true,
+            welcomeChannelId: 'ch-1',
+            welcomeContent: 'Hello {username}, bye!',
+          }),
+        );
+        const send = vi.fn().mockResolvedValue(undefined);
+        discordClient.channels.fetch.mockResolvedValue({ isTextBased: () => true, send });
+
+        await handler.handleGuildMemberAdd(member);
+
+        expect((send.mock.calls[0][0] as { content?: string }).content).toBe(
+          "Hello user$'name, bye!",
+        );
+      });
+
+      it('guild.name(serverName)에 $&/$$가 포함되어도 embed title/description에 리터럴로 치환된다', async () => {
+        const member = makeMember({
+          guild: { id: 'guild-1', memberCount: 100, name: '$&서버$$' },
+        });
+        apiClient.getNewbieConfig.mockResolvedValue(
+          makeConfig({
+            welcomeEnabled: true,
+            welcomeChannelId: 'ch-1',
+            welcomeDisplayMode: 'EMBED',
+            welcomeEmbedTitle: '{serverName}에 오신 것을 환영합니다',
+            welcomeEmbedDescription: '즐거운 시간 되세요, {serverName}!',
+          }),
+        );
+        const send = vi.fn().mockResolvedValue(undefined);
+        discordClient.channels.fetch.mockResolvedValue({ isTextBased: () => true, send });
+
+        await handler.handleGuildMemberAdd(member);
+
+        const sentArg = send.mock.calls[0][0] as {
+          embeds: Array<{ title?: string; description?: string }>;
+        };
+        expect(sentArg.embeds[0].title).toBe('$&서버$$에 오신 것을 환영합니다');
+        expect(sentArg.embeds[0].description).toBe('즐거운 시간 되세요, $&서버$$!');
+      });
+    });
+
+    it('Canvas 발송(channel.send) 자체가 실패해도 재시도 없이 로그 후 조용히 종료한다(TC-02-11)', async () => {
+      apiClient.getNewbieConfig.mockResolvedValue(
+        makeConfig({
+          welcomeEnabled: true,
+          welcomeChannelId: 'ch-1',
+          welcomeDisplayMode: 'CANVAS',
+        }),
+      );
+      const send = vi.fn().mockRejectedValue(new Error('Missing Permissions'));
+      discordClient.channels.fetch.mockResolvedValue({ isTextBased: () => true, send });
+      const member = makeMember();
+
+      await expect(handler.handleGuildMemberAdd(member)).resolves.toBeUndefined();
+      // Canvas 실패 → EMBED 강등 재시도(1회) → 그 EMBED 발송도 실패 → 상위 catch가 흡수, 총 2회 send 시도
+      expect(send).toHaveBeenCalledTimes(2);
+      expect(loggerErrorSpy).toHaveBeenCalled();
     });
   });
 });

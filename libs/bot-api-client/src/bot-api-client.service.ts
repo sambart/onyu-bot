@@ -18,6 +18,7 @@ import type {
   GetDuoChemistryOptions,
   GetMeProfileOptions,
   GetMyBestFriendsOptions,
+  GetWelcomeCardOptions,
   GuildDirectoryReconcileDto,
   GuildDirectoryReconcileResult,
   GuildLifecycleEventDto,
@@ -50,6 +51,7 @@ import type {
   UserLocaleResponse,
   VoiceStateUpdateDto,
   VoiceSyncDto,
+  WelcomeCardResponse,
 } from './types';
 
 /**
@@ -114,6 +116,20 @@ export class BotApiClientService {
 
   async notifyRoleAssigned(dto: RoleAssignedDto): Promise<void> {
     await this.post('/bot-api/newbie/role-assigned', dto);
+  }
+
+  /** F-NEWBIE-001-CANVAS — 환영 카드 PNG 렌더 요청(E4). 실패는 그대로 throw해 호출부가 EMBED로 강등한다 */
+  async getWelcomeCard(options: GetWelcomeCardOptions): Promise<WelcomeCardResponse> {
+    // 한글 닉네임/서버명이 그대로 들어가므로 URLSearchParams로 인코딩한다(템플릿 리터럴 직결 금지)
+    const params = new URLSearchParams({
+      guildId: options.guildId,
+      memberId: options.memberId,
+      displayName: options.displayName,
+      memberCount: String(options.memberCount),
+      serverName: options.serverName,
+    });
+    if (options.avatarUrl) params.set('avatarUrl', options.avatarUrl);
+    return this.get(`/bot-api/newbie/welcome-card?${params.toString()}`);
   }
 
   // ── Status Prefix ──

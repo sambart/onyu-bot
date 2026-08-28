@@ -78,6 +78,8 @@ export interface NewbieConfigDto {
   welcomeEnabled: boolean;
   welcomeChannelId: string | null;
   welcomeContent: string | null;
+  /** F-NEWBIE-001-CANVAS. 구 캐시(컬럼 추가 전 저장분)는 undefined일 수 있다 — 봇은 `=== 'CANVAS'` 양성 비교로 안전 처리한다(D10) */
+  welcomeDisplayMode: 'EMBED' | 'CANVAS';
   welcomeEmbedTitle: string | null;
   welcomeEmbedDescription: string | null;
   welcomeEmbedColor: string | null;
@@ -86,6 +88,22 @@ export interface NewbieConfigDto {
   roleEnabled: boolean;
   newbieRoleId: string | null;
   roleDurationDays: number | null;
+}
+
+/** GET /bot-api/newbie/welcome-card 응답 (E4). CanvasCardResponse와 셰이프가 달라 별도 선언 */
+export interface WelcomeCardResponse {
+  ok: true;
+  imageBase64: string;
+}
+
+/** getWelcomeCard 요청 옵션(E4) */
+export interface GetWelcomeCardOptions {
+  guildId: string;
+  memberId: string;
+  displayName: string;
+  avatarUrl: string | null;
+  memberCount: number;
+  serverName: string;
 }
 
 export interface RoleAssignedDto {
