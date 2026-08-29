@@ -231,6 +231,101 @@ describe('BestFriendCommand', () => {
     expect(call.components[0].components).toHaveLength(1); // 대시보드 링크 버튼 유지
   });
 
+  it('무옵션 경로의 API ok:true·data:null(!result.data) 동작도 링크 버튼을 유지한다(회귀 없음)', async () => {
+    const interaction = makeInteraction();
+    apiClient.getMyBestFriends.mockResolvedValue(bestFriendResponse({ data: null }));
+
+    await command.onBestFriend(interaction, new BestFriendCommandDto());
+
+    const call = (interaction.editReply as Mock).mock.calls[0][0] as {
+      content: string;
+      components: Array<{ components: Array<{ toJSON: () => Record<string, unknown> }> }>;
+    };
+    expect(call.content).toBe(
+      '최근 90일간 함께한 친구 기록이 없어요. 음성방에 들어가 친구를 만들어보세요!',
+    );
+    expect(call.components[0].components).toHaveLength(1); // 대시보드 링크 버튼 유지
+  });
+
+  it('무옵션 경로 렌더 성공 시에도 파일과 함께 링크 버튼을 포함해 응답한다(회귀 없음)', async () => {
+    const interaction = makeInteraction();
+
+    await command.onBestFriend(interaction, new BestFriendCommandDto());
+
+    const call = (interaction.editReply as Mock).mock.calls[0][0] as {
+      files: unknown[];
+      components: Array<{ components: Array<{ toJSON: () => Record<string, unknown> }> }>;
+    };
+    expect(call.files).toHaveLength(1);
+    expect(call.components[0].components).toHaveLength(1); // 대시보드 링크 버튼 유지
+  });
+
+  // ─── C2 결함 수정 — catch(예외) 경로에서도 링크 버튼을 유지한다 ─────────────────
+
+  it('API 호출이 reject되면(예외) catch 경로에서도 에러 문구와 함께 링크 버튼을 포함해 응답한다(C2 회귀 가드)', async () => {
+    const interaction = makeInteraction();
+    apiClient.getMyBestFriends.mockRejectedValue(new Error('network fail'));
+
+    await command.onBestFriend(interaction, new BestFriendCommandDto());
+
+    const call = (interaction.editReply as Mock).mock.calls[0][0] as {
+      content: string;
+      components: Array<{ components: Array<{ toJSON: () => Record<string, unknown> }> }>;
+    };
+    expect(call.content).toBe('베스트 프렌드 조회 중 오류가 발생했습니다.');
+    expect(call.components).toHaveLength(1);
+    expect(call.components[0].components).toHaveLength(1); // catch 경로에서도 링크 버튼 유지(C2)
+  });
+
+  it('buildLinkButtonRow가 예외를 던지면 컴포넌트를 빈 배열로 폴백하고 핸들러가 정상 종료된다(방어 코드)', async () => {
+    const interaction = makeInteraction();
+    const buildSpy = vi
+      .spyOn(
+        BestFriendCommand.prototype as unknown as Record<string, (...args: unknown[]) => unknown>,
+        'buildLinkButtonRow',
+      )
+      .mockImplementation(() => {
+        throw new Error('build failed');
+      });
+
+    await expect(
+      command.onBestFriend(interaction, new BestFriendCommandDto()),
+    ).resolves.toBeUndefined();
+
+    const call = (interaction.editReply as Mock).mock.calls[0][0] as {
+      files: unknown[];
+      components: unknown[];
+    };
+    expect(call.files).toHaveLength(1);
+    expect(call.components).toEqual([]); // buildLinkButtonRow 실패 시 버튼 없이 폴백
+
+    buildSpy.mockRestore();
+  });
+
+  it('buildLinkButtonRow가 예외를 던지고 API도 reject되면(이중 실패) catch 경로에서도 컴포넌트가 빈 배열로 폴백하고 핸들러가 정상 종료된다', async () => {
+    const interaction = makeInteraction();
+    apiClient.getMyBestFriends.mockRejectedValue(new Error('network fail'));
+    const buildSpy = vi
+      .spyOn(
+        BestFriendCommand.prototype as unknown as Record<string, (...args: unknown[]) => unknown>,
+        'buildLinkButtonRow',
+      )
+      .mockImplementation(() => {
+        throw new Error('build failed');
+      });
+
+    await expect(
+      command.onBestFriend(interaction, new BestFriendCommandDto()),
+    ).resolves.toBeUndefined();
+
+    expect(interaction.editReply).toHaveBeenCalledWith({
+      content: '베스트 프렌드 조회 중 오류가 발생했습니다.',
+      components: [],
+    });
+
+    buildSpy.mockRestore();
+  });
+
   // ─── §2-F 불변식 — userId는 항상 interaction.user.id(P0 회귀 가드) ──────────
 
   it('§2-F 불변식: 상대 지정 경로에서도 getDuoChemistry에 넘어가는 userId는 항상 interaction.user.id다(peer.id로 대체되지 않는다)', async () => {

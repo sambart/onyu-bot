@@ -113,6 +113,22 @@ export class BestFriendCommand {
     // 공개 응답 고정 (ephemeral 없음)
     await interaction.deferReply();
 
+    // guildId·locale은 함수 인자로 catch 시점에도 항상 확정돼 있으므로 try 밖에서 미리 생성한다.
+    // catch 경로(C2 결함 수정)에서도 정상 실패 경로와 동일하게 웹 링크 버튼을 노출하기 위함.
+    // buildLinkButtonRow 자체는 이론상 던지지 않지만(guildId는 항상 유효한 snowflake, webUrl은
+    // 상수/env, i18n.t는 실패 시 key를 폴백 반환) try 밖에서 실행되므로 방어적으로 감싼다 —
+    // 여기서 던지면 catch가 없어 핸들러 전체가 unhandled로 터진다.
+    let linkButtonRow: ActionRowBuilder<ButtonBuilder> | null;
+    try {
+      linkButtonRow = this.buildLinkButtonRow(guildId, locale);
+    } catch (buildError) {
+      this.logger.error(
+        'BestFriend link button build failed',
+        buildError instanceof Error ? buildError.stack : String(buildError),
+      );
+      linkButtonRow = null;
+    }
+
     try {
       // GuildMember 캐스팅 — discord-nestjs CommandInteraction.member는 APIInteractionGuildMember | GuildMember 유니온
       const displayName =
@@ -129,12 +145,10 @@ export class BestFriendCommand {
         locale: this.toCanvasLocale(locale),
       });
 
-      const linkButtonRow = this.buildLinkButtonRow(guildId, locale);
-
       if (!result.ok) {
         await interaction.editReply({
           content: this.i18n.t(locale, 'commands.bestFriendError'),
-          components: [linkButtonRow],
+          components: this.toButtonComponents(linkButtonRow),
         });
         return;
       }
@@ -142,7 +156,7 @@ export class BestFriendCommand {
       if (!result.data) {
         await interaction.editReply({
           content: this.i18n.t(locale, 'commands.bestFriendNoData', { days: result.days }),
-          components: [linkButtonRow],
+          components: this.toButtonComponents(linkButtonRow),
         });
         return;
       }
@@ -153,7 +167,10 @@ export class BestFriendCommand {
         'BestFriend command error',
         error instanceof Error ? error.stack : String(error),
       );
-      await interaction.editReply({ content: this.i18n.t(locale, 'commands.bestFriendError') });
+      await interaction.editReply({
+        content: this.i18n.t(locale, 'commands.bestFriendError'),
+        components: this.toButtonComponents(linkButtonRow),
+      });
     }
   }
 
@@ -174,10 +191,17 @@ export class BestFriendCommand {
     return new ActionRowBuilder<ButtonBuilder>().addComponents(button);
   }
 
+  /** buildLinkButtonRow 실패(방어적 try/catch, null) 시 버튼 없이 진행하기 위한 변환 헬퍼 */
+  private toButtonComponents(
+    linkButtonRow: ActionRowBuilder<ButtonBuilder> | null,
+  ): ActionRowBuilder<ButtonBuilder>[] {
+    return linkButtonRow ? [linkButtonRow] : [];
+  }
+
   private async renderPersonalCard(
     interaction: ChatInputCommandInteraction,
     result: BestFriendCardResponse,
-    linkButtonRow: ActionRowBuilder<ButtonBuilder>,
+    linkButtonRow: ActionRowBuilder<ButtonBuilder> | null,
   ): Promise<void> {
     if (!result.data) {
       return;
@@ -187,7 +211,7 @@ export class BestFriendCommand {
 
     await interaction.editReply({
       files: [attachment],
-      components: [linkButtonRow],
+      components: this.toButtonComponents(linkButtonRow),
     });
   }
 

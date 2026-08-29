@@ -136,6 +136,174 @@ describe('BotVoiceStateDispatcher', () => {
   });
 
   // ──────────────────────────────────────────────
+  // D. 서버 강제뮤트/스피커차단(serverMute/serverDeaf) — F-VOICE-099/100, UC-11
+  // ──────────────────────────────────────────────
+  describe('서버 강제뮤트/스피커차단 (F-VOICE-099/100)', () => {
+    it('serverMute만 변화하면 mic_toggle로 판정하고 micOn:false·serverMute:true를 payload에 담는다 (TC-11-01)', async () => {
+      const oldState = makeVoiceState({
+        channelId: 'ch-1',
+        channel: makeChannel('일반', ['user-1']),
+        serverMute: false,
+      });
+      const newState = makeVoiceState({
+        channelId: 'ch-1',
+        channel: makeChannel('일반', ['user-1']),
+        serverMute: true,
+      });
+
+      await dispatcher.handleVoiceStateUpdate(oldState, newState);
+
+      const dto = apiClient.sendVoiceStateUpdate.mock.calls[0][0] as VoiceStateUpdateDto;
+      expect(dto.eventType).toBe('mic_toggle');
+      expect(dto.micOn).toBe(false);
+      expect(dto.serverMute).toBe(true);
+    });
+
+    it('serverDeaf만 변화하면 deaf_toggle로 판정하고 serverDeaf:true를 payload에 담는다 (TC-11-06)', async () => {
+      const oldState = makeVoiceState({
+        channelId: 'ch-1',
+        channel: makeChannel('일반', ['user-1']),
+        serverDeaf: false,
+      });
+      const newState = makeVoiceState({
+        channelId: 'ch-1',
+        channel: makeChannel('일반', ['user-1']),
+        serverDeaf: true,
+      });
+
+      await dispatcher.handleVoiceStateUpdate(oldState, newState);
+
+      const dto = apiClient.sendVoiceStateUpdate.mock.calls[0][0] as VoiceStateUpdateDto;
+      expect(dto.eventType).toBe('deaf_toggle');
+      expect(dto.serverDeaf).toBe(true);
+    });
+
+    it('마이크 ON 판정 진리표: selfMute·serverMute 조합에 따라 micOn이 결정된다 (TC-11-03/04/05)', async () => {
+      // [selfMute, serverMute, expectedMicOn] — 어느 한쪽이라도 켜져 있으면 micOn:false
+      const cases: Array<[boolean, boolean, boolean]> = [
+        [false, false, true],
+        [true, false, false],
+        [false, true, false], // TC-11-03: 강제뮤트 상태로 join
+        [true, true, false],
+      ];
+
+      for (const [selfMute, serverMute, expectedMicOn] of cases) {
+        apiClient.sendVoiceStateUpdate.mockClear();
+        const oldState = makeVoiceState({ channelId: null, channel: null });
+        const member = makeMember();
+        const newState = makeVoiceState({
+          channelId: 'ch-1',
+          channel: makeChannel('일반', ['user-1']),
+          member,
+          selfMute,
+          serverMute,
+        });
+
+        await dispatcher.handleVoiceStateUpdate(oldState, newState);
+
+        const dto = apiClient.sendVoiceStateUpdate.mock.calls[0][0] as VoiceStateUpdateDto;
+        expect(dto.micOn).toBe(expectedMicOn);
+      }
+    });
+
+    it('selfMute:true 상태에서 serverMute를 추가 부과해도 micOn은 false로 불변이나 이벤트는 발화한다 (TC-11-04)', async () => {
+      const oldState = makeVoiceState({
+        channelId: 'ch-1',
+        channel: makeChannel('일반', ['user-1']),
+        selfMute: true,
+        serverMute: false,
+      });
+      const newState = makeVoiceState({
+        channelId: 'ch-1',
+        channel: makeChannel('일반', ['user-1']),
+        selfMute: true,
+        serverMute: true,
+      });
+
+      await dispatcher.handleVoiceStateUpdate(oldState, newState);
+
+      const dto = apiClient.sendVoiceStateUpdate.mock.calls[0][0] as VoiceStateUpdateDto;
+      expect(dto.eventType).toBe('mic_toggle');
+      expect(dto.micOn).toBe(false);
+    });
+
+    it('selfMute:true를 유지한 채 serverMute만 해제해도 micOn은 false로 불변이나 이벤트는 발화한다 (TC-11-04, 해제 순서 전이)', async () => {
+      const oldState = makeVoiceState({
+        channelId: 'ch-1',
+        channel: makeChannel('일반', ['user-1']),
+        selfMute: true,
+        serverMute: true,
+      });
+      const newState = makeVoiceState({
+        channelId: 'ch-1',
+        channel: makeChannel('일반', ['user-1']),
+        selfMute: true,
+        serverMute: false,
+      });
+
+      await dispatcher.handleVoiceStateUpdate(oldState, newState);
+
+      const dto = apiClient.sendVoiceStateUpdate.mock.calls[0][0] as VoiceStateUpdateDto;
+      expect(dto.eventType).toBe('mic_toggle');
+      expect(dto.micOn).toBe(false);
+    });
+
+    it('serverMute/serverDeaf가 양쪽 다 null/undefined로 무변화이면 이벤트를 발화하지 않는다 (null 안전 정규화, §3 D2 회귀 가드)', async () => {
+      const oldState = makeVoiceState({
+        channelId: 'ch-1',
+        channel: makeChannel('일반', ['user-1']),
+        serverMute: null,
+        serverDeaf: undefined,
+      });
+      const newState = makeVoiceState({
+        channelId: 'ch-1',
+        channel: makeChannel('일반', ['user-1']),
+        serverMute: undefined,
+        serverDeaf: null,
+      });
+
+      await dispatcher.handleVoiceStateUpdate(oldState, newState);
+
+      expect(apiClient.sendVoiceStateUpdate).not.toHaveBeenCalled();
+    });
+
+    it('serverMute:null이면 false로 정규화되어 micOn 판정에서 켜진 것으로 취급되지 않는다 (null 안전)', async () => {
+      const oldState = makeVoiceState({ channelId: null, channel: null });
+      const member = makeMember();
+      const newState = makeVoiceState({
+        channelId: 'ch-1',
+        channel: makeChannel('일반', ['user-1']),
+        member,
+        selfMute: false,
+        serverMute: null,
+      });
+
+      await dispatcher.handleVoiceStateUpdate(oldState, newState);
+
+      const dto = apiClient.sendVoiceStateUpdate.mock.calls[0][0] as VoiceStateUpdateDto;
+      expect(dto.micOn).toBe(true);
+    });
+
+    it('payload에 serverMute/serverDeaf 필드가 동봉된다', async () => {
+      const oldState = makeVoiceState({ channelId: null, channel: null });
+      const member = makeMember();
+      const newState = makeVoiceState({
+        channelId: 'ch-1',
+        channel: makeChannel('일반', ['user-1']),
+        member,
+        serverMute: true,
+        serverDeaf: true,
+      });
+
+      await dispatcher.handleVoiceStateUpdate(oldState, newState);
+
+      const dto = apiClient.sendVoiceStateUpdate.mock.calls[0][0] as VoiceStateUpdateDto;
+      expect(dto.serverMute).toBe(true);
+      expect(dto.serverDeaf).toBe(true);
+    });
+  });
+
+  // ──────────────────────────────────────────────
   // B. leave 재시도
   // ──────────────────────────────────────────────
   describe('leave 재시도', () => {

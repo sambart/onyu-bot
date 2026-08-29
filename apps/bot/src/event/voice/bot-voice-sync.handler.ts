@@ -54,10 +54,12 @@ export class BotVoiceSyncHandler {
             categoryName: channel.parent?.name ?? null,
             userName: member.displayName,
             avatarUrl: member.displayAvatarURL({ size: 128 }),
-            micOn: !(voiceState.selfMute ?? false),
+            micOn: !(voiceState.selfMute ?? false) && !(voiceState.serverMute ?? false),
             streaming: voiceState.streaming ?? false,
             selfVideo: voiceState.selfVideo,
             selfDeaf: voiceState.selfDeaf,
+            serverMute: voiceState.serverMute ?? false,
+            serverDeaf: voiceState.serverDeaf ?? false,
             gameName: playing?.name ?? null,
             gameApplicationId: playing?.applicationId ?? null,
           });

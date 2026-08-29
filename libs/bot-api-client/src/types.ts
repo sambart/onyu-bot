@@ -47,6 +47,11 @@ export interface VoiceStateUpdateDto {
   selfVideo?: boolean;
   selfDeaf?: boolean;
 
+  /** 관리자 강제 마이크 음소거(F-VOICE-099/100). 구버전 봇은 미전송 → undefined */
+  serverMute?: boolean;
+  /** 관리자 강제 스피커 음소거(F-VOICE-099/100). 구버전 봇은 미전송 → undefined */
+  serverDeaf?: boolean;
+
   // Phase 2: 게임 활동 (optional — 게임 중이 아닐 수 있음)
   gameName?: string | null;
   gameApplicationId?: string | null;
@@ -348,6 +353,10 @@ export interface VoiceSyncUser {
   streaming: boolean;
   selfVideo: boolean;
   selfDeaf: boolean;
+  /** 관리자 강제 마이크 음소거(F-VOICE-099/100). 구버전 봇은 미전송 → undefined */
+  serverMute?: boolean;
+  /** 관리자 강제 스피커 음소거(F-VOICE-099/100). 구버전 봇은 미전송 → undefined */
+  serverDeaf?: boolean;
   gameName: string | null;
   gameApplicationId: string | null;
 }

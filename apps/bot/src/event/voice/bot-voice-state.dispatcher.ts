@@ -55,9 +55,11 @@ export class BotVoiceStateDispatcher {
     if (oldChannelId && !channelId) return 'leave';
     if (oldChannelId && channelId && oldChannelId !== channelId) return 'move';
     if (oldState.selfMute !== newState.selfMute) return 'mic_toggle';
+    if ((oldState.serverMute ?? false) !== (newState.serverMute ?? false)) return 'mic_toggle';
     if ((oldState.streaming ?? false) !== (newState.streaming ?? false)) return 'streaming_toggle';
     if (oldState.selfVideo !== newState.selfVideo) return 'video_toggle';
     if (oldState.selfDeaf !== newState.selfDeaf) return 'deaf_toggle';
+    if ((oldState.serverDeaf ?? false) !== (newState.serverDeaf ?? false)) return 'deaf_toggle';
     return null;
   }
 
@@ -91,7 +93,7 @@ export class BotVoiceStateDispatcher {
       categoryName: newState.channel?.parent?.name ?? null,
       oldParentCategoryId: oldState.channel?.parentId ?? null,
       oldCategoryName: oldState.channel?.parent?.name ?? null,
-      micOn: !(newState.selfMute ?? false),
+      micOn: !(newState.selfMute ?? false) && !(newState.serverMute ?? false),
       avatarUrl: newState.member?.displayAvatarURL({ size: 128 }) ?? null,
 
       channelMemberCount: channelHumanMembers.length,
@@ -103,6 +105,8 @@ export class BotVoiceStateDispatcher {
       streaming: newState.streaming ?? false,
       selfVideo: newState.selfVideo,
       selfDeaf: newState.selfDeaf,
+      serverMute: newState.serverMute ?? false,
+      serverDeaf: newState.serverDeaf ?? false,
 
       // Phase 2
       gameName: gameActivity?.gameName ?? null,

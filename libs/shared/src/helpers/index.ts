@@ -1,4 +1,5 @@
 export * from './auto-channel-name';
+export * from './weekly-report-snapshot-mask.util';
 
 /** 오늘 날짜를 YYYYMMDD 형식 문자열로 반환한다 (로컬 시간 기준) */
 export function todayYYYYMMDD(): string {
