@@ -1,5 +1,5 @@
 {
-  "granted": "Role has been granted.",
+  "granted": "Role has been assigned.",
   "removed": "Role has been removed.",
   "alreadyHas": "You already have this role.",
   "notFound": "Role button configuration not found.",
@@ -7,7 +7,7 @@
   "unknownRole": "The specified role could not be found.",
   "swapped": "Your roles have been updated.",
   "alreadySelected": "You have already selected this.",
-  "locked": "Your request is being processed. Please try again in a moment.",
+  "locked": "Your request is being processed. Please try again shortly.",
   "invalid": "Invalid request.",
-  "genericError": "An error occurred. Please try again later."
+  "genericError": "An error occurred. Please try again shortly."
 }

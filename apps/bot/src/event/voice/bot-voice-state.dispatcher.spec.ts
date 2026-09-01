@@ -393,4 +393,64 @@ describe('BotVoiceStateDispatcher', () => {
       expect(callOrder).toEqual(['leave', 'join']);
     }, 10_000);
   });
+
+  // ──────────────────────────────────────────────
+  // D. 봇 계정 가드 (P1-6)
+  // ──────────────────────────────────────────────
+  describe('봇 계정 가드 (P1-6)', () => {
+    it('newState.member.user.bot === true인 join은 전송하지 않는다', async () => {
+      const oldState = makeVoiceState({ channelId: null, channel: null });
+      const botMember = makeMember({ user: { bot: true } as GuildMember['user'] });
+      const newState = makeVoiceState({
+        channelId: 'ch-1',
+        channel: makeChannel('일반', ['user-1']),
+        member: botMember,
+      });
+
+      await dispatcher.handleVoiceStateUpdate(oldState, newState);
+
+      expect(apiClient.sendVoiceStateUpdate).not.toHaveBeenCalled();
+    });
+
+    it('oldState.member.user.bot === true이고 newState.member === null인 leave는 전송하지 않는다(폴백 검증)', async () => {
+      const botMember = makeMember({ user: { bot: true } as GuildMember['user'] });
+      const oldState = makeVoiceState({
+        channelId: 'ch-1',
+        channel: makeChannel('일반', []),
+        member: botMember,
+      });
+      const newState = makeVoiceState({ channelId: null, channel: null, member: null });
+
+      await dispatcher.handleVoiceStateUpdate(oldState, newState);
+
+      expect(apiClient.sendVoiceStateUpdate).not.toHaveBeenCalled();
+    });
+
+    it('양쪽 member가 모두 null인 leave는 전송된다(기존 동작 보존)', async () => {
+      const oldState = makeVoiceState({
+        channelId: 'ch-1',
+        channel: makeChannel('일반', []),
+        member: null,
+      });
+      const newState = makeVoiceState({ channelId: null, channel: null, member: null });
+
+      await dispatcher.handleVoiceStateUpdate(oldState, newState);
+
+      expect(apiClient.sendVoiceStateUpdate).toHaveBeenCalledOnce();
+    });
+
+    it('user.bot === false인 정상 유저는 전송된다', async () => {
+      const oldState = makeVoiceState({ channelId: null, channel: null });
+      const member = makeMember({ user: { bot: false } as GuildMember['user'] });
+      const newState = makeVoiceState({
+        channelId: 'ch-1',
+        channel: makeChannel('일반', ['user-1']),
+        member,
+      });
+
+      await dispatcher.handleVoiceStateUpdate(oldState, newState);
+
+      expect(apiClient.sendVoiceStateUpdate).toHaveBeenCalledOnce();
+    });
+  });
 });

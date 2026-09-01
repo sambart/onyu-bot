@@ -10,6 +10,10 @@ import { BotGuildMemberSyncHandler } from './guild-member/bot-guild-member-sync.
 import { BotMemberRemoveHandler } from './guild-member/bot-member-remove.handler';
 import { BotMemberUpdateHandler } from './guild-member/bot-member-update.handler';
 import { BotUserUpdateHandler } from './guild-member/bot-user-update.handler';
+import { BotGuildRoleCreateHandler } from './guild-role/bot-guild-role-create.handler';
+import { BotGuildRoleEventHandler } from './guild-role/bot-guild-role-event.handler';
+import { BotGuildRoleReconcileScheduler } from './guild-role/bot-guild-role-reconcile.scheduler';
+import { BotGuildRoleSyncHandler } from './guild-role/bot-guild-role-sync.handler';
 import { BotMeInteractionHandler } from './me/bot-me-interaction.handler';
 import { BotMessageCountHandler } from './message-tracking/bot-message-count.handler';
 import { BotNewbieInteractionHandler } from './newbie/bot-newbie-interaction.handler';
@@ -46,6 +50,11 @@ import { BotVoiceSyncHandler } from './voice/bot-voice-sync.handler';
     BotUserUpdateHandler,
     BotCommandUsageHandler,
     BotGuildLifecycleHandler,
+    // Guild Role
+    BotGuildRoleSyncHandler,
+    BotGuildRoleCreateHandler,
+    BotGuildRoleEventHandler,
+    BotGuildRoleReconcileScheduler,
     // Role Panel
     BotRolePanelInteractionHandler,
     RolePanelInteractionService,

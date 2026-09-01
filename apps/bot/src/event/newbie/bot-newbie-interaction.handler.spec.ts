@@ -242,7 +242,7 @@ describe('BotNewbieInteractionHandler', () => {
       expect(editReplyArg.content).toContain('In progress');
       expect(editReplyArg.content).toContain('1h');
       expect(editReplyArg.content).toContain('Play count: 2');
-      expect(editReplyArg.content).toContain('goal 5');
+      expect(editReplyArg.content).toContain('target 5');
       expect(editReplyArg.content).toContain('2026-03-08');
       expect(editReplyArg.content).toContain('D-3');
       // ko 문자열이 잔존하지 않아야 한다 — 혼재 회귀 방지

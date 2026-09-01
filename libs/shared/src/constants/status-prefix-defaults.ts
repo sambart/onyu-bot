@@ -18,9 +18,12 @@ export const STATUS_PREFIX_EMBED_FALLBACK_COLOR = '#5865F2';
 
 /**
  * 웹 폼 프리필 전용 — 엔티티 컬럼은 전부 nullable이라 시스템 기본값이 아니다.
- * ⚠️ `embedTitle`·`embedDescription`의 한국어 값은 web-dashboard-consistency HITL-4 미결 사안이다.
- * 본 상수 신설은 값 변경·i18n화가 아니라 기존 값을 그대로 옮기는 것뿐이며,
- * HITL-4 확정 시 수정 지점이 이 파일 1곳으로 줄어드는 이득만 취한다.
+ * `embedTitle`·`embedDescription`의 한국어 값은 web-dashboard-consistency HITL-4 미결 사안이었으나
+ * i18n G2(HITL-4-G2, 2026-08-31)에서 ⓐ안(로케일 분기 도입)으로 결정되며 **본 상수는 로케일화 대상에서
+ * 제외**됐다 — `createStatusPrefixConfigDefaults()` → 웹 폼 초기값 경로(`buildDefaultConfig(t)`,
+ * `status-prefix/page.tsx`)에서 즉시 덮어써지고, API 측에는 이 값을 읽는 폴백 경로가 0건이라
+ * 사용자 도달 경로가 없다(실측: `docs/plans/i18n-g2-default-templates.md` §2.3). 값은 변경하지 않는다
+ * (스프레드 셰이프 유지 — 제거하면 `StatusPrefixConfig` 대입 타입이 흔들린다).
  */
 export const STATUS_PREFIX_FORM_DEFAULTS = {
   embedTitle: '게임방 상태 설정 시스템',

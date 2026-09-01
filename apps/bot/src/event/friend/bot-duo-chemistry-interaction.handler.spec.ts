@@ -6,10 +6,12 @@
  * PR#416 리뷰 결함1+2 수정 반영 — 이 핸들러는 더 이상 API(`getDuoChemistry`)를 호출하지
  * 않는다. 원본 ephemeral 메시지에 이미 첨부된 카드 PNG의 CDN URL(`interaction.message
  * .attachments`)을 재사용해 채널에 공개 게시한다. 진입 즉시 `deferUpdate()`로 ACK한 뒤
- * `editReply()`로 원본 버튼을 제거하고 `followUp()`으로 채널에 게시한다.
+ * `editReply()`로 원본 버튼을 제거하고 `followUp()`으로 채널에 게시하며, 게시 성공 후
+ * `deleteReply()`로 ephemeral 원본을 삭제한다.
  */
+import { Logger } from '@nestjs/common';
 import type { ButtonInteraction, Interaction } from 'discord.js';
-import { beforeEach, describe, expect, it, type Mock, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from 'vitest';
 
 import { BotI18nService } from '../../common/application/bot-i18n.service';
 import { LocaleResolverService } from '../../common/application/locale-resolver.service';
@@ -41,6 +43,7 @@ function makeButtonInteraction(overrides: Record<string, unknown> = {}): ButtonI
     editReply: vi.fn().mockResolvedValue(undefined),
     reply: vi.fn().mockResolvedValue(undefined),
     followUp: vi.fn().mockResolvedValue(undefined),
+    deleteReply: vi.fn().mockResolvedValue(undefined),
     isRepliable: () => true,
     replied: false,
     deferred: false,
@@ -50,8 +53,10 @@ function makeButtonInteraction(overrides: Record<string, unknown> = {}): ButtonI
 
 describe('BotDuoChemistryInteractionHandler', () => {
   let handler: BotDuoChemistryInteractionHandler;
+  let warnSpy: ReturnType<typeof vi.spyOn>;
 
   beforeEach(() => {
+    warnSpy = vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined as never);
     const i18n = new BotI18nService();
     i18n.onModuleInit();
     handler = new BotDuoChemistryInteractionHandler(
@@ -60,6 +65,10 @@ describe('BotDuoChemistryInteractionHandler', () => {
         getUserLocale: vi.fn().mockResolvedValue({ locale: null }),
       } as never),
     );
+  });
+
+  afterEach(() => {
+    warnSpy.mockRestore();
   });
 
   // ─── 공통 필터링 ─────────────────────────────────────────────────────────────
@@ -124,6 +133,41 @@ describe('BotDuoChemistryInteractionHandler', () => {
       expect(deferOrder).toBeLessThan(editReplyOrder);
       expect(editReplyOrder).toBeLessThan(followUpOrder);
     });
+
+    it('채널 공개 게시(followUp)가 성공하면 ephemeral 원본을 deleteReply()로 삭제한다(게시 이후 순서)', async () => {
+      const interaction = makeButtonInteraction();
+
+      await handler.handle(interaction);
+
+      expect(interaction.deleteReply).toHaveBeenCalledTimes(1);
+      const followUpOrder = (interaction.followUp as Mock).mock.invocationCallOrder[0];
+      const deleteReplyOrder = (interaction.deleteReply as Mock).mock.invocationCallOrder[0];
+      expect(followUpOrder).toBeLessThan(deleteReplyOrder);
+    });
+
+    it('deleteReply()가 성공하면 warn 로그를 남기지 않는다', async () => {
+      const interaction = makeButtonInteraction();
+
+      await handler.handle(interaction);
+
+      expect(interaction.deleteReply).toHaveBeenCalledTimes(1);
+      expect(warnSpy).not.toHaveBeenCalled();
+    });
+
+    it('deleteReply()가 실패해도 예외를 전파하지 않고 추가 실패 안내(followUp) 없이 warn 로그만 남긴다', async () => {
+      const deleteReply = vi.fn().mockRejectedValue(new Error('Unknown Message'));
+      const interaction = makeButtonInteraction({ deleteReply });
+
+      await expect(handler.handle(interaction)).resolves.toBeUndefined();
+
+      expect(deleteReply).toHaveBeenCalledTimes(1);
+      // 공개 게시(followUp)는 성공했으므로 실패 안내가 추가로 뜨면 안 된다(1회만 호출).
+      expect(interaction.followUp).toHaveBeenCalledTimes(1);
+      expect(warnSpy).toHaveBeenCalledTimes(1);
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining('[DUO] ephemeral deleteReply failed: Unknown Message'),
+      );
+    });
   });
 
   // ─── 원본 첨부 소실(엣지) ────────────────────────────────────────────────────
@@ -140,6 +184,8 @@ describe('BotDuoChemistryInteractionHandler', () => {
       ephemeral: true,
     });
     expect(interaction.editReply).not.toHaveBeenCalled();
+    // 채널 공개 게시 자체를 시도하지 않았으므로 ephemeral 원본도 삭제하면 안 된다.
+    expect(interaction.deleteReply).not.toHaveBeenCalled();
   });
 
   // ─── 채널 전송 권한 없음(공개 게시 자체 실패) ──────────────────────────────────
@@ -156,6 +202,8 @@ describe('BotDuoChemistryInteractionHandler', () => {
     expect(interaction.editReply).toHaveBeenCalledWith({ components: [] });
     expect(followUp).toHaveBeenCalledTimes(2);
     expect(followUp).toHaveBeenNthCalledWith(2, { content: PUBLISH_FAILED_KO, ephemeral: true });
+    // 공개 게시 자체가 실패했으므로 ephemeral 원본을 삭제하면 안 된다(첨부 fetch가 깨질 수 있음).
+    expect(interaction.deleteReply).not.toHaveBeenCalled();
   });
 
   // ─── EC-CP-49: 만료된 상호작용(15분 초과)·봇 재시작 후 클릭 ──────────────────
@@ -168,6 +216,8 @@ describe('BotDuoChemistryInteractionHandler', () => {
 
     await expect(handler.handle(interaction)).resolves.toBeUndefined();
     expect(interaction.reply).not.toHaveBeenCalled();
+    // deferUpdate() 자체가 실패해 게시 흐름에 진입하지 못했으므로 ephemeral 원본을 삭제하면 안 된다.
+    expect(interaction.deleteReply).not.toHaveBeenCalled();
   });
 
   it('EC-CP-49: deferUpdate() 실패 후에도 재응답 가능한 드문 경우(isRepliable=true)엔 ephemeral 안내를 시도한다', async () => {

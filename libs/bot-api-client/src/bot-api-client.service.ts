@@ -28,6 +28,13 @@ import type {
   GuildMemberReconcileResult,
   GuildMemberUpsertDto,
   GuildMemberUserUpdateDto,
+  GuildRoleMarkDeletedDto,
+  GuildRoleMutationResult,
+  GuildRolePurgeDto,
+  GuildRolePurgeResult,
+  GuildRoleSyncDto,
+  GuildRoleSyncResult,
+  GuildRoleUpsertDto,
   GuildVoiceUserCount,
   KickMemberDto,
   MeActivityDetailResponse,
@@ -310,6 +317,29 @@ export class BotApiClientService {
    */
   async reconcileGuildMembers(dto: GuildMemberReconcileDto): Promise<GuildMemberReconcileResult> {
     return this.post('/bot-api/guild-member/reconcile', dto);
+  }
+
+  // ── Guild Role ──
+
+  /**
+   * 길드 역할 전량 스냅샷 + reconcile(F-GUILD-ROLE-001/002/006).
+   * 호출측은 부분 목록으로 절대 호출해서는 안 된다 — {@link GuildRoleSyncDto} 참조.
+   */
+  async syncGuildRoles(dto: GuildRoleSyncDto): Promise<GuildRoleSyncResult> {
+    return this.post('/bot-api/guild-role/sync', dto);
+  }
+
+  async upsertGuildRole(dto: GuildRoleUpsertDto): Promise<GuildRoleMutationResult> {
+    return this.post('/bot-api/guild-role/upsert', dto);
+  }
+
+  async markGuildRoleDeleted(dto: GuildRoleMarkDeletedDto): Promise<GuildRoleMutationResult> {
+    return this.post('/bot-api/guild-role/mark-deleted', dto);
+  }
+
+  /** 봇이 길드에서 이탈했을 때 해당 길드 역할 스냅샷을 하드 삭제한다(F-GUILD-ROLE-007). */
+  async purgeGuildRoles(dto: GuildRolePurgeDto): Promise<GuildRolePurgeResult> {
+    return this.post('/bot-api/guild-role/purge-guild', dto);
   }
 
   // ── Guild Directory ──

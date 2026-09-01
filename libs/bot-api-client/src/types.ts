@@ -516,6 +516,72 @@ export interface GuildDirectoryReconcileResult {
   skipReason?: 'empty-guild-list' | 'ratio-exceeded' | 'error';
 }
 
+// ── Guild Role ──
+
+/**
+ * 전량 스냅샷·증분 upsert 공통 역할 payload. `syncedAt`은 API가 `now()`로 세팅한다(봇 시계
+ * 미신뢰). `hasTags`(2026-08-31 Q1 확정)는 `role.tags != null` 여부 — DB 소스로 전환된
+ * `LevelRoleValidator` 기준3(managed/tags 판정)의 동등성을 보존하기 위한 필드다(EC-GR-35).
+ */
+export interface GuildRolePayload {
+  roleId: string;
+  name: string;
+  permissions: string; // Discord 권한 bitfield 10진 문자열 — DB CHECK(^[0-9]+$)와 짝
+  color: number;
+  position: number;
+  hoist: boolean;
+  mentionable: boolean;
+  isManaged: boolean;
+  hasTags: boolean;
+  memberCount: number;
+}
+
+/**
+ * 길드 단위 전량 스냅샷. `roles`는 봇이 `guild.roles.fetch()`로 **전량 확보에 성공했을 때만**
+ * 채워 보내야 한다 — 부분 목록으로 호출하면 살아있는 역할이 대량 DELETED로 오탐 마킹된다.
+ * 최종 안전 가드(빈 집합/50% 초과 비율)는 API 측이 판단한다({@link GuildRoleSyncResult} 참조).
+ */
+export interface GuildRoleSyncDto {
+  guildId: string;
+  roles: GuildRolePayload[];
+}
+
+/** POST /bot-api/guild-role/sync 응답. `skipped=true`면 안전 가드로 DELETED 마킹이 수행되지 않았다. */
+export interface GuildRoleSyncResult {
+  ok: boolean;
+  upserted: number;
+  markedDeleted: number;
+  skipped: boolean;
+  skipReason?: 'empty-role-set' | 'ratio-exceeded' | 'error';
+}
+
+/**
+ * POST /bot-api/guild-role/upsert · /mark-deleted 공통 응답. `ok:false`는 호출측(봇 이벤트
+ * 핸들러)이 해당 길드 전량 재스냅샷 1회를 트리거하는 조건이다(F-GUILD-ROLE-011).
+ */
+export interface GuildRoleMutationResult {
+  ok: boolean;
+}
+
+export interface GuildRoleUpsertDto extends GuildRolePayload {
+  guildId: string;
+}
+
+export interface GuildRoleMarkDeletedDto {
+  guildId: string;
+  roleId: string;
+}
+
+export interface GuildRolePurgeDto {
+  guildId: string;
+}
+
+/** POST /bot-api/guild-role/purge-guild 응답. 하드 삭제라 사후 검증용으로 삭제 행 수를 함께 준다. */
+export interface GuildRolePurgeResult {
+  ok: boolean;
+  deleted: number;
+}
+
 // ── Role Panel ──
 
 export interface BotRolePanelConfigDto {

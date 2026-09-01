@@ -40,5 +40,25 @@ export const MESSAGE_CODE = {
   ERR_DISCORD_MISSING_ACCESS: 'ERR_DISCORD_MISSING_ACCESS',
   /** 50013 Missing Permissions — 채널은 보이나 필요 권한 없음. params: { channelId } */
   ERR_DISCORD_MISSING_PERMISSIONS: 'ERR_DISCORD_MISSING_PERMISSIONS',
+
+  // ── me-* 쿼리 파라미터 검증 400 (i18n G1-ⓑ 1차) ──
+  /** guildId 쿼리 누락. params 없음 */
+  GUILD_ID_REQUIRED: 'GUILD_ID_REQUIRED',
+  /** days 가 라우트별 화이트리스트 밖. params: { allowedDays } — 컨트롤러마다 허용값이 달라 문구에 보간한다 */
+  INVALID_DAYS_PARAM: 'INVALID_DAYS_PARAM',
+  /** co-presence 페어 상세에서 peerId 가 본인(JWT.sub). params 없음 */
+  SELF_PEER_NOT_ALLOWED: 'SELF_PEER_NOT_ALLOWED',
+
+  // ── class-validator DTO 검증 400 (i18n G1-ⓑ 2차) ──
+  /** 검증 실패 일반 코드(실패 2건 이상 또는 문구군 미배정). params: { fields } — 실패 필드 경로 목록 */
+  VALIDATION_FAILED: 'VALIDATION_FAILED',
+  /** YYYYMMDD 형식 위반. params: { field } */
+  INVALID_DATE_FORMAT: 'INVALID_DATE_FORMAT',
+  /** from>to 또는 조회 기간 상한 초과. params: { maxDays } */
+  INVALID_DATE_RANGE: 'INVALID_DATE_RANGE',
+  /** auto-channel instant 모드에서 카테고리 미지정. params 없음 */
+  INSTANT_CATEGORY_REQUIRED: 'INSTANT_CATEGORY_REQUIRED',
+  /** status-prefix 템플릿에 필수 플레이스홀더 누락. params 없음 */
+  PREFIX_TEMPLATE_PLACEHOLDER_REQUIRED: 'PREFIX_TEMPLATE_PLACEHOLDER_REQUIRED',
 } as const;
 export type MessageCode = (typeof MESSAGE_CODE)[keyof typeof MESSAGE_CODE];

@@ -25,7 +25,8 @@ const PUBLISHED_ATTACHMENT_NAME = 'duo-chemistry.png';
  * 재사용하므로 3초 창 문제가 구조적으로 사라진다.
  *
  * 버튼 클릭은 원본 ephemeral 응답과 별개의 새 `MessageComponentInteraction`(자체 15분 토큰)이므로
- * ① 원본 ephemeral 메시지의 버튼을 제거(중복 게시 방지)한 뒤 ② 채널에 공개 게시한다(계획 §8-Q3 확정).
+ * ① 원본 ephemeral 메시지의 버튼을 제거(중복 게시 방지)한 뒤 ② 채널에 공개 게시하고,
+ * ③ 게시가 성공하면 ephemeral 원본을 `deleteReply()`로 삭제해 화면에 중복 카드가 남지 않게 한다.
  *
  * ephemeral 만료(15분 초과)·봇 재시작 후 클릭 시 Discord가 클라이언트에 자체 실패 표시를
  * 하므로(EC-CP-49), 여기서는 예외를 흡수하고 로그만 남긴다 — 500(미처리 예외)으로 흘리지 않는다.
@@ -90,8 +91,9 @@ export class BotDuoChemistryInteractionHandler {
 
     const attachment = new AttachmentBuilder(sourceUrl, { name: PUBLISHED_ATTACHMENT_NAME });
 
-    // ① 원본 ephemeral 메시지 버튼 제거(중복 게시 방지) → ② 채널 공개 게시(Q3 확정)
-    // deferUpdate() 이후이므로 원본 메시지 갱신은 update()가 아닌 editReply()로 수행한다.
+    // ① 원본 ephemeral 메시지 버튼 제거(중복 게시 방지) → ② 채널 공개 게시(Q3 확정) → ③ 게시
+    // 성공 시 ephemeral 원본 삭제(아래). deferUpdate() 이후이므로 원본 메시지 갱신은
+    // update()가 아닌 editReply()로 수행한다.
     await interaction.editReply({ components: [] });
 
     try {
@@ -109,6 +111,25 @@ export class BotDuoChemistryInteractionHandler {
         content: this.i18n.t(locale, `${NS}.bestFriendDuoPublishFailed`),
         ephemeral: true,
       });
+      return;
+    }
+
+    // ③ 채널 공개 게시가 성공한 뒤에만 ephemeral 원본을 삭제한다 — followUp()이 원본 첨부의
+    // CDN URL을 전송 시점에 fetch하므로(위 AttachmentBuilder 주석 참고), 먼저 지우면 그 사이
+    // 원본 메시지가 사라져 첨부 fetch가 깨질 수 있다. 반드시 게시 성공 이후여야 한다.
+    // ephemeral 메시지는 채널 메시지 DELETE 라우트로 지울 수 없고(`interaction.message.delete()`
+    // 불가), 인터랙션 웹훅 경유인 `deleteReply()`만 유효하다.
+    try {
+      await interaction.deleteReply();
+    } catch (deleteError) {
+      // EC-CP-49 흡수 관례와 동일 — 실패해도 예외를 밖으로 던지지 않는다(바깥 catch로 흘러가면
+      // 이미 성공한 게시에 대해 불필요한 실패 안내가 뜬다). 최악의 경우 버튼 없는 ephemeral 카드가
+      // 남는 정도이며, 이는 이 변경 이전의 현행 동작과 같아 수용 가능하다.
+      this.logger.warn(
+        `[DUO] ephemeral deleteReply failed: ${
+          deleteError instanceof Error ? deleteError.message : String(deleteError)
+        }`,
+      );
     }
   }
 

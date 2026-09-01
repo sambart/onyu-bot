@@ -29,6 +29,8 @@ export class BotVoiceStateDispatcher {
   @On('voiceStateUpdate')
   async handleVoiceStateUpdate(oldState: VoiceState, newState: VoiceState): Promise<void> {
     try {
+      if (this.isBotSubject(oldState, newState)) return;
+
       const eventType = this.resolveEventType(oldState, newState);
       if (!eventType) return;
 
@@ -41,6 +43,11 @@ export class BotVoiceStateDispatcher {
         err instanceof Error ? err.stack : err,
       );
     }
+  }
+
+  /** 이벤트 주체가 봇 계정인지 판정한다. leave 시 newState.member 가 비어 있을 수 있어 oldState 로 폴백한다. */
+  private isBotSubject(oldState: VoiceState, newState: VoiceState): boolean {
+    return newState.member?.user.bot ?? oldState.member?.user.bot ?? false;
   }
 
   /** oldState/newState 비교로 이벤트 타입을 판정한다. 해당 없으면 null(무시). */
