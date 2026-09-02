@@ -11,6 +11,8 @@ export const MESSAGE_CODE = {
   ERR_AUTO_CHANNEL_CONFIG_NOT_FOUND: 'ERR_AUTO_CHANNEL_CONFIG_NOT_FOUND',
   ERR_AUTO_CHANNEL_INVALID_CHANNEL: 'ERR_AUTO_CHANNEL_INVALID_CHANNEL',
   ERR_AUTO_CHANNEL_MOVE_FAILED: 'ERR_AUTO_CHANNEL_MOVE_FAILED',
+  /** 트리거 채널이 다른 configId에 이미 점유됨(409, F-VOICE-088). params 없음 */
+  ERR_AUTO_CHANNEL_TRIGGER_CONFLICT: 'ERR_AUTO_CHANNEL_TRIGGER_CONFLICT',
 
   // ── status-prefix 결과 (H-1.2) — Plan B 명명 채택(Phase 3.4) ──
   STATUS_PREFIX_APPLIED: 'STATUS_PREFIX_APPLIED',
@@ -60,5 +62,30 @@ export const MESSAGE_CODE = {
   INSTANT_CATEGORY_REQUIRED: 'INSTANT_CATEGORY_REQUIRED',
   /** status-prefix 템플릿에 필수 플레이스홀더 누락. params 없음 */
   PREFIX_TEMPLATE_PLACEHOLDER_REQUIRED: 'PREFIX_TEMPLATE_PLACEHOLDER_REQUIRED',
+
+  // ── 웹 노출 API 예외 (i18n G1-ⓑ 3차) ──
+  /** role-panel 게시 시 채널 미선택(400). params 없음 */
+  ROLE_PANEL_CHANNEL_REQUIRED: 'ROLE_PANEL_CHANNEL_REQUIRED',
+  /**
+   * Discord 메시지 전송 실패 — 권한 무관(10003·429·5xx·네트워크). 503.
+   * params: { channelId, reason } — reason 은 Discord 원문 사유. 권한 실패와 달리
+   * 배너가 뜨지 않아 인라인 문구가 유일한 안내이므로 로케일 문구가 reason 을 보간한다.
+   */
+  DISCORD_MESSAGE_SEND_FAILED: 'DISCORD_MESSAGE_SEND_FAILED',
+  /** Discord 메시지 수정 실패 — 권한 무관(10008 폴백 제외). 503. params: { channelId, reason } */
+  DISCORD_MESSAGE_EDIT_FAILED: 'DISCORD_MESSAGE_EDIT_FAILED',
+  /** 봇 identity 미초기화로 쓰기 요청 거부(503). role-panel·level 공유. params 없음 */
+  BOT_IDENTITY_NOT_READY: 'BOT_IDENTITY_NOT_READY',
+  /** 미션 조회 실패(404) — 미존재 또는 guild 불일치. params 없음 */
+  MISSION_NOT_FOUND: 'MISSION_NOT_FOUND',
+  /** 템플릿에 허용되지 않은 변수 포함(400). 필드별 상세는 errors 맵. params 없음 */
+  TEMPLATE_VARIABLE_NOT_ALLOWED: 'TEMPLATE_VARIABLE_NOT_ALLOWED',
+
+  // ── i18n P3 — throwPeriodValidationError 코드화 (moco 기간 쿼리 검증 400) ──
+  /**
+   * moco 기간 조회에서 periodStart/periodEnd 중 하나만 지정됨(400). params 없음.
+   * INVALID_FORMAT/INVALID_RANGE/RANGE_TOO_LONG 은 기존 INVALID_DATE_FORMAT/INVALID_DATE_RANGE 를 재사용한다.
+   */
+  PERIOD_RANGE_REQUIRED: 'PERIOD_RANGE_REQUIRED',
 } as const;
 export type MessageCode = (typeof MESSAGE_CODE)[keyof typeof MESSAGE_CODE];

@@ -1,5 +1,25 @@
 // API response types shared between api and web
 
+export type {
+  ActivityTrendMetrics,
+  AdminAssistAnalysis,
+  AdminAssistAnalysisNoticeCode,
+  AdminAssistCatalogItem,
+  AdminAssistCatalogResponse,
+  AdminAssistFallback,
+  AdminAssistKind,
+  AdminAssistParameter,
+  AdminAssistQuotaResponse,
+  AdminAssistRecommendation,
+  AdminAssistRecommendResponse,
+  AdminAssistResultStatus,
+  AdminAssistSource,
+  DecliningChannelsMetrics,
+  MemberActivityMetrics,
+  NewMemberCohortMetrics,
+  StructureLintMetrics,
+} from './admin-assist';
+
 export interface PaginatedResponse<T> {
   total: number;
   page: number;

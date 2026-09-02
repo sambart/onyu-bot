@@ -85,9 +85,13 @@ export const NEWBIE_TEMPLATE_DEFAULTS: Record<SupportedLocale, NewbieTemplateDef
     missionItem:
       '{mention} 🌱\n{startDate} ~ {endDate}\n{statusEmoji} {statusText} | Playtime: {playtime} | Play Count: {playCount}',
     missionFooter: 'Last updated: {updatedAt}',
+    // J2 육안 판정 결함 수정(2026-09-01, 안 (a) 승인) — Canvas COL_STATUS_W(70px) 폭에서
+    // "In Progress"/"Completed"가 2행/1행으로 잘렸다(레이아웃 무변경 원칙 하 문자열 단축으로 대응).
+    // Embed {status} 템플릿 변수와 공유되는 값이라 두 표면 모두 짧아진다 — 승인된 파급.
+    // ko는 절대 무변경. FAILED/LEFT는 이미 짧아 무변경.
     statusMapping: {
-      IN_PROGRESS: { emoji: '🟡', text: 'In Progress' },
-      COMPLETED: { emoji: '✅', text: 'Completed' },
+      IN_PROGRESS: { emoji: '🟡', text: 'Active' },
+      COMPLETED: { emoji: '✅', text: 'Done' },
       FAILED: { emoji: '❌', text: 'Failed' },
       LEFT: { emoji: '🚪', text: 'Left' },
     },
