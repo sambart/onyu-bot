@@ -45,6 +45,13 @@ export interface AdminAssistRecommendation {
 export interface AdminAssistFallback {
   /** 카탈로그 exampleQueries 파생 "지원 기능 목록" 안내(F-018) */
   supportedExamples: string[];
+  /**
+   * F-041(L3) — 질의(sanitize 완료분) + 카탈로그 요약을 입력으로 한 LLM 생성 자연어 답변.
+   * **표시 전용** — actionId 재매칭·파라미터 추출·액션 트리거 없음(mutation 0 계승).
+   * 생성 콜 실패(강등) 시 `null` → 웹은 정적 목록만 렌더한다.
+   * 웹은 XSS-safe 렌더(dangerouslySetInnerHTML 금지 — interpretation과 동일 관행).
+   */
+  generatedGuidance: string | null;
 }
 
 /** GET /api/guilds/:guildId/admin-assist/quota 응답 (F-ADMIN-ASSIST-007) */
@@ -247,4 +254,12 @@ export interface AdminAssistCatalogResponse {
   items: AdminAssistCatalogItem[];
   /** 회고·재현용 프롬프트/카탈로그 버전 태그(이력 promptVersion과 동일 값) */
   promptVersion?: string;
+}
+
+/** F-ADMIN-ASSIST-033 — E4/E5 응답. 미설정 길드는 두 필드 모두 null(404 아님, EP §5B-1). */
+export interface AdminAssistContextResponse {
+  /** 저장된 규칙 텍스트 원문(trim 적용본). 행 부재 시 null, 빈 문자열 저장 시 '' */
+  rulesText: string | null;
+  /** ISO 8601. 행 부재 시 null */
+  updatedAt: string | null;
 }

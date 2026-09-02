@@ -87,5 +87,11 @@ export const MESSAGE_CODE = {
    * INVALID_FORMAT/INVALID_RANGE/RANGE_TOO_LONG 은 기존 INVALID_DATE_FORMAT/INVALID_DATE_RANGE 를 재사용한다.
    */
   PERIOD_RANGE_REQUIRED: 'PERIOD_RANGE_REQUIRED',
+
+  // ── weekly-report 저장 preflight (F-GEMINI-031) ──
+  /** 저장 시점 채널 접근성 preflight 거부(404 Unknown Channel 또는 403 Missing Access). params: { channelId } */
+  ERR_WEEKLY_REPORT_CHANNEL_UNREACHABLE: 'ERR_WEEKLY_REPORT_CHANNEL_UNREACHABLE',
+  /** timezone 값이 IANA 표준으로 인식되지 않음(400, F-GEMINI-032 ①). params 없음 — §D3 */
+  ERR_WEEKLY_REPORT_INVALID_TIMEZONE: 'ERR_WEEKLY_REPORT_INVALID_TIMEZONE',
 } as const;
 export type MessageCode = (typeof MESSAGE_CODE)[keyof typeof MESSAGE_CODE];

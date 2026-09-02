@@ -6,6 +6,7 @@ export type {
   AdminAssistAnalysisNoticeCode,
   AdminAssistCatalogItem,
   AdminAssistCatalogResponse,
+  AdminAssistContextResponse,
   AdminAssistFallback,
   AdminAssistKind,
   AdminAssistParameter,
