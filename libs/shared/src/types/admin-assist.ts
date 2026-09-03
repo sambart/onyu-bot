@@ -17,6 +17,11 @@ export type AdminAssistResultStatus =
 /** 질의 트리거 3값(H4) — 자유 입력 / 상시 칩 / 후속 칩 */
 export type AdminAssistSource = 'chip' | 'followup_chip' | 'free';
 
+/** F-ADMIN-ASSIST-059(M3) — 질의가 발생한 UI 표면. `AdminAssistSource`(질의 트리거)와
+ *  직교하는 별도 축이며 병합·대체하지 않는다. 주의: 카탈로그의
+ *  `getSurfaceableExampleQueries()`("노출 가능한")와 의미가 전혀 다르다. */
+export type AdminAssistSurface = 'overview_card' | 'side_panel';
+
 /**
  * 매칭된 카탈로그 항목의 종류(F-ADMIN-ASSIST-019 판별자). 매칭 실패 시 응답에서 null.
  * `'generative'`(admin-assist-generative-authoring 계획 §0-2) — LLM이 공지·규칙 초안을
@@ -39,7 +44,7 @@ export interface AdminAssistParameter {
   key: string;
   /** locale 반영 표시 라벨 */
   label: string;
-  /** isValidated=false 면 항상 null → 웹은 "권장값 없음"으로 렌더(F-005) */
+  /** isValidated=false 면 항상 null → 웹은 "제안값 없음"으로 렌더(F-005, admin-assist-response-quality 계획 §0-9 ⓚ) */
   value: string | number | boolean | null;
   /** 서버측 재검증(F-005) 통과 여부 */
   isValidated: boolean;
@@ -50,7 +55,14 @@ export interface AdminAssistRecommendation {
   actionId: string;
   /** 카탈로그 description 파생 제목(locale 반영) */
   title: string;
-  /** 카탈로그·i18n 파생 설명 문구(결정 ⓐ) — LLM이 자유 텍스트로 생성하지 않는다 */
+  /**
+   * N1(b) 템플릿 문장(admin-assist-response-quality 계획 §0-3 ⓒ·§0-5 ⓔ) — 질의 인정 + "안내
+   * 이지 적용 아님" 명시 + 다음 행동 3요소로 서버가 조립한다. 소스는 `libs/i18n`이 아니라
+   * `apps/api` 모듈 로컬 ko/en 로케일 테이블이다(카탈로그 `title`·`parameters[].label` 보간,
+   * 결정 ⓐ — LLM이 자유 텍스트로 생성하지 않는다). 이력 `admin_assist_history.responseText`
+   * 와 **문자열이 동일**하다 — §23-5 N1 재전송률 판독이 DB 쪽 값을 읽으므로, 화면과 이력이
+   * 갈리면 그 지표가 무효화된다(EC-AA-271).
+   */
   description: string;
   /** :guildId 치환이 끝난 완성 경로(예: '/settings/guild/123/newbie') */
   settingsDeepLink: string;
@@ -341,4 +353,25 @@ export interface AdminAssistContextResponse {
   rulesText: string | null;
   /** ISO 8601. 행 부재 시 null */
   updatedAt: string | null;
+}
+
+/**
+ * E7 — 결과 카드 👍/👎 피드백 요청(F-ADMIN-ASSIST-064, N6). 닫힌 2값(endpoint-spec §5D-2) —
+ * 서버가 5/1로 매핑해 저장한다. 매핑 상수는 `apps/api` 안에만 둔다(웹이 숫자 의미를 몰라도
+ * 되게 하기 위함 — admin-assist-response-quality 계획 §0-8).
+ */
+export type AdminAssistFeedback = 'up' | 'down';
+
+export interface AdminAssistRatingRequest {
+  feedback: AdminAssistFeedback;
+}
+
+/**
+ * E7 응답 — 갱신 결과의 최소 투영. 이력 행 전문을 내리지 않는다(§8 열람 표면 비생성 계약,
+ * endpoint-spec §5D-5). `rating`은 서버가 매핑해 저장한 숫자값(👍=5 / 👎=1)이며, 웹은 이
+ * 값을 해석할 필요가 없다 — 어느 버튼을 눌렀는지는 웹이 이미 안다.
+ */
+export interface AdminAssistRatingResponse {
+  historyId: string;
+  rating: number;
 }

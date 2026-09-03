@@ -14,6 +14,12 @@ export const LEVEL_CONFIG_DEFAULTS = {
   curveType: 'QUADRATIC',
   announceEnabled: true,
   announceChannelId: null,
+  excludeAlone: true,
+  excludeMicOff: false,
+  excludeDeaf: true,
+  excludeServerMuted: false,
+  voiceXpDailyCapMin: 720,
+  excludeAfkChannel: true,
 } as const;
 
 /** 증분형 곡선 기본 파라미터 — 레벨 n→n+1 증분 XP = a*n² + b*n + c */
@@ -30,7 +36,8 @@ export function createLevelConfigDefaults() {
 }
 
 /**
- * DTO/폼 전용 완전 기본값(호출마다 새 인스턴스) — `curveType`/`curveParams` 불포함(8키 고정).
+ * DTO/폼 전용 완전 기본값(호출마다 새 인스턴스) — `curveType`/`curveParams` 불포함(14키 고정,
+ * U7에서 anti-AFK 6키 추가로 8키→14키).
  * `LevelConfigDto`는 U4 UI 미노출 필드(curveType/curveParams)를 의도적으로 제외한 타입이므로
  * `createLevelConfigDefaults()`(엔티티용, curveType/curveParams 포함)를 재사용하면 안 된다.
  */
@@ -44,6 +51,12 @@ export function createLevelConfigDtoDefaults(): Omit<LevelConfigDto, 'roleGrantW
     announceEnabled: LEVEL_CONFIG_DEFAULTS.announceEnabled,
     announceChannelId: LEVEL_CONFIG_DEFAULTS.announceChannelId,
     noXpChannelIds: [],
+    excludeAlone: LEVEL_CONFIG_DEFAULTS.excludeAlone,
+    excludeMicOff: LEVEL_CONFIG_DEFAULTS.excludeMicOff,
+    excludeDeaf: LEVEL_CONFIG_DEFAULTS.excludeDeaf,
+    excludeServerMuted: LEVEL_CONFIG_DEFAULTS.excludeServerMuted,
+    voiceXpDailyCapMin: LEVEL_CONFIG_DEFAULTS.voiceXpDailyCapMin,
+    excludeAfkChannel: LEVEL_CONFIG_DEFAULTS.excludeAfkChannel,
   };
 }
 

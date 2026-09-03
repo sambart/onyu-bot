@@ -10,7 +10,7 @@
  */
 import type { BotApiClientService } from '@onyu/bot-api-client';
 import { buildRolePanelCustomId } from '@onyu/shared';
-import type { GuildMember, Interaction } from 'discord.js';
+import type { ButtonInteraction, GuildMember } from 'discord.js';
 import { beforeEach, describe, expect, it, type Mock, vi } from 'vitest';
 
 import { BotI18nService } from '../../common/application/bot-i18n.service';
@@ -30,7 +30,10 @@ function makeMember(): GuildMember {
   return {} as GuildMember;
 }
 
-function makeInteraction(overrides: Record<string, unknown> = {}): Interaction {
+// 반환 타입은 ButtonInteraction — 핸들러가 `interaction.isButton()`으로 좁히는 실제
+// 대상과 동일한 타입을 써야 editReply 등 응답 메서드가 존재한다(Interaction 유니온
+// 그대로 두면 AutocompleteInteraction 등 응답 메서드가 없는 멤버 때문에 좁혀지지 않는다).
+function makeInteraction(overrides: Record<string, unknown> = {}): ButtonInteraction {
   const member = makeMember();
   return {
     isButton: () => true,
@@ -51,7 +54,7 @@ function makeInteraction(overrides: Record<string, unknown> = {}): Interaction {
     replied: false,
     deferred: false,
     ...overrides,
-  } as unknown as Interaction;
+  } as unknown as ButtonInteraction;
 }
 
 function makeResult(

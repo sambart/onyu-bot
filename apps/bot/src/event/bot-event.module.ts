@@ -14,6 +14,7 @@ import { BotGuildRoleCreateHandler } from './guild-role/bot-guild-role-create.ha
 import { BotGuildRoleEventHandler } from './guild-role/bot-guild-role-event.handler';
 import { BotGuildRoleReconcileScheduler } from './guild-role/bot-guild-role-reconcile.scheduler';
 import { BotGuildRoleSyncHandler } from './guild-role/bot-guild-role-sync.handler';
+import { BotLevelInteractionHandler } from './level/bot-level-interaction.handler';
 import { BotMeInteractionHandler } from './me/bot-me-interaction.handler';
 import { BotMessageCountHandler } from './message-tracking/bot-message-count.handler';
 import { BotNewbieInteractionHandler } from './newbie/bot-newbie-interaction.handler';
@@ -62,6 +63,8 @@ import { BotVoiceSyncHandler } from './voice/bot-voice-sync.handler';
     BotMeInteractionHandler,
     // Friend — 듀오 케미 카드 [🔗 채널에 공개하기] 버튼(F-COPRESENCE-029)
     BotDuoChemistryInteractionHandler,
+    // Level — /랭킹 [이전]/[다음] 페이지 버튼(F-LVL-26, U9 S7)
+    BotLevelInteractionHandler,
   ],
 })
 export class BotEventModule {}

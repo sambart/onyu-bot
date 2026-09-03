@@ -16,6 +16,8 @@ import type {
   CoPresenceSnapshot,
   DuoChemistryCardResponse,
   GetDuoChemistryOptions,
+  GetLevelLeaderboardCardOptions,
+  GetLevelRankCardOptions,
   GetMeProfileOptions,
   GetMyBestFriendsOptions,
   GetWelcomeCardOptions,
@@ -37,6 +39,8 @@ import type {
   GuildRoleUpsertDto,
   GuildVoiceUserCount,
   KickMemberDto,
+  LevelLeaderboardCardResponse,
+  LevelRankCardResponse,
   MeActivityDetailResponse,
   MemberDisplayNameResponse,
   MemberJoinDto,
@@ -257,13 +261,40 @@ export class BotApiClientService {
     return this.post(`/bot-api/me/activity-detail?${params.toString()}`, {});
   }
 
-  /** [🏆 서버 리더보드] 버튼(F-VOICE-065) — 길드 레벨 TOP N 조회. */
+  /**
+   * [🏆 서버 리더보드] 버튼(F-VOICE-065) — 길드 레벨 TOP N 조회.
+   *
+   * @deprecated U9(F-LVL-26)에서 버튼 응답이 캔버스 카드로 교체되며 유일한 소비자가 사라졌다.
+   * 신규 코드는 `getLevelLeaderboardCard()`를 쓴다. 즉시 제거하지 않는 이유는 API·봇이 별도
+   * 컨테이너로 배포돼 롤아웃 창이 있고, 봇만 롤백될 때 구 봇이 그대로 동작하는 안전판이기
+   * 때문이다(계획 rank-command.md §8-1). 제거 시점은 롤아웃 안정화 후 별건.
+   */
   async getGuildLevelLeaderboard(
     guildId: string,
     limit: number,
   ): Promise<LevelLeaderboardResponse> {
     const params = new URLSearchParams({ guildId, limit: String(limit) });
     return this.get(`/bot-api/level/leaderboard?${params.toString()}`);
+  }
+
+  // ── Level (Rank / Leaderboard Cards, U9) ──
+
+  /**
+   * `/rank` 개인 랭크 카드(F-LVL-24/25) — 닉네임·아바타 URL 등 개인정보가 액세스 로그
+   * (query string)에 남지 않도록 POST body로 전송한다(`getMeProfile` 관례).
+   */
+  async getLevelRankCard(options: GetLevelRankCardOptions): Promise<LevelRankCardResponse> {
+    return this.post('/bot-api/level/rank-card', options);
+  }
+
+  /**
+   * `/랭킹` 커맨드 · 페이지 버튼 · `/me` [서버 리더보드] 버튼 3개 진입점이 공유하는 보드
+   * 카드(F-LVL-26) 조회.
+   */
+  async getLevelLeaderboardCard(
+    options: GetLevelLeaderboardCardOptions,
+  ): Promise<LevelLeaderboardCardResponse> {
+    return this.post('/bot-api/level/leaderboard-card', options);
   }
 
   // ── Guild ──

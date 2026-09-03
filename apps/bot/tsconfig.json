@@ -13,6 +13,7 @@
     "baseUrl": "./",
     "incremental": true,
     "skipLibCheck": true,
+    "types": ["vitest/globals"],
     "strictPropertyInitialization": false,
     "strictNullChecks": false,
     "noImplicitAny": false,

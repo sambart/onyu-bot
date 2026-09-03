@@ -1,6 +1,6 @@
 import { On } from '@discord-nestjs/core';
 import { Injectable, Logger } from '@nestjs/common';
-import type { ActivityDetailSection } from '@onyu/bot-api-client';
+import type { ActivityDetailSection, CanvasCardLocale } from '@onyu/bot-api-client';
 import { BotApiClientService } from '@onyu/bot-api-client';
 import { BRAND_INT } from '@onyu/shared';
 import { type ButtonInteraction, EmbedBuilder, type Interaction } from 'discord.js';
@@ -14,6 +14,8 @@ const CUSTOM_ID_PREFIX = 'me:';
 const CUSTOM_ID_ACTIVITY_DETAIL = 'me:activity_detail';
 const CUSTOM_ID_LEADERBOARD = 'me:leaderboard';
 const LEADERBOARD_LIMIT = 10;
+/** [🏆 서버 리더보드] 버튼은 페이지 1 고정이다(UF-LEVEL-030 처리5 — 빠른 미리보기, 페이지 버튼 없음) */
+const LEADERBOARD_DEFAULT_PAGE = 1;
 const SECONDS_PER_MINUTE = 60;
 const SECONDS_PER_HOUR = 3600;
 const EMBED_COLOR = BRAND_INT;
@@ -107,35 +109,49 @@ export class BotMeInteractionHandler {
     await interaction.editReply({ embeds: [embed] });
   }
 
+  /**
+   * [🏆 서버 리더보드] 버튼(F-VOICE-065) — U9(S8)로 텍스트 Embed 대신 캔버스 이미지를
+   * 반환한다. 페이지 1 고정·버튼 없음(UF-LEVEL-030 처리5). ephemeral 특성은 그대로 유지한다
+   * (호출부 handle()의 deferReply({ephemeral:true})가 상단에서 이미 적용됨, 회귀 없음).
+   */
   private async handleLeaderboard(
     guildId: string,
     locale: string,
     interaction: ButtonInteraction,
   ): Promise<void> {
-    const result = await this.apiClient.getGuildLevelLeaderboard(guildId, LEADERBOARD_LIMIT);
+    const result = await this.apiClient.getLevelLeaderboardCard({
+      guildId,
+      page: LEADERBOARD_DEFAULT_PAGE,
+      limit: LEADERBOARD_LIMIT,
+      viewerUserId: interaction.user.id,
+      locale: this.toCanvasLocale(locale),
+    });
 
-    if (result.users.length === 0) {
+    if (!result.ok) {
+      await interaction.editReply({ content: this.i18n.t(locale, `${NS}.meActivityFetchError`) });
+      return;
+    }
+
+    if (!result.isEnabled) {
       await interaction.editReply({ content: this.i18n.t(locale, `${NS}.meLeaderboardDisabled`) });
       return;
     }
 
-    const rows = result.users
-      .map((u) =>
-        this.i18n.t(locale, `${NS}.meLeaderboardRow`, {
-          rank: u.rank,
-          nickName: u.nickName,
-          level: u.level,
-          xp: u.xp,
-        }),
-      )
-      .join('\n');
+    if (!result.data) {
+      // 페이지 1 고정이므로 데이터 없음은 항상 "활동 0명"이다(범위 초과 분기가 존재하지 않는다)
+      await interaction.editReply({ content: this.i18n.t(locale, `${NS}.leaderboardEmpty`) });
+      return;
+    }
 
-    const embed = new EmbedBuilder()
-      .setColor(EMBED_COLOR)
-      .setTitle(this.i18n.t(locale, `${NS}.meLeaderboardTitle`))
-      .setDescription(rows);
+    const imageBuffer = Buffer.from(result.data.imageBase64, 'base64');
+    await interaction.editReply({
+      files: [{ attachment: imageBuffer, name: 'leaderboard.png' }],
+    });
+  }
 
-    await interaction.editReply({ embeds: [embed] });
+  /** LocaleResolverService는 'ko' | 'en' 중 하나만 반환하므로 안전하게 캔버스 카드 로케일로 변환한다 */
+  private toCanvasLocale(locale: string): CanvasCardLocale {
+    return locale === 'ko' ? 'ko' : 'en';
   }
 
   /**

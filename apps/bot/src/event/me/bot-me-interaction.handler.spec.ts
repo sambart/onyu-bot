@@ -3,8 +3,11 @@
  * interactionCreate 이벤트 처리를 검증한다(F-VOICE-064/065, UF-VOICE-CMD-003).
  * `bot-newbie-interaction.handler.spec.ts` 패턴(BotI18nService 실 로드 + 목 ButtonInteraction) 준용.
  */
-import type { BotApiClientService, MeActivityDetailResponse } from '@onyu/bot-api-client';
-import type { LevelLeaderboardResponse } from '@onyu/shared';
+import type {
+  BotApiClientService,
+  LevelLeaderboardCardResponse,
+  MeActivityDetailResponse,
+} from '@onyu/bot-api-client';
 import type { ButtonInteraction, EmbedBuilder, Interaction } from 'discord.js';
 import { beforeEach, describe, expect, it, type Mock, vi } from 'vitest';
 
@@ -62,18 +65,16 @@ function activityDetailResponse(
   };
 }
 
-function leaderboardResponse(
-  overrides: Partial<LevelLeaderboardResponse> = {},
-): LevelLeaderboardResponse {
+function leaderboardCardResponse(
+  overrides: Partial<LevelLeaderboardCardResponse> = {},
+): LevelLeaderboardCardResponse {
   return {
-    total: 2,
-    page: 1,
-    limit: 10,
-    users: [
-      { rank: 1, userId: 'user-1', nickName: 'Alice', avatarUrl: null, level: 5, xp: 500 },
-      { rank: 2, userId: 'user-2', nickName: 'Bob', avatarUrl: null, level: 4, xp: 300 },
-    ],
+    ok: true,
+    data: { imageBase64: Buffer.from('leaderboard-png').toString('base64') },
     isEnabled: true,
+    page: 1,
+    totalPages: 3,
+    total: 25,
     ...overrides,
   };
 }
@@ -88,13 +89,13 @@ describe('BotMeInteractionHandler', () => {
   let handler: BotMeInteractionHandler;
   let apiClient: {
     getMeActivityDetail: Mock;
-    getGuildLevelLeaderboard: Mock;
+    getLevelLeaderboardCard: Mock;
   };
 
   beforeEach(() => {
     apiClient = {
       getMeActivityDetail: vi.fn(),
-      getGuildLevelLeaderboard: vi.fn(),
+      getLevelLeaderboardCard: vi.fn(),
     };
 
     const i18n = new BotI18nService();
@@ -365,44 +366,89 @@ describe('BotMeInteractionHandler', () => {
     });
   });
 
-  describe('me:leaderboard 버튼 (F-VOICE-065)', () => {
+  describe('me:leaderboard 버튼 (F-VOICE-065, U9 S8 — 캔버스 이미지로 교체)', () => {
     it('deferReply({ephemeral:true})를 먼저 호출한다', async () => {
       const interaction = makeButtonInteraction({ customId: 'me:leaderboard' });
-      apiClient.getGuildLevelLeaderboard.mockResolvedValue(leaderboardResponse());
+      apiClient.getLevelLeaderboardCard.mockResolvedValue(leaderboardCardResponse());
 
       await handler.handle(interaction);
 
       expect(interaction.deferReply).toHaveBeenCalledWith({ ephemeral: true });
     });
 
-    it('apiClient.getGuildLevelLeaderboard를 guildId, limit=10으로 호출한다', async () => {
-      const interaction = makeButtonInteraction({ customId: 'me:leaderboard', guildId: 'guild-9' });
-      apiClient.getGuildLevelLeaderboard.mockResolvedValue(leaderboardResponse());
+    it('apiClient.getLevelLeaderboardCard를 guildId, page=1, limit=10, 클릭자 viewerUserId로 호출한다(페이지 버튼 없음, 페이지 1 고정)', async () => {
+      const interaction = makeButtonInteraction({
+        customId: 'me:leaderboard',
+        guildId: 'guild-9',
+        user: { id: 'clicker-1' },
+      });
+      apiClient.getLevelLeaderboardCard.mockResolvedValue(leaderboardCardResponse());
 
       await handler.handle(interaction);
 
-      expect(apiClient.getGuildLevelLeaderboard).toHaveBeenCalledWith('guild-9', 10);
+      expect(apiClient.getLevelLeaderboardCard).toHaveBeenCalledWith({
+        guildId: 'guild-9',
+        page: 1,
+        limit: 10,
+        viewerUserId: 'clicker-1',
+        locale: 'ko',
+      });
     });
 
-    it('users가 있으면 TOP10 title + 순위 행이 담긴 description으로 embed를 editReply한다', async () => {
+    it('정상 데이터면 캔버스 이미지 파일을 ephemeral로 editReply하고 embed/버튼을 붙이지 않는다', async () => {
       const interaction = makeButtonInteraction({ customId: 'me:leaderboard' });
-      apiClient.getGuildLevelLeaderboard.mockResolvedValue(leaderboardResponse());
+      apiClient.getLevelLeaderboardCard.mockResolvedValue(leaderboardCardResponse());
 
       await handler.handle(interaction);
 
-      const json = embedJson(interaction);
-      expect(json.title).toBe('🏆 서버 레벨 리더보드 TOP 10');
-      expect(json.description).toBe('**1.** Alice — Lv.5 (500 XP)\n**2.** Bob — Lv.4 (300 XP)');
+      const call = (interaction.editReply as Mock).mock.calls[0][0] as {
+        files: Array<{ attachment: Buffer; name: string }>;
+        embeds?: unknown;
+        components?: unknown;
+      };
+      expect(call.files).toHaveLength(1);
+      expect(call.files[0].name).toBe('leaderboard.png');
+      expect(call.files[0].attachment.toString()).toBe('leaderboard-png');
+      expect(call.embeds).toBeUndefined();
+      expect(call.components).toBeUndefined();
     });
 
-    it('users가 빈 배열(레벨 비활성 길드)이면 embed 없이 비활성 안내 문구로 editReply한다', async () => {
+    it('isEnabled=false이면 기존 meLeaderboardDisabled 문구로 editReply한다(폴백 문구 회귀 없음)', async () => {
       const interaction = makeButtonInteraction({ customId: 'me:leaderboard' });
-      apiClient.getGuildLevelLeaderboard.mockResolvedValue(leaderboardResponse({ users: [] }));
+      apiClient.getLevelLeaderboardCard.mockResolvedValue(
+        leaderboardCardResponse({ isEnabled: false, data: null }),
+      );
 
       await handler.handle(interaction);
 
       expect(interaction.editReply).toHaveBeenCalledWith({
         content: '이 서버는 레벨 시스템이 비활성화되어 있습니다.',
+      });
+    });
+
+    it('활동 0명(data:null)이면 leaderboardEmpty 문구로 editReply한다(범위 초과 분기 없음 — 페이지 1 고정)', async () => {
+      const interaction = makeButtonInteraction({ customId: 'me:leaderboard' });
+      apiClient.getLevelLeaderboardCard.mockResolvedValue(
+        leaderboardCardResponse({ data: null, total: 0 }),
+      );
+
+      await handler.handle(interaction);
+
+      expect(interaction.editReply).toHaveBeenCalledWith({
+        content: '아직 순위에 오른 멤버가 없습니다.',
+      });
+    });
+
+    it('렌더 실패(ok:false)이면 기존 일반 오류 문구로 editReply한다(5xx 아님, 200 + ok:false 폴백)', async () => {
+      const interaction = makeButtonInteraction({ customId: 'me:leaderboard' });
+      apiClient.getLevelLeaderboardCard.mockResolvedValue(
+        leaderboardCardResponse({ ok: false, data: null }),
+      );
+
+      await handler.handle(interaction);
+
+      expect(interaction.editReply).toHaveBeenCalledWith({
+        content: '조회 중 오류가 발생했습니다.',
       });
     });
   });
@@ -422,7 +468,7 @@ describe('BotMeInteractionHandler', () => {
 
     it('leaderboard 조회 자체가 실패하면 ephemeral 에러 안내로 followUp한다(deferred 이후)', async () => {
       const interaction = makeButtonInteraction({ customId: 'me:leaderboard', deferred: true });
-      apiClient.getGuildLevelLeaderboard.mockRejectedValue(new Error('API 500'));
+      apiClient.getLevelLeaderboardCard.mockRejectedValue(new Error('API 500'));
 
       await handler.handle(interaction);
 

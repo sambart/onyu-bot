@@ -9,6 +9,14 @@ export interface RoleReward {
 }
 
 /**
+ * anti-AFK 음성 XP 자격 규칙의 주된 차감 사유 1개 (U7, F-LVL-22).
+ * `DAILY_CAP`은 버킷 사유보다 항상 우선(상한이 걸린 날은 행동을 고쳐도 인정이 늘지 않으므로
+ * 버킷 사유 표시가 오해를 유발한다). 버킷 사유 동점 시 표시 우선순위는
+ * `ALONE` → `DEAF` → `MIC_OFF` → `SERVER_MUTED`(값 자체에는 영향 없는 결정론적 선택).
+ */
+export type LevelDeductionReason = 'ALONE' | 'MIC_OFF' | 'DEAF' | 'SERVER_MUTED' | 'DAILY_CAP';
+
+/**
  * `level_config.curveParams` jsonb 셰이프 — 증분형(2026-07-23 확정 전환).
  * 의미: 레벨 n→n+1 증분 XP = a*n² + b*n + c (누적 필요 XP는 `LevelService.requiredXp` 닫힌 식 참조).
  * 원본 정의처는 `apps/api/src/level/infrastructure/level-config.orm-entity.ts` — 그쪽은
@@ -36,6 +44,27 @@ export interface LevelConfigDto {
   roleGrantWarning: boolean;
   /** XP 적립에서 제외할 채널 ID 목록(음성·메시지 공통 적용, 2026-07-23 확정) */
   noXpChannelIds: string[];
+  /** `voice_daily.aloneSec`(혼자 있음)을 anti-AFK 차감 대상 버킷에 포함할지. 기본 true (U7, F-LVL-19) */
+  excludeAlone: boolean;
+  /** `micOffSec`(자기 뮤트) 차감 여부. 기본 false — 듣기 전용 참여자 오차감 방지 (U7, F-LVL-19) */
+  excludeMicOff: boolean;
+  /** `deafSec`(셀프 스피커 차단) 차감 여부. 기본 true (U7, F-LVL-19) */
+  excludeDeaf: boolean;
+  /**
+   * `serverMutedSec`(관리자 강제뮤트) 차감 여부. 기본 false. `micOffSec`의 부분집합이므로
+   * `excludeMicOff`와 동시 활성화돼도 최댓값 방식이 이중 차감을 막는다 (U7, F-LVL-19)
+   */
+  excludeServerMuted: boolean;
+  /**
+   * 하루(KST) 음성 XP 인정 분 상한(anti-AFK 차감 후 인정분 기준). 기본 720.
+   * 🔒 `null` = 무제한(`0`이 아님 — `announceChannelId` nullable 관례 재사용, U7, F-LVL-20)
+   */
+  voiceXpDailyCapMin: number | null;
+  /**
+   * 디스코드 서버 AFK 채널 체류시간 자동 제외 on/off. 기본 true.
+   * Discord REST 조회 실패 시 fail-open(제외하지 않고 정상 적립) (U7, F-LVL-21)
+   */
+  excludeAfkChannel: boolean;
 }
 
 /**
@@ -57,6 +86,16 @@ export interface LevelSummary {
    * optional — 소비처(렌더러)는 없으면 순위만 표시하는 안전 폴백을 유지한다.
    */
   totalUsers?: number;
+  /**
+   * 오늘(KST) anti-AFK 차감(F-LVL-19) 후 일일 상한(F-LVL-20)까지 적용한 최종 인정 음성 분.
+   * 항상 `todayTotalVoiceMin` 이하. U7 신규 — `totalUsers?`와 동일하게 optional
+   * (생산자는 항상 채우되, 11개 스펙·리스팅 스크립트 리터럴 접촉을 피하기 위함, F-LVL-22)
+   */
+  todayCreditedVoiceMin?: number;
+  /** 오늘(KST) 총 체류 분(GLOBAL·noXpChannelIds·AFK 채널 제외 후 합산 — 인정 분과 동일한 조회 조건). U7 신규 */
+  todayTotalVoiceMin?: number;
+  /** 주된 차감 사유 1개(U7, F-LVL-22). 차감이 0이면(X = Y) `null` */
+  primaryDeductionReason?: LevelDeductionReason | null;
 }
 
 /** GET /api/users/me/level 응답 (트랙 D) */
@@ -74,6 +113,16 @@ export interface MeLevelResponse {
   roleRewards: { level: number; roleId: string }[];
   /** 다음으로 받게 될 보상(현재 레벨 초과 중 최소). 없으면 null */
   nextRoleReward: { level: number; roleId: string } | null;
+  /**
+   * 오늘(KST) 인정 음성 분. `LevelSummary`와 동일 계산 결과를 그대로 통과시킨다(봇/웹 이원화
+   * 없음, U7 신규 — required. 생산자가 `getMeLevel()` 단 하나이고 소비처가 웹 4파일뿐이라
+   * `LevelSummary`의 optional 결정과 의도적으로 다르다, F-LVL-22)
+   */
+  todayCreditedVoiceMin: number;
+  /** 오늘(KST) 총 체류 분. U7 신규 — required */
+  todayTotalVoiceMin: number;
+  /** 주된 차감 사유 1개(U7, F-LVL-22). 차감 0이면 null. required */
+  primaryDeductionReason: LevelDeductionReason | null;
 }
 
 /**

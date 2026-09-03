@@ -93,5 +93,9 @@ export const MESSAGE_CODE = {
   ERR_WEEKLY_REPORT_CHANNEL_UNREACHABLE: 'ERR_WEEKLY_REPORT_CHANNEL_UNREACHABLE',
   /** timezone 값이 IANA 표준으로 인식되지 않음(400, F-GEMINI-032 ①). params 없음 — §D3 */
   ERR_WEEKLY_REPORT_INVALID_TIMEZONE: 'ERR_WEEKLY_REPORT_INVALID_TIMEZONE',
+
+  // ── 길드 멤버십 가드 (GuildMembershipGuard, i18n 잔여 감사 §7-10 권한 403 코드화) ──
+  /** JWT managedGuilds 목록에 없는 guildId 접근(403). params 없음 */
+  GUILD_ACCESS_DENIED: 'GUILD_ACCESS_DENIED',
 } as const;
 export type MessageCode = (typeof MESSAGE_CODE)[keyof typeof MESSAGE_CODE];

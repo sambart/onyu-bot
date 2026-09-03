@@ -4,6 +4,8 @@ import { Module } from '@nestjs/common';
 import { BotCommonModule } from '../common/bot-common.module';
 import { BestFriendCommand } from './friend/best-friend.command';
 import { HelpCommand } from './help.command';
+import { LeaderboardCommand } from './level/leaderboard.command';
+import { RankCommand } from './level/rank.command';
 import { MeCommand } from './me.command';
 import { StickyMessageDeleteCommand } from './sticky-message/sticky-message-delete.command';
 import { StickyMessageListCommand } from './sticky-message/sticky-message-list.command';
@@ -26,6 +28,9 @@ import { VersionCommand } from './version.command';
     MeCommand,
     // Phase 5: 베스트 프렌드
     BestFriendCommand,
+    // U9: /rank · /랭킹
+    RankCommand,
+    LeaderboardCommand,
   ],
 })
 export class BotCommandModule {}

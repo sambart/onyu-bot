@@ -4,10 +4,36 @@ import { type Mock } from 'vitest';
 
 import { BotVoiceStateDispatcher } from './bot-voice-state.dispatcher';
 
+/** discord.js `Base`(VoiceState의 상위 클래스)는 `valueOf(): string` 을 오버라이드한다.
+ * `Partial<VoiceState>` 를 그대로 override 타입으로 쓰면, 오버라이드 대상 필드가 없는
+ * 순수 object literal 도 TS의 상속 `Object.valueOf(): Object` 반환형과 충돌해
+ * "types returned by valueOf() are incompatible" 오류가 난다(TS 구조적 타이핑의
+ * 알려진 함정). 실제 override 에 쓰는 필드만 Pick 해 이 충돌을 피한다. */
+type VoiceStateOverrides = Partial<
+  Pick<
+    VoiceState,
+    | 'channelId'
+    | 'channel'
+    | 'member'
+    | 'selfMute'
+    | 'selfDeaf'
+    | 'selfVideo'
+    | 'streaming'
+    | 'serverMute'
+    | 'serverDeaf'
+  >
+>;
+
+/** GuildMember는 `toString(): \`<@${string}>\`` 를 오버라이드한다. 위 VoiceState와 동일한
+ * 이유로 `Partial<GuildMember>` 대신 실제 override 필드만 Pick 한다. */
+type GuildMemberOverrides = Partial<
+  Pick<GuildMember, 'id' | 'displayName' | 'user' | 'displayAvatarURL' | 'presence'>
+>;
+
 /** 테스트용 최소 VoiceState fake. discord.js VoiceState는 getter 기반 클래스라 필요한
  * 필드만 채운 객체를 캐스팅해 사용한다(as 사용 이유: 실제 클래스 인스턴스 생성 불필요한
  * 순수 값 판별 로직만 검증). */
-function makeVoiceState(overrides: Partial<VoiceState> = {}): VoiceState {
+function makeVoiceState(overrides: VoiceStateOverrides = {}): VoiceState {
   const base = {
     guild: { id: 'guild-1' },
     id: 'user-1',
@@ -22,7 +48,7 @@ function makeVoiceState(overrides: Partial<VoiceState> = {}): VoiceState {
   return { ...base, ...overrides } as unknown as VoiceState;
 }
 
-function makeMember(overrides: Partial<GuildMember> = {}): GuildMember {
+function makeMember(overrides: GuildMemberOverrides = {}): GuildMember {
   const base = {
     id: 'user-1',
     displayName: 'Alice',
@@ -99,7 +125,7 @@ describe('BotVoiceStateDispatcher', () => {
     });
 
     it('mic/streaming/video/deaf 상태 변화만 있으면 각각 toggle로 판정한다', async () => {
-      const cases: Array<[Partial<VoiceState>, Partial<VoiceState>, string]> = [
+      const cases: Array<[VoiceStateOverrides, VoiceStateOverrides, string]> = [
         [{ selfMute: false }, { selfMute: true }, 'mic_toggle'],
         [{ streaming: false }, { streaming: true }, 'streaming_toggle'],
         [{ selfVideo: false }, { selfVideo: true }, 'video_toggle'],

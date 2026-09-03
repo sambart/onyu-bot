@@ -339,6 +339,70 @@ export interface GetMeProfileOptions {
   mentType?: 'analysis';
 }
 
+// ── Level (Rank / Leaderboard Cards, U9) ──
+
+/**
+ * getLevelRankCard 요청 옵션(F-LVL-24/25, U9) — API `RankCardRequestDto`(endpoint-spec §5-9)와
+ * 수기 정합 필수. 닉네임·아바타 URL 등 개인정보가 액세스 로그(query string)에 남지 않도록 POST
+ * body로 전송한다(`getMeProfile`/`getDuoChemistry` 관례 — endpoint-spec §3-A 근거).
+ * 🔒 `userId`는 조회 **대상**이다(요청자가 아니다 — `GetDuoChemistryOptions.userId`=실행자
+ * 불변식과 반대이므로 혼동 주의).
+ */
+export interface GetLevelRankCardOptions {
+  guildId: string;
+  userId: string;
+  displayName: string;
+  avatarUrl: string;
+  locale: CanvasCardLocale;
+}
+
+/**
+ * POST /bot-api/level/rank-card 응답(endpoint-spec §5-10). `CanvasCardResponse`를 재사용하지
+ * 않는다 — `days`(집계 기간) 필드가 누적 전체 기준인 레벨 카드에는 의미가 없고 `0`을 넣으면
+ * 기존 `xxxNoData{days}` 류 문구 관례와 충돌한다(`WelcomeCardResponse`와 동일한 편차 사유).
+ */
+export interface LevelRankCardResponse {
+  /** false = 렌더 실패(5xx 아님 — 항상 200으로 온다) */
+  ok: boolean;
+  /** null = 데이터 없음 · 레벨 비활성 · 렌더 실패(사유를 구분하지 않는다) */
+  data: { imageBase64: string } | null;
+}
+
+/**
+ * getLevelLeaderboardCard 요청 옵션(F-LVL-26, U9) — API `LeaderboardCardRequestDto`
+ * (endpoint-spec §5-9)와 수기 정합 필수. `/랭킹` 커맨드 · 이전/다음 페이지 버튼 · `/me`
+ * [서버 리더보드] 버튼 3개 진입점이 이 메서드 하나로 수렴한다.
+ */
+export interface GetLevelLeaderboardCardOptions {
+  guildId: string;
+  /** 1-base. 미지정 시 API 기본값 1 */
+  page?: number;
+  /** 미지정 시 API 기본값 10, API가 상한 25로 clamp */
+  limit?: number;
+  /** 본인 행 하이라이트 판정 대상. 미지정 시 하이라이트 없이 정상 렌더 */
+  viewerUserId?: string;
+  locale: CanvasCardLocale;
+}
+
+/**
+ * POST /bot-api/level/leaderboard-card 응답(endpoint-spec §5-10). 이전/다음 버튼 활성 판정에
+ * `page`/`totalPages`가 반드시 필요해 `CanvasCardResponse` 재사용이 애초에 불가능하다.
+ */
+export interface LevelLeaderboardCardResponse {
+  /** false = 렌더 실패(5xx 아님 — 항상 200으로 온다) */
+  ok: boolean;
+  /** null = 데이터 없음 · 레벨 비활성 · 범위 초과 페이지 · 렌더 실패 */
+  data: { imageBase64: string } | null;
+  /** level_config.isEnabled (행 부재 시 true). 비활성/활동없음 문구 분기 근거 */
+  isEnabled: boolean;
+  /** 요청 page 에코 */
+  page: number;
+  /** max(1, ceil(total/limit)) — 이전/다음 버튼 활성/비활성 판정 */
+  totalPages: number;
+  /** 봇 제외·퇴장 제외 후 전체 유효 인원 */
+  total: number;
+}
+
 // ── Voice Sync (봇 시작 시 기존 음성 채널 사용자 동기화) ──
 
 export interface VoiceSyncUser {
