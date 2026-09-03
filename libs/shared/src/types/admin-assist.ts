@@ -17,8 +17,23 @@ export type AdminAssistResultStatus =
 /** 질의 트리거 3값(H4) — 자유 입력 / 상시 칩 / 후속 칩 */
 export type AdminAssistSource = 'chip' | 'followup_chip' | 'free';
 
-/** Phase 2a — 매칭된 카탈로그 항목의 종류(F-ADMIN-ASSIST-019 판별자). 매칭 실패 시 응답에서 null */
-export type AdminAssistKind = 'setting' | 'recipe';
+/**
+ * 매칭된 카탈로그 항목의 종류(F-ADMIN-ASSIST-019 판별자). 매칭 실패 시 응답에서 null.
+ * `'generative'`(admin-assist-generative-authoring 계획 §0-2) — LLM이 공지·규칙 초안을
+ * 생성하는 항목(F-042). `setting`/`recipe`와 달리 사전계산·설정 딥링크가 없다.
+ */
+export type AdminAssistKind = 'setting' | 'recipe' | 'generative';
+
+/**
+ * 규칙 초안 제안(`generate.rulesProposal`)의 서버 유형 3값(F-042, admin-assist-generative-
+ * authoring 계획 §0-3). 웹 전용 `ServerType`(`settings-preset.ts`)의 4값(`GAME`|`COMMUNITY`|
+ * `STUDY`|`MANUAL`) 중 `MANUAL`을 제외한 부분집합이며 본 타입이 정본이다 — API는 웹 전용
+ * 파일을 import할 수 없어(실측 X) 웹이 이 타입과 자기 `ServerType`을 대조한다.
+ */
+export type AdminAssistServerType = 'GAME' | 'COMMUNITY' | 'STUDY';
+
+/** 생성형 카탈로그 항목의 닫힌 actionId 2값(F-042·050). */
+export type AdminAssistGenerativeAction = 'generate.announcementDraft' | 'generate.rulesProposal';
 
 export interface AdminAssistParameter {
   key: string;
@@ -69,6 +84,10 @@ export interface AdminAssistQuotaResponse extends QuotaItemBase {
  * - `channel_names_unavailable`: Q3·Q8 — 채널 이름 resolve 실패(§2A-7). 분석 자체는 유효
  * - `insufficient_cohort_sample`: Q1 — k-익명성 미달(joinCount<5, 본 계획 §3 ⑦ 신설)
  * - `role_snapshot_stale`: Q8 — 역할 스냅샷이 48시간을 넘겨 룰 ②를 보류함(본 계획 §0-3 신설)
+ * - `server_type_defaulted`: `generate.rulesProposal` — `serverType` 미지정/무효 시 서버가
+ *   `COMMUNITY`로 폴백함(admin-assist-generative-authoring 계획 §0-3, EC-AA-199 — `rejected`
+ *   승격 아님). 이름에 "Analysis"가 남는 것은 생성형 경로도 이 코드표를 공유하기 위한
+ *   의도적 재사용이다.
  */
 export type AdminAssistAnalysisNoticeCode =
   | 'interpretation_unavailable'
@@ -76,7 +95,8 @@ export type AdminAssistAnalysisNoticeCode =
   | 'channel_not_found_scanned_all'
   | 'channel_names_unavailable'
   | 'insufficient_cohort_sample'
-  | 'role_snapshot_stale';
+  | 'role_snapshot_stale'
+  | 'server_type_defaulted';
 
 interface AdminAssistAnalysisBase {
   /** 카탈로그 title 파생(locale 반영) — LLM 미생성 */
@@ -221,6 +241,34 @@ export type AdminAssistAnalysis =
       metrics: NewMemberCohortMetrics;
     });
 
+/**
+ * 생성형 경로(`kind==='generative'`) 응답 공통 필드(admin-assist-generative-authoring
+ * 계획 §0-8 결정 ⓖ).
+ */
+interface AdminAssistGenerationBase {
+  /** 카탈로그 title 파생(UI locale) — LLM 미생성 */
+  title: string;
+  /** 초안이 실제로 작성된 언어(F-045). UI locale과 다를 수 있다(언어 선택 컨트롤) */
+  writeLocale: 'ko' | 'en';
+  /** 공지는 항상 [], 규칙 제안은 `serverType` 1개(서버 재검증 투영) */
+  parameters: AdminAssistParameter[];
+  notices: AdminAssistAnalysisNoticeCode[];
+}
+
+/** 생성형 경로(F-042·043·050) 판별 유니온 — 판별자는 `action`. */
+export type AdminAssistGeneration =
+  | (AdminAssistGenerationBase & {
+      action: 'generate.announcementDraft';
+      /** LLM 생성 — 표시 전용(mutation 0). 관리자가 편집 후 게시한다 */
+      draft: { title: string; body: string };
+    })
+  | (AdminAssistGenerationBase & {
+      action: 'generate.rulesProposal';
+      draft: { body: string };
+      /** 웹 유형 전환 UI 초기값(미지정 시 서버가 `COMMUNITY`로 확정한 값) */
+      serverType: AdminAssistServerType;
+    });
+
 export interface AdminAssistRecommendResponse {
   resultStatus: AdminAssistResultStatus;
   /** Phase 2a 신규 — 웹의 2차 분기 키(§2A-1). no_match/rejected/llm_error면 null */
@@ -229,12 +277,43 @@ export interface AdminAssistRecommendResponse {
   recommendation: AdminAssistRecommendation | null;
   /** Phase 2a 신규 — kind==='recipe' && (success | partial_success)일 때만 non-null */
   analysis: AdminAssistAnalysis | null;
+  /** kind==='generative' && resultStatus==='success'일 때만 non-null(admin-assist-generative-authoring 계획 §0-8) */
+  generation: AdminAssistGeneration | null;
   /** no_match / rejected일 때만 non-null (Phase 1 무변경) */
   fallback: AdminAssistFallback | null;
+  /**
+   * `admin_assist_history` INSERT 성공 시의 행 id(전 경로 공통, kind 무관). `null`은 오직
+   * 이력 INSERT가 실패했을 때뿐이다(best-effort — 응답에 영향 없음, EC-AA-187). 게시
+   * 대상이 아닌 경로의 값은 웹이 그냥 쓰지 않는다(admin-assist-generative-authoring 계획 §0-8).
+   */
+  historyId: string | null;
   /** 응답 카드 하단 후속 칩 1~2개(F-015). 카탈로그 파생 결정론 — LLM 미개입 */
   followUpQueries: string[];
   /** 이번 요청 반영 후 쿼터 스냅샷 — 헤더 "잔여 N/20" 갱신용 */
   quota: AdminAssistQuotaResponse;
+}
+
+/**
+ * E6 — 생성형 초안(편집본)을 디스코드 채널에 게시하는 요청(F-046, admin-assist-generative-
+ * authoring 계획 §0-10·§0-13). `historyId`는 best-effort 회고 연결용이며 부재/무효여도
+ * 게시는 항상 성공한다(EC-AA-187).
+ */
+export interface AdminAssistPublishRequest {
+  channelId: string;
+  sourceAction: AdminAssistGenerativeAction;
+  /** 규칙 제안(`generate.rulesProposal`)은 제목이 없다(F-051) — 이때 생략 */
+  title?: string;
+  body: string;
+  writeLocale?: 'ko' | 'en';
+  historyId?: string;
+}
+
+export interface AdminAssistPublishResponse {
+  success: true;
+  channelId: string;
+  messageId: string;
+  /** ISO 8601 — 미리보기 "게시 완료 · HH:mm"과 `executedAction.publishedAt` 값이 일치한다 */
+  publishedAt: string;
 }
 
 export interface AdminAssistCatalogItem {
