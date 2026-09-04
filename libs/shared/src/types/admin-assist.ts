@@ -79,6 +79,12 @@ export interface AdminAssistFallback {
    * 웹은 XSS-safe 렌더(dangerouslySetInnerHTML 금지 — interpretation과 동일 관행).
    */
   generatedGuidance: string | null;
+  /**
+   * F-ADMIN-ASSIST-065(N4) — 결정론 안내 코드(현재는 이름 해석 실패 2코드).
+   * 필수 필드 · 해당 없으면 빈 배열(undefined 금지). 강등 내성: 폴백 콜이 실패해
+   * `generatedGuidance:null`이 돼도 사유는 이 코드로 전달된다(endpoint-spec §2F-5 (a)안 채택 근거).
+   */
+  notices: AdminAssistAnalysisNoticeCode[];
 }
 
 /** GET /api/guilds/:guildId/admin-assist/quota 응답 (F-ADMIN-ASSIST-007) */
@@ -100,6 +106,10 @@ export interface AdminAssistQuotaResponse extends QuotaItemBase {
  *   `COMMUNITY`로 폴백함(admin-assist-generative-authoring 계획 §0-3, EC-AA-199 — `rejected`
  *   승격 아님). 이름에 "Analysis"가 남는 것은 생성형 경로도 이 코드표를 공유하기 위한
  *   의도적 재사용이다.
+ * - `target_name_not_found`: Q6 — `targetName` 정확 일치 0건 && (접두 일치 0건 || 길이
+ *   하한 미달). 후보 0명(F-ADMIN-ASSIST-065, N4, endpoint-spec §2F-5)
+ * - `target_name_ambiguous`: Q6 — `targetName` 정확 일치 2건 이상 또는 접두 일치 2건 이상.
+ *   후보 1~5명(F-ADMIN-ASSIST-065, N4, endpoint-spec §2F-5·§2F-6)
  */
 export type AdminAssistAnalysisNoticeCode =
   | 'interpretation_unavailable'
@@ -108,7 +118,9 @@ export type AdminAssistAnalysisNoticeCode =
   | 'channel_names_unavailable'
   | 'insufficient_cohort_sample'
   | 'role_snapshot_stale'
-  | 'server_type_defaulted';
+  | 'server_type_defaulted'
+  | 'target_name_not_found'
+  | 'target_name_ambiguous';
 
 interface AdminAssistAnalysisBase {
   /** 카탈로그 title 파생(locale 반영) — LLM 미생성 */

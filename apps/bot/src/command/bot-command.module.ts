@@ -7,6 +7,7 @@ import { HelpCommand } from './help.command';
 import { LeaderboardCommand } from './level/leaderboard.command';
 import { RankCommand } from './level/rank.command';
 import { MeCommand } from './me.command';
+import { ProfileCommand } from './profile.command';
 import { StickyMessageDeleteCommand } from './sticky-message/sticky-message-delete.command';
 import { StickyMessageListCommand } from './sticky-message/sticky-message-list.command';
 import { StickyMessageRegisterCommand } from './sticky-message/sticky-message-register.command';
@@ -26,6 +27,8 @@ import { VersionCommand } from './version.command';
     StickyMessageListCommand,
     // Me
     MeCommand,
+    // F-VOICE-123: /profile · /프로필 (MeCommand 별칭)
+    ProfileCommand,
     // Phase 5: 베스트 프렌드
     BestFriendCommand,
     // U9: /rank · /랭킹

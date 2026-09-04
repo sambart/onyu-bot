@@ -7,6 +7,7 @@ import { AttachmentBuilder, ChatInputCommandInteraction, GuildMember, type User 
 
 import { BotI18nService } from '../../common/application/bot-i18n.service';
 import { LocaleResolverService } from '../../common/application/locale-resolver.service';
+import { buildProfileCardReply, fetchMeProfileCard } from '../me-profile-card';
 import { RankCommandDto } from './rank.dto';
 
 /** 아바타 이미지 해상도(px) — me.command.ts/best-friend.command.ts와 동일 규격 */
@@ -19,6 +20,8 @@ interface RankTarget {
   avatarUrl: string;
 }
 
+// F-LVL-25(U9-b) — 유저 미지정(본인) 시 경량 랭크 카드 대신 `/me` 프로필 카드를 렌더한다
+// (plan me-card-alias.md D2/D3). 유저 지정(타인) 시엔 기존 경량 랭크 카드를 그대로 유지한다.
 @Command({
   name: 'rank',
   nameLocalizations: { ko: '랭크' },
@@ -88,6 +91,12 @@ export class RankCommand {
     try {
       const target = this.resolveTarget(interaction, targetUser, isSelf);
 
+      // U9-b(F-LVL-25) — 본인 조회는 /me 프로필 카드로 렌더한다(D2/D3). 폴백 없음(D3 근거).
+      if (isSelf) {
+        await this.replySelfProfile({ interaction, target, locale, guildId });
+        return;
+      }
+
       const result = await this.apiClient.getLevelRankCard({
         guildId,
         userId: target.userId,
@@ -102,8 +111,7 @@ export class RankCommand {
       }
 
       if (!result.data) {
-        const noDataKey = isSelf ? 'commands.rankNoData' : 'commands.rankNoDataOther';
-        await interaction.editReply({ content: this.i18n.t(locale, noDataKey) });
+        await interaction.editReply({ content: this.i18n.t(locale, 'commands.rankNoDataOther') });
         return;
       }
 
@@ -114,6 +122,46 @@ export class RankCommand {
       this.logger.error('Rank command error', error instanceof Error ? error.stack : String(error));
       await interaction.editReply({ content: this.i18n.t(locale, 'commands.rankError') });
     }
+  }
+
+  /**
+   * 본인 조회(U9-b) — `/me` 와 동일한 프로필 카드를 렌더한다(D4, 버튼 3종 포함).
+   * `viewOption` 은 의도적으로 전달하지 않는다(D2) — `/me` 와 캐시 키(`viewOption ?? 'default'`)를
+   * 공유해 AI 멘트 쿼터 이중 소모를 막는다. `ok:false`(렌더 실패)는 `/me` 와 달리 여기서만
+   * 가드한다 — 사용자가 친 커맨드가 `/rank` 이므로 `rankError` 문구를 쓴다(D3).
+   */
+  private async replySelfProfile(params: {
+    interaction: ChatInputCommandInteraction;
+    target: RankTarget;
+    locale: string;
+    guildId: string;
+  }): Promise<void> {
+    const { interaction, target, locale, guildId } = params;
+
+    const result = await fetchMeProfileCard(this.apiClient, {
+      guildId,
+      userId: target.userId,
+      displayName: target.displayName,
+      avatarUrl: target.avatarUrl,
+      locale: this.toCanvasLocale(locale),
+      mentType: 'analysis',
+    });
+
+    if (!result.ok) {
+      await interaction.editReply({ content: this.i18n.t(locale, 'commands.rankError') });
+      return;
+    }
+
+    const reply = buildProfileCardReply({
+      i18n: this.i18n,
+      locale,
+      guildId,
+      result,
+      noActivityKey: 'commands.meNoActivity',
+      attachmentName: 'profile.png',
+    });
+
+    await interaction.editReply(reply);
   }
 
   /**

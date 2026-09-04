@@ -6,6 +6,10 @@
 export const INACTIVE_MEMBER_CONFIG_DEFAULTS = {
   periodDays: 30,
   lowActiveThresholdMin: 30,
+  // F-INACTIVE-007. 신규 생성 행의 기본값이다. 배포 이전부터 존재하던 행은 마이그레이션이
+  // 'VOICE'로 백필한다(D1) — 정본 상수와 마이그레이션 백필이 의도적으로 다른 유일한 필드다.
+  activitySignal: 'BOTH',
+  lowActiveThresholdMsg: 10,
   decliningPercent: 50,
   gracePeriodDays: 7,
   autoActionEnabled: false,

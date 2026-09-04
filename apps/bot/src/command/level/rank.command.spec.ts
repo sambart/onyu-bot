@@ -5,8 +5,16 @@
  * 핵심 회귀 가드(계획 §10 R4): 옵션은 **base 이름(`user`)**으로 조회해야 한다.
  * `getUser('유저')`처럼 한글 이름으로 조회하면 항상 null이 되어 타인 조회가 전부
  * "비멤버"로 오분류된다 — 아래 "양성 케이스"가 이를 감시한다.
+ *
+ * U9-b(F-LVL-25, plan me-card-alias.md §8 R/R-N) — 본인 경로는 `/me`와 동일한
+ * `getMeProfile`(→ `fetchMeProfileCard`) 경로를 타며 `getLevelRankCard`는 호출하지 않는다.
+ * 타인 경로는 `getLevelRankCard`를 그대로 사용한다(D5, 무변경).
  */
-import type { BotApiClientService, LevelRankCardResponse } from '@onyu/bot-api-client';
+import type {
+  BotApiClientService,
+  LevelRankCardResponse,
+  MeProfileResponse,
+} from '@onyu/bot-api-client';
 import type { ChatInputCommandInteraction, GuildMember, User } from 'discord.js';
 import { beforeEach, describe, expect, it, type Mock, vi } from 'vitest';
 
@@ -61,12 +69,25 @@ function rankCardResponse(overrides: Partial<LevelRankCardResponse> = {}): Level
   };
 }
 
+/** me.command.spec.ts의 profileResponse()와 동형(D5 — /rank 본인 경로가 /me와 같은 응답 셰이프를 소비) */
+function profileResponse(overrides: Partial<MeProfileResponse> = {}): MeProfileResponse {
+  return {
+    ok: true,
+    days: 15,
+    data: { imageBase64: Buffer.from('png').toString('base64') },
+    ...overrides,
+  };
+}
+
 describe('RankCommand', () => {
   let command: RankCommand;
-  let apiClient: { getLevelRankCard: Mock };
+  let apiClient: { getLevelRankCard: Mock; getMeProfile: Mock };
 
   beforeEach(() => {
-    apiClient = { getLevelRankCard: vi.fn().mockResolvedValue(rankCardResponse()) };
+    apiClient = {
+      getLevelRankCard: vi.fn().mockResolvedValue(rankCardResponse()),
+      getMeProfile: vi.fn().mockResolvedValue(profileResponse()),
+    };
 
     const i18n = new BotI18nService();
     i18n.onModuleInit();
@@ -91,19 +112,21 @@ describe('RankCommand', () => {
       ephemeral: true,
     });
     expect(apiClient.getLevelRankCard).not.toHaveBeenCalled();
+    expect(apiClient.getMeProfile).not.toHaveBeenCalled();
   });
 
-  // ─── 본인 조회(무옵션) ────────────────────────────────────────────────────────
+  // ─── 본인 조회(무옵션) — U9-b: /me 프로필 카드 경로 ──────────────────────────
 
-  it('무옵션이면 deferReply()를 인자 없이 호출하고(공개 응답) 본인 정보로 조회한다', async () => {
+  it('무옵션이면 deferReply()를 인자 없이 호출하고(공개 응답) getMeProfile로 본인 정보를 조회한다(getLevelRankCard는 미호출)', async () => {
     const interaction = makeInteraction();
 
     await command.onRank(interaction, new RankCommandDto());
 
     expect(interaction.deferReply).toHaveBeenCalledWith();
-    expect(apiClient.getLevelRankCard).toHaveBeenCalledWith(
+    expect(apiClient.getMeProfile).toHaveBeenCalledWith(
       expect.objectContaining({ guildId: GUILD_ID, userId: USER_ID, displayName: 'Alice' }),
     );
+    expect(apiClient.getLevelRankCard).not.toHaveBeenCalled();
   });
 
   // ─── §F2/R4 회귀 가드 — base 이름(user)으로 옵션을 조회한다 ──────────────────
@@ -116,7 +139,7 @@ describe('RankCommand', () => {
     expect(interaction.options.getUser).toHaveBeenCalledWith('user');
   });
 
-  it('타인 지정 시(멤버) API가 정상 호출된다(getMember도 base 이름 "user"로 조회 — 잘못된 이름이면 항상 null이 되어 이 테스트가 실패한다)', async () => {
+  it('타인 지정 시(멤버) getLevelRankCard가 정상 호출되고 PNG 첨부(rank.png)로 응답한다(getMember도 base 이름 "user"로 조회 — 잘못된 이름이면 항상 null이 되어 이 테스트가 실패한다)', async () => {
     const interaction = makeInteraction({
       options: makeOptions(makeTargetUser('peer-1'), { displayName: '길드닉네임' }),
     });
@@ -127,11 +150,18 @@ describe('RankCommand', () => {
     expect(apiClient.getLevelRankCard).toHaveBeenCalledWith(
       expect.objectContaining({ userId: 'peer-1', displayName: '길드닉네임' }),
     );
+    expect(apiClient.getMeProfile).not.toHaveBeenCalled();
+
+    const call = (interaction.editReply as Mock).mock.calls[0][0] as {
+      files: Array<{ name: string }>;
+    };
+    expect(call.files).toHaveLength(1);
+    expect(call.files[0].name).toBe('rank.png');
   });
 
-  // ─── 타인 = 본인(EC-RANK-12) ─────────────────────────────────────────────────
+  // ─── 타인 = 본인(EC-RANK-12) — U9-b: 명시 지정도 본인 프로필 카드 경로 ───────
 
-  it('대상이 본인이면 본인 조회와 동일 경로로 처리한다(별도 분기 없음)', async () => {
+  it('대상이 본인이면 본인 조회와 동일 경로(getMeProfile)로 처리한다(별도 분기 없음)', async () => {
     const interaction = makeInteraction({
       options: makeOptions(makeTargetUser(USER_ID), {}),
     });
@@ -139,9 +169,10 @@ describe('RankCommand', () => {
     await command.onRank(interaction, new RankCommandDto());
 
     expect(interaction.deferReply).toHaveBeenCalledWith();
-    expect(apiClient.getLevelRankCard).toHaveBeenCalledWith(
+    expect(apiClient.getMeProfile).toHaveBeenCalledWith(
       expect.objectContaining({ userId: USER_ID }),
     );
+    expect(apiClient.getLevelRankCard).not.toHaveBeenCalled();
   });
 
   // ─── 타인 = 봇(EC-RANK-10) ────────────────────────────────────────────────────
@@ -158,6 +189,7 @@ describe('RankCommand', () => {
       ephemeral: true,
     });
     expect(apiClient.getLevelRankCard).not.toHaveBeenCalled();
+    expect(apiClient.getMeProfile).not.toHaveBeenCalled();
     expect(interaction.deferReply).not.toHaveBeenCalled();
   });
 
@@ -175,20 +207,22 @@ describe('RankCommand', () => {
       ephemeral: true,
     });
     expect(apiClient.getLevelRankCard).not.toHaveBeenCalled();
+    expect(apiClient.getMeProfile).not.toHaveBeenCalled();
   });
 
-  // ─── 응답 분기 ────────────────────────────────────────────────────────────────
+  // ─── 응답 분기(본인) — U9-b: /me와 동일한 meNoActivity{days} 문구 승계(D3) ────
 
-  it('데이터 없음(본인)이면 rankNoData 문구로 editReply한다', async () => {
+  it('데이터 없음(본인)이면 getMeProfile의 data:null → meNoActivity{days} 문구로 editReply한다(rankNoData는 더 이상 쓰이지 않는다)', async () => {
     const interaction = makeInteraction();
-    apiClient.getLevelRankCard.mockResolvedValue(rankCardResponse({ data: null }));
+    apiClient.getMeProfile.mockResolvedValue(profileResponse({ data: null, days: 15 }));
 
     await command.onRank(interaction, new RankCommandDto());
 
-    expect(interaction.editReply).toHaveBeenCalledWith({
-      content: '아직 활동 XP가 없습니다. 음성·채팅 활동을 하면 순위가 표시됩니다.',
-    });
+    const call = (interaction.editReply as Mock).mock.calls[0][0] as { content: string };
+    expect(call.content).toBe('최근 15일간 음성 채널 활동 기록이 없습니다.');
   });
+
+  // ─── 응답 분기(타인) — D5 무변경 ──────────────────────────────────────────────
 
   it('데이터 없음(타인)이면 rankNoDataOther 문구로 editReply한다(사유 미구분이나 대상 구분은 한다)', async () => {
     const interaction = makeInteraction({
@@ -203,8 +237,23 @@ describe('RankCommand', () => {
     });
   });
 
-  it('렌더 실패(ok:false)이면 rankError 문구로 editReply한다(5xx 아님, 200+ok:false 폴백)', async () => {
+  // ─── 렌더 실패(ok:false) ──────────────────────────────────────────────────────
+
+  it('본인 경로에서 렌더 실패(ok:false)이면 rankError 문구로 editReply한다(D3 — /me와 달리 ok 가드를 둔다)', async () => {
     const interaction = makeInteraction();
+    apiClient.getMeProfile.mockResolvedValue(profileResponse({ ok: false, data: null }));
+
+    await command.onRank(interaction, new RankCommandDto());
+
+    expect(interaction.editReply).toHaveBeenCalledWith({
+      content: '랭크 카드를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.',
+    });
+  });
+
+  it('타인 경로에서 렌더 실패(ok:false)이면 rankError 문구로 editReply한다(5xx 아님, 200+ok:false 폴백, D5 무변경)', async () => {
+    const interaction = makeInteraction({
+      options: makeOptions(makeTargetUser('peer-1'), {}),
+    });
     apiClient.getLevelRankCard.mockResolvedValue(rankCardResponse({ ok: false, data: null }));
 
     await command.onRank(interaction, new RankCommandDto());
@@ -214,26 +263,92 @@ describe('RankCommand', () => {
     });
   });
 
-  it('정상 응답이면 PNG 첨부(rank.png)로 editReply한다', async () => {
+  // ─── 예외(reject) — 본인/타인 각 1건(D3) ─────────────────────────────────────
+
+  it('본인 경로에서 API 호출이 reject되면(예외) catch 경로에서 rankError 문구로 editReply한다', async () => {
     const interaction = makeInteraction();
+    apiClient.getMeProfile.mockRejectedValue(new Error('network fail'));
 
     await command.onRank(interaction, new RankCommandDto());
 
-    const call = (interaction.editReply as Mock).mock.calls[0][0] as {
-      files: Array<{ name: string }>;
-    };
-    expect(call.files).toHaveLength(1);
-    expect(call.files[0].name).toBe('rank.png');
+    expect(interaction.editReply).toHaveBeenCalledWith({
+      content: '랭크 카드를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.',
+    });
   });
 
-  it('API 호출이 reject되면(예외) catch 경로에서 rankError 문구로 editReply한다', async () => {
-    const interaction = makeInteraction();
+  it('타인 경로에서 API 호출이 reject되면(예외) catch 경로에서 rankError 문구로 editReply한다', async () => {
+    const interaction = makeInteraction({
+      options: makeOptions(makeTargetUser('peer-1'), {}),
+    });
     apiClient.getLevelRankCard.mockRejectedValue(new Error('network fail'));
 
     await command.onRank(interaction, new RankCommandDto());
 
     expect(interaction.editReply).toHaveBeenCalledWith({
       content: '랭크 카드를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.',
+    });
+  });
+
+  // ─── D2 — 캐시·쿼터 회귀 가드 ─────────────────────────────────────────────────
+
+  describe('U9-b 본인 경로 — D2/D4 회귀 가드', () => {
+    it('R-N1: 본인 경로 호출 인자에 viewOption 키가 존재하지 않는다(D2 — /me와 캐시 키를 공유하기 위함)', async () => {
+      const interaction = makeInteraction();
+
+      await command.onRank(interaction, new RankCommandDto());
+
+      const options = apiClient.getMeProfile.mock.calls[0][0] as Record<string, unknown>;
+      expect(options).not.toHaveProperty('viewOption');
+    });
+
+    it("R-N2: 본인 경로 호출 인자에 mentType:'analysis'가 포함된다", async () => {
+      const interaction = makeInteraction();
+
+      await command.onRank(interaction, new RankCommandDto());
+
+      expect(apiClient.getMeProfile).toHaveBeenCalledWith(
+        expect.objectContaining({ mentType: 'analysis' }),
+      );
+    });
+
+    it('R-N3: 본인 경로 정상 응답의 첨부 파일명이 profile.png다', async () => {
+      const interaction = makeInteraction();
+
+      await command.onRank(interaction, new RankCommandDto());
+
+      const call = (interaction.editReply as Mock).mock.calls[0][0] as {
+        files: Array<{ name: string }>;
+      };
+      expect(call.files).toHaveLength(1);
+      expect(call.files[0].name).toBe('profile.png');
+    });
+
+    it('R-N4: 본인 경로 정상 응답에 /me와 동일한 버튼 3종이 붙는다(D4)', async () => {
+      const interaction = makeInteraction();
+
+      await command.onRank(interaction, new RankCommandDto());
+
+      const call = (interaction.editReply as Mock).mock.calls[0][0] as {
+        components: Array<{ components: Array<{ toJSON: () => Record<string, unknown> }> }>;
+      };
+      const buttons = call.components[0].components.map((b) => b.toJSON());
+      expect(buttons).toHaveLength(3);
+      expect(buttons[1]).toMatchObject({ custom_id: 'me:leaderboard' });
+      expect(buttons[2]).toMatchObject({ custom_id: 'me:activity_detail' });
+    });
+
+    it('R-N5: 본인 경로 활동 없음 응답에는 대시보드 링크 버튼 1개만 붙는다(D4)', async () => {
+      const interaction = makeInteraction();
+      apiClient.getMeProfile.mockResolvedValue(profileResponse({ data: null, days: 15 }));
+
+      await command.onRank(interaction, new RankCommandDto());
+
+      const call = (interaction.editReply as Mock).mock.calls[0][0] as {
+        components: Array<{ components: Array<{ toJSON: () => Record<string, unknown> }> }>;
+      };
+      const buttons = call.components[0].components.map((b) => b.toJSON());
+      expect(buttons).toHaveLength(1);
+      expect(buttons[0]).not.toHaveProperty('custom_id');
     });
   });
 });

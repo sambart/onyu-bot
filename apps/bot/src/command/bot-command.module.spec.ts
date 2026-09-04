@@ -2,8 +2,9 @@
  * BotCommandModule — provider 등록 스모크 테스트
  *
  * `/voice-flush` 폐지 후 6종 → `/help`(F-GENERAL-006) 추가로 7종 → U9(`/rank`·`/랭킹`,
- * F-LVL-24~26) 추가로 9종 커맨드가 정확히 등록되어 있는지, 그리고 삭제된 커맨드가 다시
- * 섞여 들어오지 않는지(회귀 방지)를 검증한다.
+ * F-LVL-24~26) 추가로 9종 → `/profile`(`/프로필`, F-VOICE-123 별칭) 추가로 10종 커맨드가
+ * 정확히 등록되어 있는지, 그리고 삭제된 커맨드가 다시 섞여 들어오지 않는지(회귀 방지)를
+ * 검증한다.
  *
  * DiscordModule.forFeature() / BotCommonModule 은 Discord 클라이언트 등
  * 실제 인프라 의존을 요구하므로 여기서는 @Module 데코레이터 메타데이터만
@@ -21,6 +22,7 @@ import { HelpCommand } from './help.command';
 import { LeaderboardCommand } from './level/leaderboard.command';
 import { RankCommand } from './level/rank.command';
 import { MeCommand } from './me.command';
+import { ProfileCommand } from './profile.command';
 import { StickyMessageDeleteCommand } from './sticky-message/sticky-message-delete.command';
 import { StickyMessageListCommand } from './sticky-message/sticky-message-list.command';
 import { StickyMessageRegisterCommand } from './sticky-message/sticky-message-register.command';
@@ -28,10 +30,10 @@ import { VersionCommand } from './version.command';
 
 describe('BotCommandModule', () => {
   describe('providers', () => {
-    it('U9(/rank·/랭킹) 추가 후 정확히 9개의 커맨드만 등록되어 있다', () => {
+    it('F-VOICE-123(/profile·/프로필) 추가 후 정확히 10개의 커맨드만 등록되어 있다', () => {
       const providers = Reflect.getMetadata('providers', BotCommandModule) as unknown[];
 
-      expect(providers).toHaveLength(9);
+      expect(providers).toHaveLength(10);
       expect(providers).toEqual(
         expect.arrayContaining([
           VersionCommand,
@@ -40,6 +42,7 @@ describe('BotCommandModule', () => {
           StickyMessageDeleteCommand,
           StickyMessageListCommand,
           MeCommand,
+          ProfileCommand,
           BestFriendCommand,
           RankCommand,
           LeaderboardCommand,

@@ -3,25 +3,12 @@ import { Command, Handler, InteractionEvent } from '@discord-nestjs/core';
 import { Injectable, Logger } from '@nestjs/common';
 import type { CanvasCardLocale } from '@onyu/bot-api-client';
 import { BotApiClientService } from '@onyu/bot-api-client';
-import {
-  ActionRowBuilder,
-  AttachmentBuilder,
-  ButtonBuilder,
-  ButtonStyle,
-  ChatInputCommandInteraction,
-  GuildMember,
-} from 'discord.js';
+import { ChatInputCommandInteraction, GuildMember } from 'discord.js';
 
 import { BotI18nService } from '../common/application/bot-i18n.service';
 import { LocaleResolverService } from '../common/application/locale-resolver.service';
 import { MeCommandDto, MeViewOption } from './me.dto';
-
-// 대시보드 기본 URL (WEB_URL 미설정 시 prod 도메인)
-const DEFAULT_WEB_URL = 'https://onyu.dev';
-
-// 버튼 customId — bot-me-interaction.handler.ts와 공유(F-VOICE-064/065)
-const CUSTOM_ID_ACTIVITY_DETAIL = 'me:activity_detail';
-const CUSTOM_ID_LEADERBOARD = 'me:leaderboard';
+import { buildProfileCardReply, fetchMeProfileCard } from './me-profile-card';
 
 @Command({
   name: 'me',
@@ -67,7 +54,7 @@ export class MeCommand {
 
       const viewOption = dto.view === MeViewOption.Voice ? 'voice' : undefined;
 
-      const result = await this.apiClient.getMeProfile({
+      const result = await fetchMeProfileCard(this.apiClient, {
         guildId: interaction.guildId,
         userId: interaction.user.id,
         displayName,
@@ -80,20 +67,16 @@ export class MeCommand {
         mentType: 'analysis',
       });
 
-      const buttonRow = this.buildButtonRow(interaction.guildId, locale, Boolean(result.data));
+      const reply = buildProfileCardReply({
+        i18n: this.i18n,
+        locale,
+        guildId: interaction.guildId,
+        result,
+        noActivityKey: 'commands.meNoActivity',
+        attachmentName: 'profile.png',
+      });
 
-      if (!result.data) {
-        await interaction.editReply({
-          content: this.i18n.t(locale, 'commands.meNoActivity', { days: result.days }),
-          components: [buttonRow],
-        });
-        return;
-      }
-
-      const imageBuffer = Buffer.from(result.data.imageBase64, 'base64');
-      const attachment = new AttachmentBuilder(imageBuffer, { name: 'profile.png' });
-
-      await interaction.editReply({ files: [attachment], components: [buttonRow] });
+      await interaction.editReply(reply);
     } catch (error) {
       this.logger.error('Me command error', error instanceof Error ? error.stack : String(error));
       await interaction.editReply({ content: this.i18n.t(locale, 'commands.meError') });
@@ -103,44 +86,5 @@ export class MeCommand {
   /** LocaleResolverService는 'ko' | 'en' 중 하나만 반환하므로 안전하게 캔버스 카드 로케일로 변환한다(F-VOICE-082, best-friend.command.ts 선례) */
   private toCanvasLocale(locale: string): CanvasCardLocale {
     return locale === 'ko' ? 'ko' : 'en';
-  }
-
-  /**
-   * 대시보드 링크(Link) 버튼 + (활동 데이터가 있을 때만) 서버 리더보드·활동 상세 버튼(F-VOICE-064/065).
-   * 활동 없음(`hasData=false`) 시엔 조회할 데이터가 없으므로 Link 버튼만 표시(현행 유지).
-   */
-  private buildButtonRow(
-    guildId: string,
-    locale: string,
-    hasData: boolean,
-  ): ActionRowBuilder<ButtonBuilder> {
-    // WEB_URL은 런타임에 읽는다 — 모듈 import 시점에 평가하면 ConfigModule의 .env 로드 전이라 fallback이 굳을 수 있다
-    const webUrl = process.env['WEB_URL'] ?? DEFAULT_WEB_URL;
-    const linkButton = new ButtonBuilder()
-      .setLabel(this.i18n.t(locale, 'commands.meButtonLabel'))
-      .setStyle(ButtonStyle.Link)
-      // 뱃지·레벨(성장) 맥락 카드이므로 /my/growth로 연결한다 — 구 경로 /my/voice는
-      // next.config.mjs 리다이렉트로 /my/activity(음성 통계 탭)에 떨어져 뱃지 상세와 무관해진다.
-      .setURL(`${webUrl}/my/growth?guildId=${guildId}`);
-
-    if (!hasData) {
-      return new ActionRowBuilder<ButtonBuilder>().addComponents(linkButton);
-    }
-
-    const leaderboardButton = new ButtonBuilder()
-      .setCustomId(CUSTOM_ID_LEADERBOARD)
-      .setLabel(this.i18n.t(locale, 'commands.meButtonLeaderboard'))
-      .setStyle(ButtonStyle.Secondary);
-
-    const activityDetailButton = new ButtonBuilder()
-      .setCustomId(CUSTOM_ID_ACTIVITY_DETAIL)
-      .setLabel(this.i18n.t(locale, 'commands.meButtonActivityDetail'))
-      .setStyle(ButtonStyle.Primary);
-
-    return new ActionRowBuilder<ButtonBuilder>().addComponents(
-      linkButton,
-      leaderboardButton,
-      activityDetailButton,
-    );
   }
 }
