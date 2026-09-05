@@ -36,6 +36,10 @@ function makeConfig(overrides: Partial<NewbieConfigDto> = {}): NewbieConfigDto {
     welcomeEmbedColor: null,
     welcomeEmbedThumbnailUrl: null,
     missionEnabled: false,
+    missionTargetPlaytimeHours: null,
+    missionTargetPlayCount: null,
+    missionDurationDays: null,
+    missionNotifyChannelId: null,
     roleEnabled: false,
     newbieRoleId: null,
     roleDurationDays: null,
@@ -611,6 +615,349 @@ describe('BotNewbieMemberAddHandler', () => {
       // Canvas 실패 → EMBED 강등 재시도(1회) → 그 EMBED 발송도 실패 → 상위 catch가 흡수, 총 2회 send 시도
       expect(send).toHaveBeenCalledTimes(2);
       expect(loggerErrorSpy).toHaveBeenCalled();
+    });
+  });
+
+  // ──────────────────────────────────────────────────────
+  // F-NEWBIE-009 (계획 §S1-2 / T2) — 미션 변수 4개가 welcomeContent/embedTitle/embedDescription
+  // 3곳 모두에 적용되고, 값 결손 시 조건부 렌더(줄 삭제)까지 실제로 반영되는지 검증한다.
+  // ──────────────────────────────────────────────────────
+  describe('F-NEWBIE-009 — 미션 안내 변수 치환 (welcome-template.util 통합)', () => {
+    it('missionEnabled=true + 전체 필드 설정 시 welcomeContent에 4개 변수가 치환된다', async () => {
+      apiClient.getNewbieConfig.mockResolvedValue(
+        makeConfig({
+          welcomeEnabled: true,
+          welcomeChannelId: 'ch-1',
+          welcomeContent:
+            '{username}님 환영합니다! {missionDurationDays}일 동안 {missionTargetPlaytime}시간, {missionTargetPlayCount}회 - {missionChannel}',
+          missionEnabled: true,
+          missionTargetPlaytimeHours: 20,
+          missionTargetPlayCount: 10,
+          missionDurationDays: 7,
+          missionNotifyChannelId: 'notify-ch',
+        }),
+      );
+      const send = vi.fn().mockResolvedValue(undefined);
+      discordClient.channels.fetch.mockResolvedValue({ isTextBased: () => true, send });
+      const member = makeMember();
+
+      await handler.handleGuildMemberAdd(member);
+
+      expect((send.mock.calls[0][0] as { content?: string }).content).toBe(
+        '동현님 환영합니다! 7일 동안 20시간, 10회 - <#notify-ch>',
+      );
+    });
+
+    it('missionEnabled=false이면 미션 안내 줄이 통째로 삭제되고 나머지 문장은 무손상이다(대안 플로우 1)', async () => {
+      apiClient.getNewbieConfig.mockResolvedValue(
+        makeConfig({
+          welcomeEnabled: true,
+          welcomeChannelId: 'ch-1',
+          welcomeContent:
+            '{username}님 환영합니다!\n미션이 시작됐어요! {missionDurationDays}일 동안 {missionTargetPlaytime}시간 - {missionChannel}\n즐거운 시간 되세요.',
+          missionEnabled: false,
+          missionTargetPlaytimeHours: 20,
+          missionDurationDays: 7,
+          missionNotifyChannelId: 'notify-ch',
+        }),
+      );
+      const send = vi.fn().mockResolvedValue(undefined);
+      discordClient.channels.fetch.mockResolvedValue({ isTextBased: () => true, send });
+      const member = makeMember();
+
+      await handler.handleGuildMemberAdd(member);
+
+      const content = (send.mock.calls[0][0] as { content?: string }).content;
+      expect(content).toBe('동현님 환영합니다!\n즐거운 시간 되세요.');
+      expect(content).not.toMatch(/undefined|null|\{mission/);
+    });
+
+    it('missionNotifyChannelId=null이면 그 줄만 삭제된다(부분 결손, 대안 플로우 2 인접 케이스)', async () => {
+      apiClient.getNewbieConfig.mockResolvedValue(
+        makeConfig({
+          welcomeEnabled: true,
+          welcomeChannelId: 'ch-1',
+          welcomeContent: '환영합니다!\n{missionChannel}에서 진행 상황을 확인할 수 있어요.',
+          missionEnabled: true,
+          missionTargetPlaytimeHours: 20,
+          missionDurationDays: 7,
+          missionNotifyChannelId: null,
+        }),
+      );
+      const send = vi.fn().mockResolvedValue(undefined);
+      discordClient.channels.fetch.mockResolvedValue({ isTextBased: () => true, send });
+      const member = makeMember();
+
+      await handler.handleGuildMemberAdd(member);
+
+      expect((send.mock.calls[0][0] as { content?: string }).content).toBe('환영합니다!');
+    });
+
+    it('missionTargetPlayCount=null이고 그 변수를 쓰지 않는 문장이면 영향 없다', async () => {
+      apiClient.getNewbieConfig.mockResolvedValue(
+        makeConfig({
+          welcomeEnabled: true,
+          welcomeChannelId: 'ch-1',
+          welcomeContent: '{missionDurationDays}일 동안 {missionTargetPlaytime}시간 채워보세요.',
+          missionEnabled: true,
+          missionTargetPlaytimeHours: 20,
+          missionTargetPlayCount: null,
+          missionDurationDays: 7,
+          missionNotifyChannelId: 'notify-ch',
+        }),
+      );
+      const send = vi.fn().mockResolvedValue(undefined);
+      discordClient.channels.fetch.mockResolvedValue({ isTextBased: () => true, send });
+      const member = makeMember();
+
+      await handler.handleGuildMemberAdd(member);
+
+      expect((send.mock.calls[0][0] as { content?: string }).content).toBe(
+        '7일 동안 20시간 채워보세요.',
+      );
+    });
+
+    it('미션 변수가 전혀 없는 기존 템플릿은 회귀 없이 그대로 유지된다', async () => {
+      apiClient.getNewbieConfig.mockResolvedValue(
+        makeConfig({
+          welcomeEnabled: true,
+          welcomeChannelId: 'ch-1',
+          welcomeContent:
+            '{username}님, {serverName}에 오신 것을 환영합니다!\n\n\n즐거운 시간 되세요.',
+          missionEnabled: false,
+        }),
+      );
+      const send = vi.fn().mockResolvedValue(undefined);
+      discordClient.channels.fetch.mockResolvedValue({ isTextBased: () => true, send });
+      const member = makeMember();
+
+      await handler.handleGuildMemberAdd(member);
+
+      // 미션 변수를 전혀 쓰지 않는 템플릿이므로 연속 빈 줄 등 원본 공백 구조까지 완전히 보존
+      expect((send.mock.calls[0][0] as { content?: string }).content).toBe(
+        '동현님, 테스트 서버에 오신 것을 환영합니다!\n\n\n즐거운 시간 되세요.',
+      );
+    });
+
+    it('EMBED 모드에서 welcomeEmbedTitle/welcomeEmbedDescription 양쪽에도 조건부 렌더가 적용된다', async () => {
+      apiClient.getNewbieConfig.mockResolvedValue(
+        makeConfig({
+          welcomeEnabled: true,
+          welcomeChannelId: 'ch-1',
+          welcomeDisplayMode: 'EMBED',
+          welcomeEmbedTitle: '환영합니다 {username}\n미션: {missionTargetPlaytime}시간',
+          welcomeEmbedDescription: '{missionChannel}에서 확인하세요\n다른 안내 문구',
+          missionEnabled: true,
+          missionTargetPlaytimeHours: 20,
+          missionNotifyChannelId: null,
+        }),
+      );
+      const send = vi.fn().mockResolvedValue(undefined);
+      discordClient.channels.fetch.mockResolvedValue({ isTextBased: () => true, send });
+      const member = makeMember();
+
+      await handler.handleGuildMemberAdd(member);
+
+      const sentArg = send.mock.calls[0][0] as {
+        embeds: Array<{ title?: string; description?: string }>;
+      };
+      // title: missionTargetPlaytime은 채워져 있으므로 두 줄 다 유지 + 치환
+      expect(sentArg.embeds[0].title).toBe('환영합니다 동현\n미션: 20시간');
+      // description: missionChannel이 비어 있으므로 첫 줄만 삭제
+      expect(sentArg.embeds[0].description).toBe('다른 안내 문구');
+    });
+
+    it('CANVAS 모드에서도 content(위에 실리는 텍스트)에 미션 변수 조건부 렌더가 적용된다', async () => {
+      apiClient.getNewbieConfig.mockResolvedValue(
+        makeConfig({
+          welcomeEnabled: true,
+          welcomeChannelId: 'ch-1',
+          welcomeDisplayMode: 'CANVAS',
+          welcomeContent: '{username}님 환영!\n{missionChannel}에서 확인',
+          missionEnabled: true,
+          missionNotifyChannelId: 'notify-ch',
+        }),
+      );
+      const send = vi.fn().mockResolvedValue(undefined);
+      discordClient.channels.fetch.mockResolvedValue({ isTextBased: () => true, send });
+      const member = makeMember();
+
+      await handler.handleGuildMemberAdd(member);
+
+      expect((send.mock.calls[0][0] as { content?: string }).content).toBe(
+        '동현님 환영!\n<#notify-ch>에서 확인',
+      );
+    });
+
+    it('CANVAS 강등(EMBED 폴백) 시에도 미션 변수 조건부 렌더가 적용된다', async () => {
+      apiClient.getNewbieConfig.mockResolvedValue(
+        makeConfig({
+          welcomeEnabled: true,
+          welcomeChannelId: 'ch-1',
+          welcomeDisplayMode: 'CANVAS',
+          welcomeEmbedTitle: '환영 {username}',
+          welcomeEmbedDescription: '{missionChannel}에서 확인\n일반 안내',
+          missionEnabled: false,
+        }),
+      );
+      apiClient.getWelcomeCard.mockRejectedValue(new Error('API 500'));
+      const send = vi.fn().mockResolvedValue(undefined);
+      discordClient.channels.fetch.mockResolvedValue({ isTextBased: () => true, send });
+      const member = makeMember();
+
+      await handler.handleGuildMemberAdd(member);
+
+      const sentArg = send.mock.calls[0][0] as { embeds: Array<{ description?: string }> };
+      expect(sentArg.embeds[0].description).toBe('일반 안내');
+    });
+  });
+
+  // ──────────────────────────────────────────────────────
+  // F1(계획 review-575-followup §2-1/§4 T1) — 전처리 결과가 공백뿐이면 임베드 필드/
+  // content를 생략해 discord.js validator의 setTitle('')/setDescription('') throw를
+  // 원천 차단한다. T1-4는 본 계획 전체에서 가장 중요한 단정이다 — throw가 삼켜져
+  // 발송이 0이 되는 증상은 로그로만 드러나므로, send 호출 여부를 직접 단정해야 한다.
+  // ──────────────────────────────────────────────────────
+  describe('F1 — 임베드 필드 생략 + 발송 보장', () => {
+    it('T1-4(핵심 회귀) — 제목이 미션 줄로만 구성돼 전처리 후 빈 문자열이 되어도 channel.send가 호출되고 embed에 title 키가 없다', async () => {
+      apiClient.getNewbieConfig.mockResolvedValue(
+        makeConfig({
+          welcomeEnabled: true,
+          welcomeChannelId: 'ch-1',
+          welcomeDisplayMode: 'EMBED',
+          welcomeEmbedTitle: '{missionDurationDays}일 미션 시작!',
+          missionEnabled: false,
+        }),
+      );
+      const send = vi.fn().mockResolvedValue(undefined);
+      discordClient.channels.fetch.mockResolvedValue({ isTextBased: () => true, send });
+      const member = makeMember();
+
+      await handler.handleGuildMemberAdd(member);
+
+      // 수정 전 코드: setTitle('')이 discord.js validator에서 throw → catch가 삼켜
+      // channel.send가 전혀 호출되지 않았다(F1 증상 그 자체). 이 단정이 재발을 잡는다.
+      expect(send).toHaveBeenCalledTimes(1);
+      const sentArg = send.mock.calls[0][0] as { embeds: Array<Record<string, unknown>> };
+      expect(sentArg.embeds[0]).not.toHaveProperty('title');
+    });
+
+    it('T1-5 — 설명이 전부 미션 줄이면 발송되고 embed에 description 키가 없다', async () => {
+      apiClient.getNewbieConfig.mockResolvedValue(
+        makeConfig({
+          welcomeEnabled: true,
+          welcomeChannelId: 'ch-1',
+          welcomeDisplayMode: 'EMBED',
+          welcomeEmbedDescription: '{missionChannel}에서 확인하세요',
+          missionEnabled: false,
+        }),
+      );
+      const send = vi.fn().mockResolvedValue(undefined);
+      discordClient.channels.fetch.mockResolvedValue({ isTextBased: () => true, send });
+      const member = makeMember();
+
+      await handler.handleGuildMemberAdd(member);
+
+      expect(send).toHaveBeenCalledTimes(1);
+      const sentArg = send.mock.calls[0][0] as { embeds: Array<Record<string, unknown>> };
+      expect(sentArg.embeds[0]).not.toHaveProperty('description');
+    });
+
+    it('T1-6 — 제목·설명 둘 다 빈 문자열로 줄어들면 발송되고 embed는 thumbnail만 보유한다', async () => {
+      apiClient.getNewbieConfig.mockResolvedValue(
+        makeConfig({
+          welcomeEnabled: true,
+          welcomeChannelId: 'ch-1',
+          welcomeDisplayMode: 'EMBED',
+          welcomeEmbedTitle: '{missionDurationDays}일 미션 시작!',
+          welcomeEmbedDescription: '{missionChannel}에서 확인하세요',
+          missionEnabled: false,
+        }),
+      );
+      const send = vi.fn().mockResolvedValue(undefined);
+      discordClient.channels.fetch.mockResolvedValue({ isTextBased: () => true, send });
+      const member = makeMember();
+
+      await handler.handleGuildMemberAdd(member);
+
+      expect(send).toHaveBeenCalledTimes(1);
+      const sentArg = send.mock.calls[0][0] as { embeds: Array<Record<string, unknown>> };
+      const embed = sentArg.embeds[0];
+      expect(embed).not.toHaveProperty('title');
+      expect(embed).not.toHaveProperty('description');
+      expect(embed).toHaveProperty('thumbnail');
+    });
+
+    it('T1-7 — welcomeContent 전체가 미션 줄이면 content는 undefined로 생략된다(빈 문자열 전송 금지)', async () => {
+      apiClient.getNewbieConfig.mockResolvedValue(
+        makeConfig({
+          welcomeEnabled: true,
+          welcomeChannelId: 'ch-1',
+          welcomeDisplayMode: 'EMBED',
+          welcomeContent: '{missionDurationDays}일 미션 시작!',
+          missionEnabled: false,
+        }),
+      );
+      const send = vi.fn().mockResolvedValue(undefined);
+      discordClient.channels.fetch.mockResolvedValue({ isTextBased: () => true, send });
+      const member = makeMember();
+
+      await handler.handleGuildMemberAdd(member);
+
+      expect(send).toHaveBeenCalledTimes(1);
+      const sentArg = send.mock.calls[0][0] as { content?: string };
+      expect(sentArg.content).toBeUndefined();
+    });
+
+    it('T1-8 — CANVAS 경로에서 content가 전처리 후 빈 문자열이 되면 files로 정상 발송되고 content는 포함되지 않는다', async () => {
+      apiClient.getNewbieConfig.mockResolvedValue(
+        makeConfig({
+          welcomeEnabled: true,
+          welcomeChannelId: 'ch-1',
+          welcomeDisplayMode: 'CANVAS',
+          welcomeContent: '{missionDurationDays}일 미션 시작!',
+          missionEnabled: false,
+        }),
+      );
+      const send = vi.fn().mockResolvedValue(undefined);
+      discordClient.channels.fetch.mockResolvedValue({ isTextBased: () => true, send });
+      const member = makeMember();
+
+      await handler.handleGuildMemberAdd(member);
+
+      expect(apiClient.getWelcomeCard).toHaveBeenCalledTimes(1);
+      expect(send).toHaveBeenCalledTimes(1);
+      const sentArg = send.mock.calls[0][0] as { files?: unknown[]; content?: string };
+      expect(sentArg.files).toHaveLength(1);
+      expect(sentArg.content).toBeUndefined();
+    });
+
+    it('T1-9(방어선 D) — 임베드 조립 중 setColor가 throw하면 경고 로그를 남기고 content만으로 발송한다', async () => {
+      // private logger 로 나가는 경고를 단정해야 방어선 D 가 실제로 동작함을 고정할 수 있다
+      const loggerHost = handler as unknown as { logger: { warn: (message: string) => void } };
+      const loggerWarnSpy = vi.spyOn(loggerHost.logger, 'warn').mockImplementation(() => undefined);
+      apiClient.getNewbieConfig.mockResolvedValue(
+        makeConfig({
+          welcomeEnabled: true,
+          welcomeChannelId: 'ch-1',
+          welcomeDisplayMode: 'EMBED',
+          welcomeContent: '환영합니다!',
+          // discord.js EmbedBuilder.setColor는 유효한 색상 형식이 아니면 throw한다
+          // (`Unable to convert "..." to a number.`) — buildWelcomeEmbed 조립 실패 재현.
+          welcomeEmbedColor: 'not-a-hex-color',
+        }),
+      );
+      const send = vi.fn().mockResolvedValue(undefined);
+      discordClient.channels.fetch.mockResolvedValue({ isTextBased: () => true, send });
+      const member = makeMember();
+
+      await handler.handleGuildMemberAdd(member);
+
+      expect(loggerWarnSpy).toHaveBeenCalled();
+      expect(send).toHaveBeenCalledTimes(1);
+      const sentArg = send.mock.calls[0][0] as { content?: string; embeds?: unknown[] };
+      expect(sentArg.content).toBe('환영합니다!');
+      expect(sentArg.embeds).toBeUndefined();
     });
   });
 });

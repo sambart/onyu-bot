@@ -4,6 +4,13 @@ import { BotApiClientService, type NewbieConfigDto } from '@onyu/bot-api-client'
 import type { SendableChannels } from 'discord.js';
 import { AttachmentBuilder, Client, EmbedBuilder, type GuildMember } from 'discord.js';
 
+import {
+  buildMissionVars,
+  MISSION_VAR_NAMES,
+  stripUnfilledMissionLines,
+  toOptionalText,
+} from './welcome-template.util';
+
 /** 환영인사 Canvas 카드 첨부파일 고정 파일명 — best-friend.command.ts:186 관례 */
 const WELCOME_CARD_ATTACHMENT_NAME = 'welcome-card.png';
 
@@ -96,9 +103,13 @@ export class BotNewbieMemberAddHandler {
         mention: `<@${member.id}>`,
         memberCount: String(member.guild.memberCount),
         serverName: member.guild.name,
+        // F-NEWBIE-009 — 미션 안내 변수 4개(빈 문자열 치환 규칙은 buildMissionVars 참조)
+        ...buildMissionVars(config),
       };
+      // F1(review-575-followup §2-1 C) — 전처리 결과가 공백뿐이면 content 자체를 생략한다
+      // (빈 content 필드를 굳이 실어 보내지 않는다).
       const content = config.welcomeContent
-        ? this.applyTemplate(config.welcomeContent, vars)
+        ? toOptionalText(this.applyWelcomeTemplate(config.welcomeContent, vars))
         : undefined;
 
       if (config.welcomeDisplayMode === 'CANVAS') {
@@ -153,7 +164,15 @@ export class BotNewbieMemberAddHandler {
     }
   }
 
-  /** 기존 Embed 환영인사 로직 — 동작 무변경(회귀 금지, §1-1) */
+  /**
+   * F1(review-575-followup §2-1 C·D) — 임베드 조립(빌더 setter 호출)과 발송(channel.send)을
+   * 분리한다. 제목/설명은 전처리(stripUnfilledMissionLines) 결과가 공백뿐이면 필드 자체를
+   * 생략한다 — discord.js validator가 `setTitle('')`/`setDescription('')`에서 throw해
+   * 발송 전체가 삼켜지던 결함(F1)의 근본 원인을 제거한다. 조립 중 그 외의 이유로 throw가
+   * 나도(🔒 `setColor`/`setThumbnail` 등 인접 위험) content만이라도 발송을 시도하는
+   * 방어선을 둔다 — "환영 메시지 발송은 어떤 경우에도 보장돼야 하는 핵심 불변식"(:92)을
+   * 임베드 조립 실패가 다시 깨지 않도록 하기 위함이다.
+   */
   private async sendWelcomeEmbed(
     channel: SendableChannels,
     member: GuildMember,
@@ -161,14 +180,44 @@ export class BotNewbieMemberAddHandler {
     content: string | undefined,
     vars: Record<string, string>,
   ): Promise<void> {
+    let embed: EmbedBuilder;
+    try {
+      embed = this.buildWelcomeEmbed(config, member, vars);
+    } catch (err) {
+      this.logger.warn(
+        `[BOT] Welcome embed 조립 실패 → content-only 폴백 시도: guild=${member.guild.id} member=${member.id}`,
+        err instanceof Error ? err.stack : err,
+      );
+      if (!content) return; // 폴백 대상(content)도 없으면 현행과 동일하게 발송 없이 종료
+      await channel.send({ content });
+      return;
+    }
+
+    await channel.send({ content, embeds: [embed.toJSON()] });
+  }
+
+  /** sendWelcomeEmbed의 임베드 조립 전용 분리 지점 — 빌더 setter 호출은 여기서만 일어난다. */
+  private buildWelcomeEmbed(
+    config: NewbieConfigDto,
+    member: GuildMember,
+    vars: Record<string, string>,
+  ): EmbedBuilder {
     const embed = new EmbedBuilder();
 
-    if (config.welcomeEmbedTitle) {
-      embed.setTitle(this.applyTemplate(config.welcomeEmbedTitle, vars));
+    const title = config.welcomeEmbedTitle
+      ? toOptionalText(this.applyWelcomeTemplate(config.welcomeEmbedTitle, vars))
+      : undefined;
+    if (title) {
+      embed.setTitle(title);
     }
-    if (config.welcomeEmbedDescription) {
-      embed.setDescription(this.applyTemplate(config.welcomeEmbedDescription, vars));
+
+    const description = config.welcomeEmbedDescription
+      ? toOptionalText(this.applyWelcomeTemplate(config.welcomeEmbedDescription, vars))
+      : undefined;
+    if (description) {
+      embed.setDescription(description);
     }
+
     if (config.welcomeEmbedColor) {
       embed.setColor(config.welcomeEmbedColor as `#${string}`);
     }
@@ -178,7 +227,17 @@ export class BotNewbieMemberAddHandler {
       embed.setThumbnail(member.displayAvatarURL({ size: 128 }));
     }
 
-    await channel.send({ content, embeds: [embed.toJSON()] });
+    return embed;
+  }
+
+  /**
+   * F-NEWBIE-009 — 치환 직전에 미션 변수 조건부 렌더(줄 단위 전처리)를 적용한 뒤 기존
+   * `applyTemplate`을 호출한다. `welcomeContent`/`welcomeEmbedTitle`/`welcomeEmbedDescription`
+   * 3곳 모두 이 경로를 거친다(계획 §S1-2 적용 범위).
+   */
+  private applyWelcomeTemplate(template: string, vars: Record<string, string>): string {
+    const preprocessed = stripUnfilledMissionLines(template, MISSION_VAR_NAMES, vars);
+    return this.applyTemplate(preprocessed, vars);
   }
 
   private applyTemplate(template: string, vars: Record<string, string>): string {

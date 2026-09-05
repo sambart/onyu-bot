@@ -17,12 +17,16 @@ export interface PageViewDto {
 export const GUILD_LIFECYCLE_EVENT_TYPES = ['join', 'leave'] as const;
 export type GuildLifecycleEventType = (typeof GUILD_LIFECYCLE_EVENT_TYPES)[number];
 
-/** 랜딩 유입 채널 화이트리스트 6종 (F-USAGE-017) — 원본 리퍼러 URL 대신 이 값으로 치환해 수집 */
+/** 랜딩 유입 채널 화이트리스트 10종 (F-USAGE-017) — 원본 리퍼러 URL 대신 이 값으로 치환해 수집 */
 export const REFERRER_GROUPS = [
   'topgg',
   'koreanbots',
   'discord_directory',
+  'bot_directory',
   'google_organic',
+  'naver_organic',
+  'search_other',
+  'social',
   'direct',
   'other',
 ] as const;
@@ -90,4 +94,33 @@ export interface WebVitalsDto {
   metric: WebVitalsMetric;
   value: number;
   country: string;
+}
+
+// ── 개요 페이지 체류·카드 가시성 계측 (ADMIN-ASSIST-VISIBILITY-METRICS, F-USAGE-028~034) ──
+
+/** 체류 시간 버킷 화이트리스트 4종 (F-USAGE-029) — DB 저장값은 언더스코어 토큰(DB 설계 § dwellBucket 타입 결정) */
+export const DWELL_BUCKETS = ['0_5s', '5_15s', '15_60s', '60s_plus'] as const;
+export type DwellBucket = (typeof DWELL_BUCKETS)[number];
+
+/** 버킷 경계(ms, 상한 미포함) — 5s / 15s / 60s. 판정은 toDwellBucket() 단일 소스 */
+export const DWELL_BUCKET_BOUNDARIES_MS = { SHORT: 5_000, MEDIUM: 15_000, LONG: 60_000 } as const;
+
+/** dwellMs 상한(ms) — 초과 시 폴백 없이 폐기 (F-USAGE-029, 계획 D6) */
+export const OVERVIEW_DWELL_MAX_MS = 1_800_000;
+
+/**
+ * dwellMs → 버킷. 경계값은 상위 버킷에 속한다(하한 포함·상한 미포함 — 5000ms → '5_15s').
+ * 서버(web route)에서만 호출한다 — 계획 D5.
+ */
+export function toDwellBucket(dwellMs: number): DwellBucket {
+  if (dwellMs < DWELL_BUCKET_BOUNDARIES_MS.SHORT) return '0_5s';
+  if (dwellMs < DWELL_BUCKET_BOUNDARIES_MS.MEDIUM) return '5_15s';
+  if (dwellMs < DWELL_BUCKET_BOUNDARIES_MS.LONG) return '15_60s';
+  return '60s_plus';
+}
+
+/** Web(api route) → API 개요 체류 수집 payload — 길드·유저 완전 미식별 🔒 (guildId/userId 없음) */
+export interface OverviewDwellDto {
+  dwellBucket: DwellBucket;
+  cardVisible: boolean;
 }

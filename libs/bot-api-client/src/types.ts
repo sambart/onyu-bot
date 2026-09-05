@@ -90,6 +90,14 @@ export interface NewbieConfigDto {
   welcomeEmbedColor: string | null;
   welcomeEmbedThumbnailUrl: string | null;
   missionEnabled: boolean;
+  /** F-NEWBIE-009 — 환영 템플릿 미션 변수 치환용(계획 §S1-1). NULL/미설정이면 해당 변수는 빈 문자열로 치환된다. */
+  missionTargetPlaytimeHours: number | null;
+  /** F-NEWBIE-009 — 상동. */
+  missionTargetPlayCount: number | null;
+  /** F-NEWBIE-009 — 상동. */
+  missionDurationDays: number | null;
+  /** F-NEWBIE-009 — 상동(`{missionChannel}` 멘션 조립용). */
+  missionNotifyChannelId: string | null;
   roleEnabled: boolean;
   newbieRoleId: string | null;
   roleDurationDays: number | null;

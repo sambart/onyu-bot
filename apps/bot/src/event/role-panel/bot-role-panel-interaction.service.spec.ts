@@ -16,6 +16,7 @@
  * - mapDiscordError: 비-DiscordAPIError → 재던짐
  */
 
+import { type SupportedLocale } from '@onyu/shared';
 import { DiscordAPIError, type GuildMember } from 'discord.js';
 import { type Mock } from 'vitest';
 
@@ -100,7 +101,7 @@ function makeExclusiveConfigResponse(
       roleIds: string[];
       mode?: 'GRANT' | 'TOGGLE' | 'EXCLUSIVE';
       exclusiveGroupKey?: string | null;
-      localeTag?: 'ko' | 'en' | null;
+      localeTag?: SupportedLocale | null;
     }>;
   } = {},
 ) {

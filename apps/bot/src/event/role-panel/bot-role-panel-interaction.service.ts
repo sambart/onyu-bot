@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { BotApiClientService, type BotRolePanelConfigDto } from '@onyu/bot-api-client';
-import { RolePanelButtonMode } from '@onyu/shared';
+import { RolePanelButtonMode, type SupportedLocale } from '@onyu/shared';
 import { DiscordAPIError, GuildMember } from 'discord.js';
 
 import { acquireLock, releaseLock } from './role-panel-toggle-lock';
@@ -28,8 +28,13 @@ export type RolePanelInteractionStatus =
 
 export interface RolePanelInteractionResult {
   status: RolePanelInteractionStatus;
-  /** 클릭한 버튼의 localeTag — 핸들러가 응답 언어 즉시 결정 + locale 저장에 사용 (F-ROLE-PANEL-010) */
-  localeTag: 'ko' | 'en' | null;
+  /**
+   * 클릭한 버튼의 localeTag — 핸들러가 응답 언어 즉시 결정 + locale 저장에 사용 (F-ROLE-PANEL-010)
+   * ⚠️ DB CHECK(CK_role_panel_button_locale_tag_valid)가 ko/en 만 허용한다.
+   *    SUPPORTED_LOCALES 확장 시 이 CHECK 재정의 마이그레이션이 같은 PR 에 포함돼야 한다
+   *    (리뷰 2026-09-05-locale-expansion-review §8 A5).
+   */
+  localeTag: SupportedLocale | null;
 }
 
 /** 봇-API config 응답 버튼 항목 (BotRolePanelConfigDto.buttons 원소) */

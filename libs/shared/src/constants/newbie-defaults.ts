@@ -1,18 +1,23 @@
 /**
  * `newbie_config` 시스템 기본값 단일 정본. 엔티티 컬럼 default(`newbie-config.orm-entity.ts`)와
  * 리포지토리 `??` 폴백(`newbie-config.repository.ts` applyDtoToEntity/createEntityFromDto 2벌)이
- * 모두 본 상수를 참조한다. 값은 기존 3소스와 동일 — 본 상수 신설은 기본값 변경이 아니다.
+ * 모두 본 상수를 참조한다.
+ *
+ * 2026-09-05: 표시모드 3필드(`welcomeDisplayMode`/`missionDisplayMode`/`mocoDisplayMode`)의
+ * 시스템 기본값을 `'EMBED'` → `'CANVAS'`로 전환했다(신규 생성되는 설정에만 적용 — 기존에
+ * `EMBED`로 저장된 행은 절대 건드리지 않는다. `newbie-config.repository.ts`의 갱신 경로 보존
+ * 가드 및 DB `ALTER COLUMN ... SET DEFAULT` 마이그레이션이 이 불변식을 함께 지킨다).
  */
 export const NEWBIE_CONFIG_DEFAULTS = {
   welcomeEnabled: false,
-  welcomeDisplayMode: 'EMBED',
+  welcomeDisplayMode: 'CANVAS',
   missionEnabled: false,
   missionUseMicTime: false,
-  missionDisplayMode: 'EMBED',
+  missionDisplayMode: 'CANVAS',
   mocoEnabled: false,
   mocoNewbieDays: 30,
   mocoAllowNewbieHunter: false,
-  mocoDisplayMode: 'EMBED',
+  mocoDisplayMode: 'CANVAS',
   mocoMinCoPresenceMin: 10,
   mocoScorePerSession: 10,
   mocoScorePerMinute: 1,

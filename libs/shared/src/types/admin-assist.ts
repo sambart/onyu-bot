@@ -1,6 +1,7 @@
 // admin-assist 도메인 공유 타입 — Phase 1(추천 내비게이터) + Phase 2a(분석 레시피) 웹↔API 계약
 // docs/specs/endpoint-spec/admin-assist.md §2-2·§4-2·§5-2·§2A 정본
 
+import type { SupportedLocale } from '../constants/locale';
 import type { QuotaItemBase } from './quota';
 
 /**
@@ -273,7 +274,7 @@ interface AdminAssistGenerationBase {
   /** 카탈로그 title 파생(UI locale) — LLM 미생성 */
   title: string;
   /** 초안이 실제로 작성된 언어(F-045). UI locale과 다를 수 있다(언어 선택 컨트롤) */
-  writeLocale: 'ko' | 'en';
+  writeLocale: SupportedLocale;
   /** 공지는 항상 [], 규칙 제안은 `serverType` 1개(서버 재검증 투영) */
   parameters: AdminAssistParameter[];
   notices: AdminAssistAnalysisNoticeCode[];
@@ -328,7 +329,7 @@ export interface AdminAssistPublishRequest {
   /** 규칙 제안(`generate.rulesProposal`)은 제목이 없다(F-051) — 이때 생략 */
   title?: string;
   body: string;
-  writeLocale?: 'ko' | 'en';
+  writeLocale?: SupportedLocale;
   historyId?: string;
 }
 

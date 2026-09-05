@@ -134,21 +134,27 @@ export type {
 export { PREMIUM_FEATURE_CATALOG } from './subscription';
 export type {
   CommandUsedDto,
+  DwellBucket,
   GuildLifecycleEventDto,
   GuildLifecycleEventType,
   LandingEventDto,
   LandingEventType,
   LandingReferrerDto,
   LandingStatsDto,
+  OverviewDwellDto,
   PageViewDto,
   ReferrerGroup,
   WebVitalsDto,
   WebVitalsMetric,
 } from './usage-analytics';
 export {
+  DWELL_BUCKET_BOUNDARIES_MS,
+  DWELL_BUCKETS,
   GUILD_LIFECYCLE_EVENT_TYPES,
   LANDING_EVENT_TYPES,
+  OVERVIEW_DWELL_MAX_MS,
   REFERRER_GROUPS,
+  toDwellBucket,
   WEB_VITALS_ABSOLUTE_MAX_MS,
   WEB_VITALS_MAX_MS,
   WEB_VITALS_MAX_SAMPLES_PER_KEY,
