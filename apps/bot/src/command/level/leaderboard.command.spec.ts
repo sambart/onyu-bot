@@ -41,6 +41,8 @@ function leaderboardCardResponse(
     page: 1,
     totalPages: 3,
     total: 25,
+    visible: true,
+    deniedReason: null,
     ...overrides,
   };
 }
@@ -94,6 +96,51 @@ describe('LeaderboardCommand', () => {
       limit: 10,
       viewerUserId: USER_ID,
       locale: 'ko',
+      requesterUserId: USER_ID,
+      requesterIsGuildAdmin: false,
+    });
+  });
+
+  // ─── U10 — 요청자 컨텍스트(관리자 여부) ────────────────────────────────────────
+
+  it('memberPermissions가 없으면(방어) requesterIsGuildAdmin=false로 조회한다', async () => {
+    const interaction = makeInteraction();
+
+    await command.onLeaderboard(interaction, new LeaderboardCommandDto());
+
+    expect(apiClient.getLevelLeaderboardCard).toHaveBeenCalledWith(
+      expect.objectContaining({ requesterIsGuildAdmin: false }),
+    );
+  });
+
+  it('memberPermissions가 ManageGuild를 포함하면 requesterIsGuildAdmin=true로 조회한다', async () => {
+    const interaction = makeInteraction({
+      memberPermissions: { any: vi.fn().mockReturnValue(true) },
+    });
+
+    await command.onLeaderboard(interaction, new LeaderboardCommandDto());
+
+    expect(apiClient.getLevelLeaderboardCard).toHaveBeenCalledWith(
+      expect.objectContaining({ requesterIsGuildAdmin: true }),
+    );
+  });
+
+  // ─── U10 — 가시성 거부(관리자 전용 설정) ───────────────────────────────────────
+
+  it('visible=false이면 leaderboardAdminOnly 문구만 표시하고 버튼을 붙이지 않는다', async () => {
+    const interaction = makeInteraction();
+    apiClient.getLevelLeaderboardCard.mockResolvedValue(
+      leaderboardCardResponse({
+        visible: false,
+        deniedReason: 'LEADERBOARD_ADMIN_ONLY',
+        data: null,
+      }),
+    );
+
+    await command.onLeaderboard(interaction, new LeaderboardCommandDto());
+
+    expect(interaction.editReply).toHaveBeenCalledWith({
+      content: '이 서버는 리더보드를 관리자만 볼 수 있도록 설정했습니다.',
     });
   });
 

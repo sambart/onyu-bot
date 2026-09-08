@@ -65,6 +65,8 @@ function rankCardResponse(overrides: Partial<LevelRankCardResponse> = {}): Level
   return {
     ok: true,
     data: { imageBase64: Buffer.from('rank-png').toString('base64') },
+    visible: true,
+    deniedReason: null,
     ...overrides,
   };
 }
@@ -211,6 +213,62 @@ describe('RankCommand', () => {
   });
 
   // ─── 응답 분기(본인) — U9-b: /me와 동일한 meNoActivity{days} 문구 승계(D3) ────
+  // ─── U10 — 요청자 컨텍스트(관리자 여부) + 가시성 거부 ─────────────────────────
+
+  it('요청자 id와 memberPermissions 기반 관리자 여부를 함께 전달한다', async () => {
+    // U9-b 이후 본인 조회는 /me 프로필 카드 경로라 getLevelRankCard 를 타지 않는다.
+    // 요청자 컨텍스트 전달은 타인 조회에서만 관측된다.
+    const interaction = makeInteraction({
+      options: makeOptions(makeTargetUser('peer-1'), {}),
+      memberPermissions: { any: vi.fn().mockReturnValue(true) },
+    });
+
+    await command.onRank(interaction, new RankCommandDto());
+
+    expect(apiClient.getLevelRankCard).toHaveBeenCalledWith(
+      expect.objectContaining({ requesterUserId: USER_ID, requesterIsGuildAdmin: true }),
+    );
+  });
+
+  it('memberPermissions가 없으면(방어) requesterIsGuildAdmin=false로 조회한다', async () => {
+    const interaction = makeInteraction({ options: makeOptions(makeTargetUser('peer-1'), {}) });
+
+    await command.onRank(interaction, new RankCommandDto());
+
+    expect(apiClient.getLevelRankCard).toHaveBeenCalledWith(
+      expect.objectContaining({ requesterIsGuildAdmin: false }),
+    );
+  });
+
+  it('visible=false(타인 조회, 관리자 전용 설정)이면 rankAdminOnly 문구로 editReply한다', async () => {
+    const interaction = makeInteraction({
+      options: makeOptions(makeTargetUser('peer-1'), {}),
+    });
+    apiClient.getLevelRankCard.mockResolvedValue(
+      rankCardResponse({ visible: false, deniedReason: 'LEADERBOARD_ADMIN_ONLY', data: null }),
+    );
+
+    await command.onRank(interaction, new RankCommandDto());
+
+    expect(interaction.editReply).toHaveBeenCalledWith({
+      content: '이 서버는 리더보드를 관리자만 볼 수 있도록 설정했습니다.',
+    });
+  });
+
+  it('본인 조회는 가시성 판정 자체를 타지 않는다(U9-b 이후 /me 프로필 카드 경로)', async () => {
+    const interaction = makeInteraction();
+
+    await command.onRank(interaction, new RankCommandDto());
+
+    // 관리자 전용 설정이어도 본인 조회는 거부될 수 없다 — 애초에 랭크 카드 API 를 부르지 않는다.
+    expect(apiClient.getLevelRankCard).not.toHaveBeenCalled();
+    const call = (interaction.editReply as Mock).mock.calls[0][0] as {
+      files: Array<{ name: string }>;
+    };
+    expect(call.files[0].name).toBe('profile.png');
+  });
+
+  // ─── 응답 분기 ────────────────────────────────────────────────────────────────
 
   it('데이터 없음(본인)이면 getMeProfile의 data:null → meNoActivity{days} 문구로 editReply한다(rankNoData는 더 이상 쓰이지 않는다)', async () => {
     const interaction = makeInteraction();

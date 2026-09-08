@@ -1,11 +1,13 @@
 import type {
+  AutoActionRecordDto,
   CommandUsedDto,
   GuildLifecycleEventDto,
+  LeaderboardDeniedReason,
   MessageCode,
   SupportedLocale,
 } from '@onyu/shared';
 
-export type { CommandUsedDto, GuildLifecycleEventDto };
+export type { AutoActionRecordDto, CommandUsedDto, GuildLifecycleEventDto };
 
 /** Bot → API 요청/응답 DTO 타입 정의 */
 
@@ -362,6 +364,20 @@ export interface GetLevelRankCardOptions {
   displayName: string;
   avatarUrl: string;
   locale: CanvasCardLocale;
+  /**
+   * 커맨드 실행자(조회 대상 `userId`와 다를 수 있다). 본인 예외 판정 근거(U10, F-LVL-27).
+   * 🔒 **optional — required(400)로 두지 않는다.** api·봇이 별도 컨테이너로 순차 배포되므로
+   * api가 먼저 배포되고 이 필드를 필수로 만들면 롤아웃 창 동안 `/rank`가 전 길드 400으로
+   * 전멸한다(D5). 미전송 시 서버가 본인 예외 없이 처리한다(안전한 fail-safe).
+   */
+  requesterUserId?: string;
+  /**
+   * 요청자의 길드 관리자 여부(봇이 `interaction.memberPermissions?.any([Administrator,
+   * ManageGuild])`로 판정). 🔒 **optional** — 미전송 시 서버가 `false`(fail-closed 방향, U10 D5)로
+   * 간주한다. 마이그레이션 기본값이 `'GUILD_MEMBER'`라 배포 직후 `ADMIN_ONLY` 길드가 0개이므로
+   * 실질 영향이 없다.
+   */
+  requesterIsGuildAdmin?: boolean;
 }
 
 /**
@@ -372,8 +388,12 @@ export interface GetLevelRankCardOptions {
 export interface LevelRankCardResponse {
   /** false = 렌더 실패(5xx 아님 — 항상 200으로 온다) */
   ok: boolean;
-  /** null = 데이터 없음 · 레벨 비활성 · 렌더 실패(사유를 구분하지 않는다) */
+  /** null = 데이터 없음 · 레벨 비활성 · 가시성 거부 · 렌더 실패(사유를 구분하지 않는다) */
   data: { imageBase64: string } | null;
+  /** ✅ U10 신규 — 가시성 판정 통과 여부. `false` = `ADMIN_ONLY` 설정에 의한 거부 */
+  visible: boolean;
+  /** ✅ U10 신규 — 거부 사유 코드. `visible=true`면 `null` */
+  deniedReason: LeaderboardDeniedReason | null;
 }
 
 /**
@@ -390,6 +410,14 @@ export interface GetLevelLeaderboardCardOptions {
   /** 본인 행 하이라이트 판정 대상. 미지정 시 하이라이트 없이 정상 렌더 */
   viewerUserId?: string;
   locale: CanvasCardLocale;
+  /**
+   * 커맨드 실행자/버튼 클릭자. 익명화 본인 예외 판정 근거(U10, F-LVL-27·28).
+   * 🔒 **optional** — 미전송 시 `viewerUserId`로 폴백(구 봇도 이미 전송 중이라 롤아웃 창에서도
+   * 본인 예외가 유지된다, D5).
+   */
+  requesterUserId?: string;
+  /** 요청자의 길드 관리자 여부. 🔒 **optional** — 미전송 시 `false`(fail-closed, U10 D5) */
+  requesterIsGuildAdmin?: boolean;
 }
 
 /**
@@ -399,7 +427,7 @@ export interface GetLevelLeaderboardCardOptions {
 export interface LevelLeaderboardCardResponse {
   /** false = 렌더 실패(5xx 아님 — 항상 200으로 온다) */
   ok: boolean;
-  /** null = 데이터 없음 · 레벨 비활성 · 범위 초과 페이지 · 렌더 실패 */
+  /** null = 데이터 없음 · 레벨 비활성 · 가시성 거부 · 범위 초과 페이지 · 렌더 실패 */
   data: { imageBase64: string } | null;
   /** level_config.isEnabled (행 부재 시 true). 비활성/활동없음 문구 분기 근거 */
   isEnabled: boolean;
@@ -407,8 +435,12 @@ export interface LevelLeaderboardCardResponse {
   page: number;
   /** max(1, ceil(total/limit)) — 이전/다음 버튼 활성/비활성 판정 */
   totalPages: number;
-  /** 봇 제외·퇴장 제외 후 전체 유효 인원 */
+  /** 봇 제외·퇴장 제외·U10 No-XP 역할 제외 후 전체 유효 인원 */
   total: number;
+  /** ✅ U10 신규 — 가시성 판정 통과 여부 */
+  visible: boolean;
+  /** ✅ U10 신규 — 거부 사유 코드. `visible=true`면 `null` */
+  deniedReason: LeaderboardDeniedReason | null;
 }
 
 // ── Voice Sync (봇 시작 시 기존 음성 채널 사용자 동기화) ──

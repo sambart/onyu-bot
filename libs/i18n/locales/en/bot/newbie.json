@@ -1,6 +1,7 @@
 {
   "missionNone": "You have no mission in progress.",
   "missionRefreshed": "The mission board has been refreshed.",
+  "missionRefreshCooldown": "Please try again in a moment.",
   "missionStatusInProgress": "In progress",
   "missionStatusCompleted": "Completed",
   "missionStatusFailed": "Failed",

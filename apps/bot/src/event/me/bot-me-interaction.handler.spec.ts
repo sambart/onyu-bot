@@ -75,6 +75,8 @@ function leaderboardCardResponse(
     page: 1,
     totalPages: 3,
     total: 25,
+    visible: true,
+    deniedReason: null,
     ...overrides,
   };
 }
@@ -392,6 +394,41 @@ describe('BotMeInteractionHandler', () => {
         limit: 10,
         viewerUserId: 'clicker-1',
         locale: 'ko',
+        requesterUserId: 'clicker-1',
+        requesterIsGuildAdmin: false,
+      });
+    });
+
+    // ─── U10 — 요청자 컨텍스트(클릭 시점 재판정) + 가시성 거부 ──────────────────
+
+    it('memberPermissions가 ManageGuild를 포함하면 requesterIsGuildAdmin=true로 조회한다', async () => {
+      const interaction = makeButtonInteraction({
+        customId: 'me:leaderboard',
+        memberPermissions: { any: vi.fn().mockReturnValue(true) },
+      });
+      apiClient.getLevelLeaderboardCard.mockResolvedValue(leaderboardCardResponse());
+
+      await handler.handle(interaction);
+
+      expect(apiClient.getLevelLeaderboardCard).toHaveBeenCalledWith(
+        expect.objectContaining({ requesterIsGuildAdmin: true }),
+      );
+    });
+
+    it('visible=false(관리자 전용 설정)이면 commands 네임스페이스의 meLeaderboardAdminOnly 안내로 editReply한다', async () => {
+      const interaction = makeButtonInteraction({ customId: 'me:leaderboard' });
+      apiClient.getLevelLeaderboardCard.mockResolvedValue(
+        leaderboardCardResponse({
+          visible: false,
+          deniedReason: 'LEADERBOARD_ADMIN_ONLY',
+          data: null,
+        }),
+      );
+
+      await handler.handle(interaction);
+
+      expect(interaction.editReply).toHaveBeenCalledWith({
+        content: '이 서버는 리더보드를 관리자만 볼 수 있도록 설정했습니다.',
       });
     });
 

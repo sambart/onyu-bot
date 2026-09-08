@@ -55,6 +55,7 @@ describe('BotNewbieMemberAddHandler', () => {
     sendMemberJoin: Mock;
     notifyRoleAssigned: Mock;
     getWelcomeCard: Mock;
+    recordAutoAction: Mock;
   };
   let discordClient: { channels: { fetch: Mock } };
   let loggerErrorSpy: ReturnType<typeof vi.spyOn>;
@@ -66,6 +67,7 @@ describe('BotNewbieMemberAddHandler', () => {
       sendMemberJoin: vi.fn().mockResolvedValue(undefined),
       notifyRoleAssigned: vi.fn().mockResolvedValue(undefined),
       getWelcomeCard: vi.fn().mockResolvedValue({ ok: true, imageBase64: 'ZmFrZS1wbmc=' }),
+      recordAutoAction: vi.fn().mockResolvedValue(undefined),
     };
     discordClient = {
       channels: { fetch: vi.fn().mockResolvedValue(null) },
@@ -958,6 +960,142 @@ describe('BotNewbieMemberAddHandler', () => {
       const sentArg = send.mock.calls[0][0] as { content?: string; embeds?: unknown[] };
       expect(sentArg.content).toBe('환영합니다!');
       expect(sentArg.embeds).toBeUndefined();
+    });
+  });
+
+  // ──────────────────────────────────────────────────────
+  // AUTO-ACTION 계측(F-USAGE-042) — welcome-sent / role-assigned
+  // ──────────────────────────────────────────────────────
+  describe('AUTO-ACTION 계측 — welcome-sent', () => {
+    it('CANVAS 성공 시 welcome-sent 1회만 기록한다(EMBED 강등 이중 계상 없음)', async () => {
+      apiClient.getNewbieConfig.mockResolvedValue(
+        makeConfig({
+          welcomeEnabled: true,
+          welcomeChannelId: 'ch-1',
+          welcomeDisplayMode: 'CANVAS',
+        }),
+      );
+      discordClient.channels.fetch.mockResolvedValue({
+        isTextBased: () => true,
+        send: vi.fn().mockResolvedValue(undefined),
+      });
+      const member = makeMember();
+
+      await handler.handleGuildMemberAdd(member);
+
+      expect(apiClient.recordAutoAction).toHaveBeenCalledTimes(1);
+      expect(apiClient.recordAutoAction).toHaveBeenCalledWith({
+        guildId: 'guild-1',
+        domain: 'newbie',
+        action: 'welcome-sent',
+      });
+    });
+
+    it('CANVAS 실패 → EMBED 성공 시 welcome-sent 1회만 기록한다', async () => {
+      apiClient.getNewbieConfig.mockResolvedValue(
+        makeConfig({
+          welcomeEnabled: true,
+          welcomeChannelId: 'ch-1',
+          welcomeDisplayMode: 'CANVAS',
+        }),
+      );
+      apiClient.getWelcomeCard.mockRejectedValue(new Error('API 500'));
+      discordClient.channels.fetch.mockResolvedValue({
+        isTextBased: () => true,
+        send: vi.fn().mockResolvedValue(undefined),
+      });
+      const member = makeMember();
+
+      await handler.handleGuildMemberAdd(member);
+
+      expect(apiClient.recordAutoAction).toHaveBeenCalledTimes(1);
+      expect(apiClient.recordAutoAction).toHaveBeenCalledWith({
+        guildId: 'guild-1',
+        domain: 'newbie',
+        action: 'welcome-sent',
+      });
+    });
+
+    it('완전 실패(channel.send throw) 시 0회 기록한다', async () => {
+      apiClient.getNewbieConfig.mockResolvedValue(
+        makeConfig({ welcomeEnabled: true, welcomeChannelId: 'ch-1', welcomeDisplayMode: 'EMBED' }),
+      );
+      discordClient.channels.fetch.mockResolvedValue({
+        isTextBased: () => true,
+        send: vi.fn().mockRejectedValue(new Error('Missing Permissions')),
+      });
+      const member = makeMember();
+
+      await handler.handleGuildMemberAdd(member);
+
+      expect(apiClient.recordAutoAction).not.toHaveBeenCalled();
+    });
+
+    it('recordAutoAction이 reject해도 핸들러가 정상 완료된다', async () => {
+      apiClient.getNewbieConfig.mockResolvedValue(
+        makeConfig({
+          welcomeEnabled: true,
+          welcomeChannelId: 'ch-1',
+          welcomeDisplayMode: 'EMBED',
+          roleEnabled: true,
+          newbieRoleId: 'role-1',
+        }),
+      );
+      apiClient.recordAutoAction.mockRejectedValue(new Error('bot-api down'));
+      discordClient.channels.fetch.mockResolvedValue({
+        isTextBased: () => true,
+        send: vi.fn().mockResolvedValue(undefined),
+      });
+      const member = makeMember();
+
+      await expect(handler.handleGuildMemberAdd(member)).resolves.toBeUndefined();
+      expect(member.roles.add).toHaveBeenCalledWith('role-1');
+    });
+  });
+
+  describe('AUTO-ACTION 계측 — role-assigned', () => {
+    it('roles.add 성공 시 role-assigned 1회 기록한다', async () => {
+      apiClient.getNewbieConfig.mockResolvedValue(
+        makeConfig({ roleEnabled: true, newbieRoleId: 'role-1' }),
+      );
+      const member = makeMember();
+
+      await handler.handleGuildMemberAdd(member);
+
+      expect(apiClient.recordAutoAction).toHaveBeenCalledWith({
+        guildId: 'guild-1',
+        domain: 'newbie',
+        action: 'role-assigned',
+      });
+    });
+
+    it('roles.add 실패 시 0회 기록한다', async () => {
+      apiClient.getNewbieConfig.mockResolvedValue(
+        makeConfig({ roleEnabled: true, newbieRoleId: 'role-1' }),
+      );
+      const member = makeMember({
+        roles: { add: vi.fn().mockRejectedValue(new Error('missing permission')) },
+      });
+
+      await handler.handleGuildMemberAdd(member);
+
+      expect(apiClient.recordAutoAction).not.toHaveBeenCalled();
+    });
+
+    it('notifyRoleAssigned(API 통보)가 실패해도 role-assigned 카운트는 취소되지 않는다(F-USAGE-042 — 판정 기준은 Discord 역할 부여 성공 여부)', async () => {
+      apiClient.getNewbieConfig.mockResolvedValue(
+        makeConfig({ roleEnabled: true, newbieRoleId: 'role-1' }),
+      );
+      apiClient.notifyRoleAssigned.mockRejectedValue(new Error('NewbiePeriod 생성 실패'));
+      const member = makeMember();
+
+      await handler.handleGuildMemberAdd(member);
+
+      expect(apiClient.recordAutoAction).toHaveBeenCalledWith({
+        guildId: 'guild-1',
+        domain: 'newbie',
+        action: 'role-assigned',
+      });
     });
   });
 });

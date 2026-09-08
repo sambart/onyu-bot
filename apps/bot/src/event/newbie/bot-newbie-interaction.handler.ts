@@ -9,10 +9,16 @@ import type {
   MocoRankResponse,
 } from '@onyu/bot-api-client';
 import { BotApiClientService } from '@onyu/bot-api-client';
+import { isAxiosError } from 'axios';
 import type { APIEmbed, ButtonInteraction, Interaction } from 'discord.js';
 
 import { BotI18nService } from '../../common/application/bot-i18n.service';
 import { LocaleResolverService } from '../../common/application/locale-resolver.service';
+import { resolveTrustedGuildId } from '../../common/util/trusted-guild-id.util';
+import { tryConsumeMissionRefresh } from './mission-refresh-cooldown';
+
+/** `mission-refresh` API 스로틀(W6 §7.2) 429 응답 HTTP 상태 코드 */
+const HTTP_STATUS_TOO_MANY_REQUESTS = 429;
 
 /** 뉴비 모듈 버튼 customId 접두사 */
 const NEWBIE_CUSTOM_ID = {
@@ -115,18 +121,37 @@ export class BotNewbieInteractionHandler {
       return;
     }
 
-    const guildId = customId.slice(NEWBIE_CUSTOM_ID.MISSION_REFRESH.length);
+    const parsedGuildId = customId.slice(NEWBIE_CUSTOM_ID.MISSION_REFRESH.length);
+    const guildId = resolveTrustedGuildId(interaction.guildId, parsedGuildId);
 
     if (!guildId) {
+      await this.rejectGuildIdMismatch(interaction, customId, locale);
+      return;
+    }
+
+    const cooldownKey = interaction.channelId ? `${guildId}:${interaction.channelId}` : guildId;
+    if (!tryConsumeMissionRefresh(cooldownKey)) {
       await interaction.reply({
         ephemeral: true,
-        content: this.i18n.t(locale, 'errors.invalidRequest'),
+        content: this.i18n.t(locale, 'newbie.missionRefreshCooldown'),
       });
       return;
     }
 
     await interaction.deferReply({ ephemeral: true });
-    await this.apiClient.refreshMissionEmbed({ guildId });
+
+    try {
+      await this.apiClient.refreshMissionEmbed({ guildId });
+    } catch (error) {
+      if (isAxiosError(error) && error.response?.status === HTTP_STATUS_TOO_MANY_REQUESTS) {
+        await interaction.editReply({
+          content: this.i18n.t(locale, 'newbie.missionRefreshCooldown'),
+        });
+        return;
+      }
+      throw error;
+    }
+
     await interaction.editReply({ content: this.i18n.t(locale, 'newbie.missionRefreshed') });
   }
 
@@ -137,13 +162,12 @@ export class BotNewbieInteractionHandler {
     interaction: ButtonInteraction,
     locale: string,
   ): Promise<void> {
-    const guildId = interaction.customId.slice(NEWBIE_CUSTOM_ID.MISSION_MY.length);
+    const customId = interaction.customId;
+    const parsedGuildId = customId.slice(NEWBIE_CUSTOM_ID.MISSION_MY.length);
+    const guildId = resolveTrustedGuildId(interaction.guildId, parsedGuildId);
 
     if (!guildId) {
-      await interaction.reply({
-        ephemeral: true,
-        content: this.i18n.t(locale, 'errors.invalidRequest'),
-      });
+      await this.rejectGuildIdMismatch(interaction, customId, locale);
       return;
     }
 
@@ -151,6 +175,24 @@ export class BotNewbieInteractionHandler {
     await interaction.deferReply({ ephemeral: true });
     const response = await this.apiClient.getMyMissionData(guildId, memberId);
     await interaction.editReply({ content: this.formatMyMissionContent(response, locale) });
+  }
+
+  /**
+   * customId 의 guildId 가 `interaction.guildId` 와 일치하지 않을 때 공통 거부 처리(W5, §6.2).
+   * API 호출 없이 기존 `errors.invalidRequest` i18n 키로 안내한다.
+   */
+  private async rejectGuildIdMismatch(
+    interaction: ButtonInteraction,
+    customId: string,
+    locale: string,
+  ): Promise<void> {
+    this.logger.warn(
+      `[BOT] guildId mismatch: customId=${customId} interactionGuild=${interaction.guildId}`,
+    );
+    await interaction.reply({
+      ephemeral: true,
+      content: this.i18n.t(locale, 'errors.invalidRequest'),
+    });
   }
 
   /**
@@ -204,7 +246,12 @@ export class BotNewbieInteractionHandler {
 
     if (customId.startsWith(NEWBIE_CUSTOM_ID.MOCO_REFRESH)) {
       // newbie_moco:refresh:{guildId}
-      const guildId = customId.slice(NEWBIE_CUSTOM_ID.MOCO_REFRESH.length);
+      const parsedGuildId = customId.slice(NEWBIE_CUSTOM_ID.MOCO_REFRESH.length);
+      const guildId = resolveTrustedGuildId(interaction.guildId, parsedGuildId);
+      if (!guildId) {
+        await this.rejectGuildIdMismatch(interaction, customId, locale);
+        return;
+      }
       await interaction.deferUpdate();
       const response = await this.apiClient.getMocoRankData(guildId, 1);
       await this.applyMocoRankResponse(interaction, response);
@@ -215,8 +262,13 @@ export class BotNewbieInteractionHandler {
       // newbie_moco:prev:{guildId}:{currentPage}
       const rest = customId.slice(NEWBIE_CUSTOM_ID.MOCO_PREV.length);
       const lastColon = rest.lastIndexOf(':');
-      const guildId = rest.slice(0, lastColon);
+      const parsedGuildId = rest.slice(0, lastColon);
       const currentPage = parseInt(rest.slice(lastColon + 1), 10);
+      const guildId = resolveTrustedGuildId(interaction.guildId, parsedGuildId);
+      if (!guildId) {
+        await this.rejectGuildIdMismatch(interaction, customId, locale);
+        return;
+      }
       await interaction.deferUpdate();
       const response = await this.apiClient.getMocoRankData(guildId, currentPage - 1);
       await this.applyMocoRankResponse(interaction, response);
@@ -227,8 +279,13 @@ export class BotNewbieInteractionHandler {
       // newbie_moco:next:{guildId}:{currentPage}
       const rest = customId.slice(NEWBIE_CUSTOM_ID.MOCO_NEXT.length);
       const lastColon = rest.lastIndexOf(':');
-      const guildId = rest.slice(0, lastColon);
+      const parsedGuildId = rest.slice(0, lastColon);
       const currentPage = parseInt(rest.slice(lastColon + 1), 10);
+      const guildId = resolveTrustedGuildId(interaction.guildId, parsedGuildId);
+      if (!guildId) {
+        await this.rejectGuildIdMismatch(interaction, customId, locale);
+        return;
+      }
       await interaction.deferUpdate();
       const response = await this.apiClient.getMocoRankData(guildId, currentPage + 1);
       await this.applyMocoRankResponse(interaction, response);
@@ -237,7 +294,12 @@ export class BotNewbieInteractionHandler {
 
     if (customId.startsWith(NEWBIE_CUSTOM_ID.MOCO_MY)) {
       // newbie_moco:my:{guildId}
-      const guildId = customId.slice(NEWBIE_CUSTOM_ID.MOCO_MY.length);
+      const parsedGuildId = customId.slice(NEWBIE_CUSTOM_ID.MOCO_MY.length);
+      const guildId = resolveTrustedGuildId(interaction.guildId, parsedGuildId);
+      if (!guildId) {
+        await this.rejectGuildIdMismatch(interaction, customId, locale);
+        return;
+      }
       const userId = interaction.user.id;
       await interaction.deferReply({ ephemeral: true });
       const response = await this.apiClient.getMyHuntingData(guildId, userId);

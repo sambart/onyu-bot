@@ -5,6 +5,7 @@ import { BotApiClientService } from '@onyu/bot-api-client';
 import { BRAND_INT } from '@onyu/shared';
 import { type ButtonInteraction, EmbedBuilder, type Interaction } from 'discord.js';
 
+import { isGuildAdmin } from '../../command/level/guild-admin';
 import { BotI18nService } from '../../common/application/bot-i18n.service';
 import { LocaleResolverService } from '../../common/application/locale-resolver.service';
 
@@ -119,12 +120,16 @@ export class BotMeInteractionHandler {
     locale: string,
     interaction: ButtonInteraction,
   ): Promise<void> {
+    // U10 — 관리자 여부는 클릭 시점에 재판정한다(카드를 처음 연 사람과 버튼을 누른 사람이
+    // 다를 수 있다, F-LVL-27 적용 표면 표 · UF-LEVEL-035 엣지케이스).
     const result = await this.apiClient.getLevelLeaderboardCard({
       guildId,
       page: LEADERBOARD_DEFAULT_PAGE,
       limit: LEADERBOARD_LIMIT,
       viewerUserId: interaction.user.id,
       locale: this.toCanvasLocale(locale),
+      requesterUserId: interaction.user.id,
+      requesterIsGuildAdmin: isGuildAdmin(interaction),
     });
 
     if (!result.ok) {
@@ -134,6 +139,13 @@ export class BotMeInteractionHandler {
 
     if (!result.isEnabled) {
       await interaction.editReply({ content: this.i18n.t(locale, `${NS}.meLeaderboardDisabled`) });
+      return;
+    }
+
+    // U10 — "관리자 전용" 가시성 설정에 의한 거부(200 정상 응답, 예외 아님). 버튼은 이미
+    // ephemeral 응답이므로 별도 ephemeral 처리가 불필요하다(호출부 deferReply가 이미 적용).
+    if (!result.visible) {
+      await interaction.editReply({ content: this.i18n.t(locale, `${NS}.meLeaderboardAdminOnly`) });
       return;
     }
 

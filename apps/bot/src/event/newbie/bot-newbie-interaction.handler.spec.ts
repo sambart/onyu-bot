@@ -9,6 +9,7 @@ import { beforeEach, describe, expect, it, type Mock, vi } from 'vitest';
 import { BotI18nService } from '../../common/application/bot-i18n.service';
 import { LocaleResolverService } from '../../common/application/locale-resolver.service';
 import { BotNewbieInteractionHandler } from './bot-newbie-interaction.handler';
+import { resetMissionRefreshCooldown } from './mission-refresh-cooldown';
 
 function makeButtonInteraction(overrides: Record<string, unknown> = {}): ButtonInteraction {
   return {
@@ -18,9 +19,11 @@ function makeButtonInteraction(overrides: Record<string, unknown> = {}): ButtonI
     guildId: 'guild-1',
     locale: 'ko',
     deferReply: vi.fn().mockResolvedValue(undefined),
+    deferUpdate: vi.fn().mockResolvedValue(undefined),
     editReply: vi.fn().mockResolvedValue(undefined),
     reply: vi.fn().mockResolvedValue(undefined),
     followUp: vi.fn().mockResolvedValue(undefined),
+    message: { edit: vi.fn().mockResolvedValue(undefined) },
     replied: false,
     deferred: false,
     ...overrides,
@@ -74,6 +77,7 @@ describe('BotNewbieInteractionHandler', () => {
     it('apiClient.getMyMissionData를 guildId, 클릭한 사용자 id로 호출한다', async () => {
       const interaction = makeButtonInteraction({
         customId: 'newbie_mission:my:guild-42',
+        guildId: 'guild-42',
         user: { id: 'user-99' },
       });
       apiClient.getMyMissionData.mockResolvedValue({ ok: true, hasMission: false });
@@ -200,6 +204,156 @@ describe('BotNewbieInteractionHandler', () => {
 
       expect(apiClient.refreshMissionEmbed).toHaveBeenCalledWith({ guildId: 'guild-1' });
       expect(apiClient.getMyMissionData).not.toHaveBeenCalled();
+    });
+  });
+
+  // ──────────────────────────────────────────────────────
+  // W5(admin-action-guard-fixes.md) — customId guildId ↔ interaction.guildId 대조(6지점)
+  // ──────────────────────────────────────────────────────
+  describe('guildId 대조 — customId 위조 방어(W5, §10.5 #45~51)', () => {
+    beforeEach(() => {
+      resetMissionRefreshCooldown();
+    });
+
+    it('#45 mission:refresh — 불일치 시 API 미호출 + ephemeral 잘못된 요청', async () => {
+      const interaction = makeButtonInteraction({
+        customId: 'newbie_mission:refresh:guild-9',
+        guildId: 'guild-1',
+      });
+
+      await handler.handle(interaction);
+
+      expect(apiClient.refreshMissionEmbed).not.toHaveBeenCalled();
+      expect(interaction.deferReply).not.toHaveBeenCalled();
+      expect(interaction.reply).toHaveBeenCalledWith({
+        ephemeral: true,
+        content: '잘못된 요청입니다.',
+      });
+    });
+
+    it('#46 mission:my — 불일치 시 API 미호출 + ephemeral 잘못된 요청', async () => {
+      const interaction = makeButtonInteraction({
+        customId: 'newbie_mission:my:guild-9',
+        guildId: 'guild-1',
+      });
+
+      await handler.handle(interaction);
+
+      expect(apiClient.getMyMissionData).not.toHaveBeenCalled();
+      expect(interaction.deferReply).not.toHaveBeenCalled();
+    });
+
+    it('#47 moco:refresh — 불일치 시 API 미호출', async () => {
+      const interaction = makeButtonInteraction({
+        customId: 'newbie_moco:refresh:guild-9',
+        guildId: 'guild-1',
+      });
+
+      await handler.handle(interaction);
+
+      expect(apiClient.getMocoRankData).not.toHaveBeenCalled();
+      expect(interaction.deferUpdate).not.toHaveBeenCalled();
+    });
+
+    it('#48 moco:prev — 불일치 시 API 미호출', async () => {
+      const interaction = makeButtonInteraction({
+        customId: 'newbie_moco:prev:guild-9:3',
+        guildId: 'guild-1',
+      });
+
+      await handler.handle(interaction);
+
+      expect(apiClient.getMocoRankData).not.toHaveBeenCalled();
+      expect(interaction.deferUpdate).not.toHaveBeenCalled();
+    });
+
+    it('#49 moco:next — 불일치 시 API 미호출', async () => {
+      const interaction = makeButtonInteraction({
+        customId: 'newbie_moco:next:guild-9:3',
+        guildId: 'guild-1',
+      });
+
+      await handler.handle(interaction);
+
+      expect(apiClient.getMocoRankData).not.toHaveBeenCalled();
+      expect(interaction.deferUpdate).not.toHaveBeenCalled();
+    });
+
+    it('#50 moco:my — 불일치 시 API 미호출', async () => {
+      const interaction = makeButtonInteraction({
+        customId: 'newbie_moco:my:guild-9',
+        guildId: 'guild-1',
+      });
+
+      await handler.handle(interaction);
+
+      expect(apiClient.getMyHuntingData).not.toHaveBeenCalled();
+      expect(interaction.deferReply).not.toHaveBeenCalled();
+    });
+
+    it('#51 일치 시 API 호출 인자 guildId 는 interaction.guildId 다', async () => {
+      apiClient.getMocoRankData.mockResolvedValue({ mode: 'EMBED', embeds: [], components: [] });
+      const interaction = makeButtonInteraction({
+        customId: 'newbie_moco:refresh:guild-1',
+        guildId: 'guild-1',
+      });
+
+      await handler.handle(interaction);
+
+      expect(apiClient.getMocoRankData).toHaveBeenCalledWith('guild-1', 1);
+    });
+
+    it('#52 moco:prev/next 는 currentPage 를 계속 customId 에서 파싱한다(신뢰 경계 무관)', async () => {
+      apiClient.getMocoRankData.mockResolvedValue({ mode: 'EMBED', embeds: [], components: [] });
+      const interaction = makeButtonInteraction({
+        customId: 'newbie_moco:next:guild-1:4',
+        guildId: 'guild-1',
+      });
+
+      await handler.handle(interaction);
+
+      expect(apiClient.getMocoRankData).toHaveBeenCalledWith('guild-1', 5);
+    });
+  });
+
+  // ──────────────────────────────────────────────────────
+  // W6(admin-action-guard-fixes.md) — mission:refresh 채널당 쿨다운(§10.5 #56)
+  // ──────────────────────────────────────────────────────
+  describe('mission:refresh 쿨다운(W6)', () => {
+    beforeEach(() => {
+      resetMissionRefreshCooldown();
+    });
+
+    it('#56 쿨다운 중 재클릭 시 refreshMissionEmbed 미호출 + 쿨다운 안내', async () => {
+      const interaction1 = makeButtonInteraction({ customId: 'newbie_mission:refresh:guild-1' });
+      await handler.handle(interaction1);
+      expect(apiClient.refreshMissionEmbed).toHaveBeenCalledTimes(1);
+
+      const interaction2 = makeButtonInteraction({ customId: 'newbie_mission:refresh:guild-1' });
+      await handler.handle(interaction2);
+
+      expect(apiClient.refreshMissionEmbed).toHaveBeenCalledTimes(1);
+      expect(interaction2.deferReply).not.toHaveBeenCalled();
+      expect(interaction2.reply).toHaveBeenCalledWith({
+        ephemeral: true,
+        content: '잠시 후 다시 시도해주세요.',
+      });
+    });
+
+    it('채널이 다르면 쿨다운이 서로 영향을 주지 않는다', async () => {
+      const interaction1 = makeButtonInteraction({
+        customId: 'newbie_mission:refresh:guild-1',
+        channelId: 'channel-a',
+      });
+      await handler.handle(interaction1);
+
+      const interaction2 = makeButtonInteraction({
+        customId: 'newbie_mission:refresh:guild-1',
+        channelId: 'channel-b',
+      });
+      await handler.handle(interaction2);
+
+      expect(apiClient.refreshMissionEmbed).toHaveBeenCalledTimes(2);
     });
   });
 

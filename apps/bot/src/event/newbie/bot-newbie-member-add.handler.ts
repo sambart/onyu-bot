@@ -114,11 +114,26 @@ export class BotNewbieMemberAddHandler {
 
       if (config.welcomeDisplayMode === 'CANVAS') {
         const sent = await this.sendWelcomeCanvas(channel, member, content);
-        if (sent) return;
+        if (sent) {
+          // F-USAGE-042 — 자동 동작 계측(fire-and-forget). 실패가 원 동작을 막지 않는다(§18-10).
+          void this.apiClient
+            .recordAutoAction({
+              guildId: member.guild.id,
+              domain: 'newbie',
+              action: 'welcome-sent',
+            })
+            .catch(() => undefined);
+          return;
+        }
         // 재시도 없음 — 즉시 EMBED 강등(TC-02-06/TC-02-10)
       }
 
       await this.sendWelcomeEmbed(channel, member, config, content, vars);
+      // F-USAGE-042 — 자동 동작 계측(fire-and-forget). 실패가 원 동작을 막지 않는다(§18-10).
+      // CANVAS 성공 경로는 위에서 이미 return 하므로 이중 계상 없음.
+      void this.apiClient
+        .recordAutoAction({ guildId: member.guild.id, domain: 'newbie', action: 'welcome-sent' })
+        .catch(() => undefined);
     } catch (err) {
       this.logger.error(
         `[BOT] Welcome message failed: guild=${member.guild.id} member=${member.id}`,
@@ -253,6 +268,12 @@ export class BotNewbieMemberAddHandler {
     try {
       await member.roles.add(roleId);
       this.logger.log(`[BOT] Role assigned: guild=${guildId} member=${member.id} role=${roleId}`);
+
+      // F-USAGE-042 — 자동 동작 계측(fire-and-forget). 통보(notifyRoleAssigned) 실패가
+      // 이 카운트를 취소하지 않도록 통보 앞에 둔다(§18-10).
+      void this.apiClient
+        .recordAutoAction({ guildId, domain: 'newbie', action: 'role-assigned' })
+        .catch(() => undefined);
 
       // API에 역할 부여 사실 통보 (NewbiePeriod 레코드 생성)
       await this.apiClient.notifyRoleAssigned({ guildId, memberId: member.id });

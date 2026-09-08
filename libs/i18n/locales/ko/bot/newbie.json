@@ -1,6 +1,7 @@
 {
   "missionNone": "진행 중인 미션이 없습니다.",
   "missionRefreshed": "미션 현황이 갱신되었습니다.",
+  "missionRefreshCooldown": "잠시 후 다시 시도해주세요.",
   "missionStatusInProgress": "진행중",
   "missionStatusCompleted": "완료",
   "missionStatusFailed": "실패",

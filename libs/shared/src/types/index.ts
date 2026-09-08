@@ -133,6 +133,9 @@ export type {
 } from './subscription';
 export { PREMIUM_FEATURE_CATALOG } from './subscription';
 export type {
+  AutoActionDomain,
+  AutoActionRecordDto,
+  AutoActionType,
   CommandUsedDto,
   DwellBucket,
   GuildLifecycleEventDto,
@@ -148,9 +151,13 @@ export type {
   WebVitalsMetric,
 } from './usage-analytics';
 export {
+  AUTO_ACTION_ALLOWED,
+  AUTO_ACTION_DOMAINS,
+  AUTO_ACTION_TYPES,
   DWELL_BUCKET_BOUNDARIES_MS,
   DWELL_BUCKETS,
   GUILD_LIFECYCLE_EVENT_TYPES,
+  isAllowedAutoAction,
   LANDING_EVENT_TYPES,
   OVERVIEW_DWELL_MAX_MS,
   REFERRER_GROUPS,

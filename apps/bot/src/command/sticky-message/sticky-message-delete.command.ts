@@ -2,10 +2,17 @@ import { SlashCommandPipe } from '@discord-nestjs/common';
 import { Command, Handler, InteractionEvent } from '@discord-nestjs/core';
 import { Injectable, Logger } from '@nestjs/common';
 import { BotApiClientService } from '@onyu/bot-api-client';
-import { ChatInputCommandInteraction, PermissionFlagsBits } from 'discord.js';
+import {
+  ActionRowBuilder,
+  ButtonBuilder,
+  ButtonStyle,
+  ChatInputCommandInteraction,
+  PermissionFlagsBits,
+} from 'discord.js';
 
 import { BotI18nService } from '../../common/application/bot-i18n.service';
 import { LocaleResolverService } from '../../common/application/locale-resolver.service';
+import { STICKY_DELETE_CUSTOM_ID } from '../../event/sticky-message/bot-sticky-delete-confirm.handler';
 import { StickyMessageDeleteDto } from './sticky-message-delete.dto';
 
 @Command({
@@ -58,25 +65,40 @@ export class StickyMessageDeleteCommand {
     await interaction.deferReply({ ephemeral: true });
 
     try {
-      const result = await this.apiClient.deleteStickyMessageByChannel(guildId, channel.id);
+      const configsResponse = await this.apiClient.getStickyMessageConfigs(guildId);
+      const count = (configsResponse.data ?? []).filter(
+        (config) => config.channelId === channel.id,
+      ).length;
 
-      if (result.deletedCount === 0) {
+      if (count === 0) {
         await interaction.editReply(
           this.i18n.t(locale, 'commands.stickyDeleteEmpty', { channelId: channel.id }),
         );
         return;
       }
 
-      await interaction.editReply(
-        this.i18n.t(locale, 'commands.stickyDeleteSuccess', {
+      const userId = interaction.user.id;
+      const confirmButton = new ButtonBuilder()
+        .setCustomId(`${STICKY_DELETE_CUSTOM_ID.CONFIRM}${channel.id}:${userId}`)
+        .setLabel(this.i18n.t(locale, 'commands.stickyDeleteConfirmButton'))
+        .setStyle(ButtonStyle.Danger);
+      const cancelButton = new ButtonBuilder()
+        .setCustomId(`${STICKY_DELETE_CUSTOM_ID.CANCEL}${channel.id}:${userId}`)
+        .setLabel(this.i18n.t(locale, 'commands.stickyDeleteCancelButton'))
+        .setStyle(ButtonStyle.Secondary);
+      const row = new ActionRowBuilder<ButtonBuilder>().addComponents(confirmButton, cancelButton);
+
+      await interaction.editReply({
+        content: this.i18n.t(locale, 'commands.stickyDeleteConfirm', {
           channelId: channel.id,
-          count: result.deletedCount,
+          count,
         }),
-      );
+        components: [row],
+      });
     } catch (error) {
       const message =
         error instanceof Error ? error.message : this.i18n.t(locale, 'errors.unknownError');
-      this.logger.error('고정메세지 삭제 중 오류:', error);
+      this.logger.error('고정메세지 삭제 확인 조회 중 오류:', error);
       await interaction.editReply(this.i18n.t(locale, 'commands.stickyDeleteError', { message }));
     }
   }

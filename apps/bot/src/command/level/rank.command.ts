@@ -8,6 +8,7 @@ import { AttachmentBuilder, ChatInputCommandInteraction, GuildMember, type User 
 import { BotI18nService } from '../../common/application/bot-i18n.service';
 import { LocaleResolverService } from '../../common/application/locale-resolver.service';
 import { buildProfileCardReply, fetchMeProfileCard } from '../me-profile-card';
+import { isGuildAdmin } from './guild-admin';
 import { RankCommandDto } from './rank.dto';
 
 /** 아바타 이미지 해상도(px) — me.command.ts/best-friend.command.ts와 동일 규격 */
@@ -103,10 +104,19 @@ export class RankCommand {
         displayName: target.displayName,
         avatarUrl: target.avatarUrl,
         locale: this.toCanvasLocale(locale),
+        requesterUserId: interaction.user.id,
+        requesterIsGuildAdmin: isGuildAdmin(interaction),
       });
 
       if (!result.ok) {
         await interaction.editReply({ content: this.i18n.t(locale, 'commands.rankError') });
+        return;
+      }
+
+      // U10 — 본인 조회는 서버가 이 판정 자체를 타지 않으므로(isSelf 단락) 여기 도달하지
+      // 않는다. 타인 조회에서만 관리자 전용 설정에 의해 거부될 수 있다(200 정상 응답).
+      if (!result.visible) {
+        await interaction.editReply({ content: this.i18n.t(locale, 'commands.rankAdminOnly') });
         return;
       }
 

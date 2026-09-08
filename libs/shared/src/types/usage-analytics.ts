@@ -124,3 +124,68 @@ export interface OverviewDwellDto {
   dwellBucket: DwellBucket;
   cardVisible: boolean;
 }
+
+// ── 설정형 도메인 자동 동작 계측 (AUTO-ACTION, F-USAGE-035~048) ──
+
+/** 자동 동작 도메인 화이트리스트 7종 (F-USAGE-035) — auto_action_daily.domain varchar(20) */
+export const AUTO_ACTION_DOMAINS = [
+  'sticky-message',
+  'status-prefix',
+  'role-panel',
+  'auto-channel',
+  'newbie',
+  'level',
+  'inactive-member',
+] as const;
+export type AutoActionDomain = (typeof AUTO_ACTION_DOMAINS)[number];
+
+/** 액션 화이트리스트 11종(도메인 간 재사용 있음) — auto_action_daily.action varchar(24) */
+export const AUTO_ACTION_TYPES = [
+  'repost',
+  'apply',
+  'reset',
+  'role-granted',
+  'role-revoked',
+  'channel-created',
+  'welcome-sent',
+  'role-assigned',
+  'role-expired-removed',
+  'announced',
+  'auto-role-added',
+] as const;
+export type AutoActionType = (typeof AUTO_ACTION_TYPES)[number];
+
+/**
+ * 도메인별 허용 액션 맵 — 12개 유효 조합의 유일 정본(F-USAGE-035 표).
+ * 목록 밖 조합은 AutoActionUsageService.record()가 Redis 미접근 + 경고 로그만 남기고 drop 한다
+ * (카디널리티 방어선, F-USAGE-044 — 하루 최대 활성 키 수 = 12 × 활성 길드 수).
+ */
+export const AUTO_ACTION_ALLOWED: Record<AutoActionDomain, readonly AutoActionType[]> = {
+  'sticky-message': ['repost'],
+  'status-prefix': ['apply', 'reset'],
+  'role-panel': ['role-granted', 'role-revoked'],
+  'auto-channel': ['channel-created'],
+  newbie: ['welcome-sent', 'role-assigned', 'role-expired-removed'],
+  level: ['role-granted', 'announced'],
+  'inactive-member': ['auto-role-added'],
+};
+
+/**
+ * (domain, action) 조합이 F-USAGE-035 닫힌 어휘에 있는지 — record()/DTO 검증 단일 소스.
+ * 타입 시그니처상 domain 은 AutoActionDomain 이지만, DTO 의 @IsIn 을 걷어낸 이후로는
+ * HTTP 요청의 런타임 값이 화이트리스트 밖 임의 문자열일 수 있다(F-USAGE-035/043).
+ * `AUTO_ACTION_ALLOWED[domain]` 이 undefined 인 경우 `?? []`로 폴백해 TypeError 없이 false 를 반환한다.
+ */
+export function isAllowedAutoAction(domain: AutoActionDomain, action: string): boolean {
+  const allowedActions: readonly string[] = AUTO_ACTION_ALLOWED[domain] ?? [];
+  return allowedActions.includes(action);
+}
+
+/** Bot → API 자동 동작 수집 payload (F-USAGE-043) — guildId 이상의 식별 차원 없음 🔒 */
+export interface AutoActionRecordDto {
+  guildId: string;
+  domain: AutoActionDomain;
+  action: AutoActionType;
+  /** 배치 동작의 "N건 한 번에" 전송용 — 생략 시 1 (PRD Q1 → 본 계획 §3 D1) */
+  count?: number;
+}

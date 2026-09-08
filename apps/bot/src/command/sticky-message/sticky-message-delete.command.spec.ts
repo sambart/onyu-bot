@@ -1,16 +1,14 @@
 /**
- * StickyMessageDeleteCommand 단위 테스트 — `/sticky-delete`(`고정메세지삭제`)의 i18n 보간 인자
- * 배선을 검증한다(계획 `docs/plans/i18n-p3-remainders.md` §6 D4 · §6-1, i18n 감사 P3 [S]).
+ * StickyMessageDeleteCommand 단위 테스트.
  *
- * `bot-i18n-locale-parity.spec.ts` 가 ko/en 키 존재·플레이스홀더 패리티를 이미 구조적으로
- * 봉인하므로, 이 파일은 그것을 재단언하지 않는다. 이 파일이 메우는 공백은 오직
- * *"커맨드가 그 키를 올바른 인자로 호출하는가"* — `{channelId}`/`{count}`/`{message}` 보간
- * 인자가 실제로 채워지는지다. `best-friend.command.spec.ts` 패턴(BotI18nService 실 로드 +
- * 목 인터랙션) 준용 — i18n 을 목킹하지 않고 실제 로케일 JSON 을 로드해, 기대값도
- * `i18n.t()` 호출로 산출한다(하드코딩 원문 대신 — `bot-role-panel-interaction.handler.spec.ts`
- * 의 더 리팩터링-내성 있는 변형을 따름). 이러면 로케일 문안이 바뀌어도 테스트가 깨지지
- * 않으면서, params 이름 불일치로 인한 리터럴 노출(`{channelId}` 등)은 실제 렌더 문자열
- * 비교로 여전히 잡는다.
+ * W7(docs/plans/admin-action-guard-fixes.md §8) — 커맨드는 더 이상 즉시 삭제하지 않는다.
+ * `getStickyMessageConfigs`로 대상 채널의 고정메세지 개수를 조회해, 0건이면 기존
+ * `stickyDeleteEmpty` 문구로 종료하고, 1건 이상이면 확인/취소 버튼 2개를 게시한다. 실제 삭제는
+ * `bot-sticky-delete-confirm.handler.ts`가 담당한다(별도 스펙).
+ *
+ * i18n 보간 인자 배선 검증은 `best-friend.command.spec.ts` 패턴(BotI18nService 실 로드 + 목
+ * 인터랙션) 준용 — i18n 을 목킹하지 않고 실제 로케일 JSON 을 로드해, 기대값도 `i18n.t()` 호출로
+ * 산출한다.
  */
 import type { BotApiClientService } from '@onyu/bot-api-client';
 import type { ChatInputCommandInteraction } from 'discord.js';
@@ -18,12 +16,14 @@ import { beforeEach, describe, expect, it, type Mock, vi } from 'vitest';
 
 import { BotI18nService } from '../../common/application/bot-i18n.service';
 import { LocaleResolverService } from '../../common/application/locale-resolver.service';
+import { STICKY_DELETE_CUSTOM_ID } from '../../event/sticky-message/bot-sticky-delete-confirm.handler';
 import { StickyMessageDeleteCommand } from './sticky-message-delete.command';
 import { StickyMessageDeleteDto } from './sticky-message-delete.dto';
 
 const GUILD_ID = 'guild-1';
 const USER_ID = 'user-1';
 const CHANNEL_ID = 'channel-1';
+const OTHER_CHANNEL_ID = 'channel-2';
 
 /** 미치환 `{word}` 리터럴이 남아 있지 않은지 확인하는 회귀 가드. */
 const UNSUBSTITUTED_PLACEHOLDER = /\{[a-zA-Z]+\}/;
@@ -42,17 +42,22 @@ function makeInteraction(overrides: Record<string, unknown> = {}): ChatInputComm
   } as unknown as ChatInputCommandInteraction;
 }
 
+function getEditReplyArg(interaction: ChatInputCommandInteraction): unknown {
+  return (interaction.editReply as Mock).mock.calls[0][0];
+}
+
 function getEditReplyContent(interaction: ChatInputCommandInteraction): string {
-  return (interaction.editReply as Mock).mock.calls[0][0] as string;
+  const arg = getEditReplyArg(interaction);
+  return typeof arg === 'string' ? arg : (arg as { content: string }).content;
 }
 
 describe('StickyMessageDeleteCommand', () => {
   let command: StickyMessageDeleteCommand;
-  let apiClient: { deleteStickyMessageByChannel: Mock };
+  let apiClient: { getStickyMessageConfigs: Mock };
   let i18n: BotI18nService;
 
   beforeEach(() => {
-    apiClient = { deleteStickyMessageByChannel: vi.fn() };
+    apiClient = { getStickyMessageConfigs: vi.fn() };
 
     i18n = new BotI18nService();
     i18n.onModuleInit();
@@ -78,7 +83,7 @@ describe('StickyMessageDeleteCommand', () => {
       content: i18n.t('ko', 'errors.manageGuildOnly'),
       ephemeral: true,
     });
-    expect(apiClient.deleteStickyMessageByChannel).not.toHaveBeenCalled();
+    expect(apiClient.getStickyMessageConfigs).not.toHaveBeenCalled();
     expect(interaction.deferReply).not.toHaveBeenCalled();
   });
 
@@ -93,14 +98,17 @@ describe('StickyMessageDeleteCommand', () => {
       content: i18n.t('ko', 'errors.guildOnly'),
       ephemeral: true,
     });
-    expect(apiClient.deleteStickyMessageByChannel).not.toHaveBeenCalled();
+    expect(apiClient.getStickyMessageConfigs).not.toHaveBeenCalled();
     expect(interaction.deferReply).not.toHaveBeenCalled();
   });
 
-  // ─── deletedCount === 0(:63) — {channelId} 단일 보간 ─────────────────────────
+  // ─── 개수 0(:63) — {channelId} 단일 보간, 기존 동작 무변경(W7 R10) ───────────────
 
-  it('deletedCount가 0이면 {channelId} 가 보간된 stickyDeleteEmpty 로 editReply 한다', async () => {
-    apiClient.deleteStickyMessageByChannel.mockResolvedValue({ ok: true, deletedCount: 0 });
+  it('대상 채널의 개수가 0이면 {channelId} 가 보간된 stickyDeleteEmpty 로 editReply 하고 확인 버튼을 게시하지 않는다', async () => {
+    apiClient.getStickyMessageConfigs.mockResolvedValue({
+      ok: true,
+      data: [{ channelId: OTHER_CHANNEL_ID, embedTitle: null, enabled: true }],
+    });
     const interaction = makeInteraction();
 
     await command.onDelete(interaction, new StickyMessageDeleteDto());
@@ -112,28 +120,46 @@ describe('StickyMessageDeleteCommand', () => {
     expect(content).not.toMatch(UNSUBSTITUTED_PLACEHOLDER);
   });
 
-  // ─── 성공(:70) — {channelId}+{count} 동시 보간 ────────────────────────────────
+  // ─── 개수 ≥1(W7) — 삭제 미실행 + 확인/취소 버튼 게시 ─────────────────────────
 
-  it('성공 시 {channelId}와 {count}가 동시에 보간된 stickyDeleteSuccess 로 editReply 한다', async () => {
-    apiClient.deleteStickyMessageByChannel.mockResolvedValue({ ok: true, deletedCount: 3 });
+  it('대상 채널의 개수가 1 이상이면 삭제를 실행하지 않고 확인/취소 버튼을 게시한다', async () => {
+    apiClient.getStickyMessageConfigs.mockResolvedValue({
+      ok: true,
+      data: [
+        { channelId: CHANNEL_ID, embedTitle: null, enabled: true },
+        { channelId: CHANNEL_ID, embedTitle: 'x', enabled: true },
+        { channelId: OTHER_CHANNEL_ID, embedTitle: null, enabled: true },
+      ],
+    });
     const interaction = makeInteraction();
 
     await command.onDelete(interaction, new StickyMessageDeleteDto());
 
     const content = getEditReplyContent(interaction);
     expect(content).toBe(
-      i18n.t('ko', 'commands.stickyDeleteSuccess', { channelId: CHANNEL_ID, count: 3 }),
+      i18n.t('ko', 'commands.stickyDeleteConfirm', { channelId: CHANNEL_ID, count: 2 }),
     );
-    expect(content).toContain(CHANNEL_ID);
-    expect(content).toContain('3');
     expect(content).not.toMatch(UNSUBSTITUTED_PLACEHOLDER);
-    expect(content).not.toBe('commands.stickyDeleteSuccess'); // 키 폴백 노출 없음
+
+    const arg = getEditReplyArg(interaction) as {
+      components: { toJSON: () => unknown }[];
+    };
+    expect(arg.components).toHaveLength(1);
+
+    const row = arg.components[0].toJSON() as {
+      components: { custom_id: string; label: string }[];
+    };
+    const customIds = row.components.map((c) => c.custom_id);
+    expect(customIds).toEqual([
+      `${STICKY_DELETE_CUSTOM_ID.CONFIRM}${CHANNEL_ID}:${USER_ID}`,
+      `${STICKY_DELETE_CUSTOM_ID.CANCEL}${CHANNEL_ID}:${USER_ID}`,
+    ]);
   });
 
   // ─── catch — Error 인스턴스(:76-78) ──────────────────────────────────────────
 
-  it('API 호출이 Error로 reject되면 error.message가 {message}에 보간된 stickyDeleteError 로 editReply 한다', async () => {
-    apiClient.deleteStickyMessageByChannel.mockRejectedValue(new Error('network fail'));
+  it('개수 조회가 Error로 reject되면 error.message가 {message}에 보간된 stickyDeleteError 로 editReply 한다', async () => {
+    apiClient.getStickyMessageConfigs.mockRejectedValue(new Error('network fail'));
     const interaction = makeInteraction();
 
     await command.onDelete(interaction, new StickyMessageDeleteDto());
@@ -145,8 +171,8 @@ describe('StickyMessageDeleteCommand', () => {
 
   // ─── catch — 비-Error throw → unknownError 간접 합성(:78) ────────────────────
 
-  it('API 호출이 Error가 아닌 값으로 reject되면 errors.unknownError가 {message}에 간접 합성된다', async () => {
-    apiClient.deleteStickyMessageByChannel.mockRejectedValue('raw-string-rejection');
+  it('개수 조회가 Error가 아닌 값으로 reject되면 errors.unknownError가 {message}에 간접 합성된다', async () => {
+    apiClient.getStickyMessageConfigs.mockRejectedValue('raw-string-rejection');
     const interaction = makeInteraction();
 
     await command.onDelete(interaction, new StickyMessageDeleteDto());
@@ -160,8 +186,8 @@ describe('StickyMessageDeleteCommand', () => {
   // ─── en 로케일 — 동일 분기 반복(§6-1 케이스 6) ────────────────────────────────
 
   describe('en 로케일', () => {
-    it('deletedCount가 0이면 en 문안으로 렌더되고 한글이 섞이지 않는다', async () => {
-      apiClient.deleteStickyMessageByChannel.mockResolvedValue({ ok: true, deletedCount: 0 });
+    it('개수가 0이면 en 문안으로 렌더되고 한글이 섞이지 않는다', async () => {
+      apiClient.getStickyMessageConfigs.mockResolvedValue({ ok: true, data: [] });
       const interaction = makeInteraction({ locale: 'en-US' });
 
       await command.onDelete(interaction, new StickyMessageDeleteDto());
@@ -172,15 +198,18 @@ describe('StickyMessageDeleteCommand', () => {
       expect(content).not.toMatch(UNSUBSTITUTED_PLACEHOLDER);
     });
 
-    it('성공 시 en 문안으로 {channelId}+{count}가 보간되고 한글이 섞이지 않는다', async () => {
-      apiClient.deleteStickyMessageByChannel.mockResolvedValue({ ok: true, deletedCount: 3 });
+    it('개수가 1 이상이면 en 문안으로 {channelId}+{count}가 보간되고 한글이 섞이지 않는다', async () => {
+      apiClient.getStickyMessageConfigs.mockResolvedValue({
+        ok: true,
+        data: [{ channelId: CHANNEL_ID, embedTitle: null, enabled: true }],
+      });
       const interaction = makeInteraction({ locale: 'en-US' });
 
       await command.onDelete(interaction, new StickyMessageDeleteDto());
 
       const content = getEditReplyContent(interaction);
       expect(content).toBe(
-        i18n.t('en', 'commands.stickyDeleteSuccess', { channelId: CHANNEL_ID, count: 3 }),
+        i18n.t('en', 'commands.stickyDeleteConfirm', { channelId: CHANNEL_ID, count: 1 }),
       );
       expect(content).not.toMatch(/[가-힣]/);
       expect(content).not.toMatch(UNSUBSTITUTED_PLACEHOLDER);

@@ -5,6 +5,7 @@ import type { AxiosRequestConfig } from 'axios';
 import { firstValueFrom } from 'rxjs';
 
 import type {
+  AutoActionRecordDto,
   AutoChannelButtonClickDto,
   AutoChannelButtonResult,
   AutoChannelSubOptionDto,
@@ -199,6 +200,11 @@ export class BotApiClientService {
   /** 길드 생애주기(join/leave) 수집 — 유저 ID·길드명 미포함 (F-USAGE-013, U9a-3) */
   async sendGuildLifecycleEvent(dto: GuildLifecycleEventDto): Promise<void> {
     await this.post('/bot-api/usage-analytics/guild-lifecycle', dto);
+  }
+
+  /** 설정형 도메인 자동 동작 1건 카운트 — 유저/채널/역할 ID 미포함 (F-USAGE-041/042/043) */
+  async recordAutoAction(dto: AutoActionRecordDto): Promise<void> {
+    await this.post('/bot-api/usage-analytics/auto-action', dto);
   }
 
   // ── Voice User Count ──

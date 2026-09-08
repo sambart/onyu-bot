@@ -29,6 +29,19 @@ export interface LevelCurveParams {
 }
 
 /**
+ * 리더보드 가시성 설정값(U10, F-LVL-27). 🔒 "공개(전체 공개)" 값은 존재하지 않는다 —
+ * 2026-09-04 법무 확정(PRD §1-4b)이며 스키마·앱 양쪽에 그 값이 없다.
+ */
+export const LEADERBOARD_VISIBILITY_VALUES = ['GUILD_MEMBER', 'ADMIN_ONLY'] as const;
+export type LeaderboardVisibility = (typeof LEADERBOARD_VISIBILITY_VALUES)[number];
+
+/**
+ * 리더보드 접근 거부 사유 코드(U10, F-LVL-27). 현재 1종뿐이나 향후 확장 여지를 위해
+ * 유니언으로 둔다.
+ */
+export type LeaderboardDeniedReason = 'LEADERBOARD_ADMIN_ONLY';
+
+/**
  * 레벨 설정 (GET/PUT `/api/guilds/:guildId/level-config` 응답).
  * `curveType`/`curveParams`는 U4 UI 미노출(시스템 고정값) — 포함하지 않는다.
  */
@@ -65,6 +78,18 @@ export interface LevelConfigDto {
    * Discord REST 조회 실패 시 fail-open(제외하지 않고 정상 적립) (U7, F-LVL-21)
    */
   excludeAfkChannel: boolean;
+  /**
+   * 리더보드 가시성(2단). 기본 `'GUILD_MEMBER'`(현행 동작 무변경). 🔒 "공개" 값은 존재하지
+   * 않는다(2026-09-04 법무 확정, PRD §1-4b) — 검색엔진 인덱싱 제어도 범위 밖 (U10, F-LVL-27)
+   */
+  leaderboardVisibility: LeaderboardVisibility;
+  /**
+   * XP 적립·리더보드 노출에서 제외할 역할 ID 목록(최대 50개 — `noXpChannelIds`와 동일 상한·
+   * 패턴). 🔒 `noXpChannelIds`(정적 설정 조회만으로 판정 가능)와 달리 역할 보유 여부 판정에
+   * Discord REST 조회가 필요하다 — `guild_role`은 역할 정의만 동기화하고 멤버↔역할 매핑은
+   * DB 어디에도 없다 (U10, F-LVL-29)
+   */
+  noXpRoleIds: string[];
 }
 
 /**
@@ -76,16 +101,20 @@ export interface LevelSummary {
   xp: number;
   nextLevelRequiredXp: number;
   progressRatio: number;
-  /** 길드 내 순위(1-base, ROW_NUMBER 방식). U5 신규 — `LeaderboardService.getUserRank()` 재사용 (F-LVL-07) */
-  rank: number;
+  /**
+   * 길드 내 순위(1-base, ROW_NUMBER 방식). U5 신규 — `LeaderboardService.getUserRank()` 재사용
+   * (F-LVL-07). ✅ **U10 nullable 전환**: `user_level.hasNoXpRole=true`(No-XP 역할 보유자)면
+   * 모집단 밖이라 순위가 정의되지 않으므로 `null`이며, `getUserRank()`를 호출조차 하지 않는다
+   * (F-LVL-29). `level`/`xp`는 이 경우에도 계속 표시된다.
+   */
+  rank: number | null;
   /**
    * 리더보드 전체 유효 인원(봇 제외) — `LeaderboardService.getUserRankWithTotal()`이
    * `countLeaderboard()`(페이지네이션용 기존 카운트 쿼리)를 재사용해 함께 산출한다(R2, F-VOICE-063 §665).
    * `/미` 카드 레이아웃 A 히어로의 "#{rank} / {totalUsers}명" · 상위% · 순위 진행바 계산에 사용.
-   * 조회 실패 시(rank와 함께 Promise.all로 조회되므로 실패하면 summary 자체가 null) 정의되지 않을 수 있어
-   * optional — 소비처(렌더러)는 없으면 순위만 표시하는 안전 폴백을 유지한다.
+   * ✅ **U10 nullable 정규화**: `rank`와 함께 산출되며 `hasNoXpRole=true`면 함께 `null`이 된다.
    */
-  totalUsers?: number;
+  totalUsers: number | null;
   /**
    * 오늘(KST) anti-AFK 차감(F-LVL-19) 후 일일 상한(F-LVL-20)까지 적용한 최종 인정 음성 분.
    * 항상 `todayTotalVoiceMin` 이하. U7 신규 — `totalUsers?`와 동일하게 optional
@@ -107,8 +136,17 @@ export interface MeLevelResponse {
   /** 다음 레벨까지 남은 XP = max(0, nextLevelRequiredXp - xp) */
   remainingXp: number;
   progressRatio: number;
-  rank: number;
+  /**
+   * 길드 내 순위(1-base). ✅ **U10 nullable 전환**: No-XP 역할 보유자(`hasNoXpRole=true`)는
+   * 모집단 밖이라 `null`(F-LVL-29). 웹은 이 경우 순위 행을 안내 문구로 대체한다.
+   */
+  rank: number | null;
   totalUsers: number | null;
+  /**
+   * 본인의 익명화 opt-out 현재 상태(U10, F-LVL-28). `/my/growth` 토글의 초기 상태를 별도
+   * 조회 없이 얻기 위해 이 응답에 포함한다. 길드별 값이다.
+   */
+  hideNameFromOthers: boolean;
   /** 길드 레벨 역할 보상 — roleName 은 웹이 별도 조회해 해석(D 아래) */
   roleRewards: { level: number; roleId: string }[];
   /** 다음으로 받게 될 보상(현재 레벨 초과 중 최소). 없으면 null */
@@ -135,9 +173,16 @@ export interface LevelLeaderboardEntry {
   /** 순위(1-base). `(page-1)*limit + 순번` — ROW_NUMBER 방식(순위 공유 없음) */
   rank: number;
   userId: string;
-  /** 길드 닉네임. 레코드 없으면 `userId` 폴백(inactive-member/co-presence 관례) */
-  nickName: string;
+  /**
+   * 길드 닉네임. 레코드 없으면 `userId` 폴백(inactive-member/co-presence 관례).
+   * ✅ **U10 nullable 전환**: `isAnonymized=true`면 `null` — 서버는 실명을 내보내지 않고
+   * 각 소비 표면이 자기 로케일 문구를 렌더한다(F-LVL-28).
+   */
+  nickName: string | null;
+  /** Discord CDN URL. 멤버 레코드 없거나 아바타 없으면 `null`. ✅ U10: 익명화 시에도 `null` */
   avatarUrl: string | null;
+  /** ✅ **U10 신규**. 이 행이 익명화 치환됐는지. `true`면 소비 표면이 placeholder를 렌더한다 */
+  isAnonymized: boolean;
   level: number;
   xp: number;
 }
@@ -157,6 +202,14 @@ export interface LevelLeaderboardResponse {
    * 웹이 "레벨 비활성" vs "활성인데 아직 집계 전" 빈 상태를 구분하는 데 쓴다(F-WEB-008).
    */
   isEnabled: boolean;
+  /**
+   * ✅ **U10 신규** — 가시성 판정 통과 여부. `false`면 `users: []` · `total: 0`이며 사유는
+   * `deniedReason`에 담긴다. 🔒 403이 아니라 200 정상 응답으로 내려온다(`isEnabled` 처리와
+   * 동일 스타일, F-LVL-27).
+   */
+  visible: boolean;
+  /** ✅ **U10 신규** — 거부 사유 코드. `visible=true`면 `null` */
+  deniedReason: LeaderboardDeniedReason | null;
 }
 
 // ── Discord 고위험 권한 비트 (레벨 역할 자동 부여 안전장치 §5.2) ──

@@ -22,6 +22,7 @@ import { BotNewbieMemberAddHandler } from './newbie/bot-newbie-member-add.handle
 import { BotRolePanelInteractionHandler } from './role-panel/bot-role-panel-interaction.handler';
 import { RolePanelInteractionService } from './role-panel/bot-role-panel-interaction.service';
 import { BotStatusPrefixInteractionHandler } from './status-prefix/bot-status-prefix-interaction.handler';
+import { BotStickyDeleteConfirmHandler } from './sticky-message/bot-sticky-delete-confirm.handler';
 import { BotStickyMessageHandler } from './sticky-message/bot-sticky-message.handler';
 import { BotCommandUsageHandler } from './usage-analytics/bot-command-usage.handler';
 import { BotGuildLifecycleHandler } from './usage-analytics/bot-guild-lifecycle.handler';
@@ -42,6 +43,8 @@ import { BotVoiceSyncHandler } from './voice/bot-voice-sync.handler';
     BotStatusPrefixInteractionHandler,
     BotAutoChannelInteractionHandler,
     BotStickyMessageHandler,
+    // Sticky Message — `/고정메세지삭제` 확인 버튼(F-STICKY-014)
+    BotStickyDeleteConfirmHandler,
     BotMessageCountHandler,
     BotChannelStateHandler,
     BotGuildMemberSyncHandler,

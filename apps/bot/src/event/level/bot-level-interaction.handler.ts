@@ -5,12 +5,14 @@ import { BotApiClientService } from '@onyu/bot-api-client';
 import { DEFAULT_LOCALE } from '@onyu/shared';
 import { type ButtonInteraction, type Interaction } from 'discord.js';
 
+import { isGuildAdmin } from '../../command/level/guild-admin';
 import {
   buildPageButtonRow,
   RANK_BUTTON_CUSTOM_ID_PREFIX,
 } from '../../command/level/leaderboard-buttons';
 import { BotI18nService } from '../../common/application/bot-i18n.service';
 import { LocaleResolverService } from '../../common/application/locale-resolver.service';
+import { resolveTrustedGuildId } from '../../common/util/trusted-guild-id.util';
 
 /** `/랭킹` 버튼 경로 전용 페이지 크기 — 커맨드(leaderboard.command.ts)와 동일 값을 유지한다 */
 const LEADERBOARD_LIMIT = 10;
@@ -50,7 +52,7 @@ export class BotLevelInteractionHandler {
 
     try {
       const prefix = isPrev ? RANK_BUTTON_CUSTOM_ID_PREFIX.PREV : RANK_BUTTON_CUSTOM_ID_PREFIX.NEXT;
-      const { guildId, currentPage } = this.parseCustomId(customId, prefix);
+      const { guildId: parsedGuildId, currentPage } = this.parseCustomId(customId, prefix);
       const targetPage = isPrev ? currentPage - 1 : currentPage + 1;
 
       locale = await this.localeResolver.resolve(
@@ -59,14 +61,27 @@ export class BotLevelInteractionHandler {
         interaction.locale,
       );
 
+      const guildId = resolveTrustedGuildId(interaction.guildId, parsedGuildId);
+      if (!guildId) {
+        this.logger.warn(
+          `[BOT] guildId mismatch: customId=${customId} interactionGuild=${interaction.guildId}`,
+        );
+        await this.notifyEphemeralError(interaction, locale);
+        return;
+      }
+
       await interaction.deferUpdate();
 
+      // U10 — 관리자 여부는 클릭 시점에 재판정한다(카드를 처음 연 사람과 버튼을 누른
+      // 사람이 다를 수 있다, F-LVL-27 적용 표면 표 · UF-LEVEL-035 엣지케이스).
       const result = await this.apiClient.getLevelLeaderboardCard({
         guildId,
         page: targetPage,
         limit: LEADERBOARD_LIMIT,
         viewerUserId: interaction.user.id,
         locale: this.toCanvasLocale(locale),
+        requesterUserId: interaction.user.id,
+        requesterIsGuildAdmin: isGuildAdmin(interaction),
       });
 
       await this.applyResponse(interaction, result, guildId, locale);
@@ -109,6 +124,13 @@ export class BotLevelInteractionHandler {
 
     if (!result.isEnabled) {
       await this.editToText(interaction, this.i18n.t(locale, 'commands.leaderboardDisabled'));
+      return;
+    }
+
+    // U10 — 클릭자가 관리자가 아닌 길드에서 "관리자 전용"으로 설정이 바뀐 경우(또는 처음부터
+    // 그 설정인 경우) 서버가 거부한다. 200 정상 응답이며 예외가 아니다.
+    if (!result.visible) {
+      await this.editToText(interaction, this.i18n.t(locale, 'commands.leaderboardAdminOnly'));
       return;
     }
 

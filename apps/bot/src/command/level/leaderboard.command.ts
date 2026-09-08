@@ -7,6 +7,7 @@ import { AttachmentBuilder, ChatInputCommandInteraction } from 'discord.js';
 
 import { BotI18nService } from '../../common/application/bot-i18n.service';
 import { LocaleResolverService } from '../../common/application/locale-resolver.service';
+import { isGuildAdmin } from './guild-admin';
 import { LeaderboardCommandDto } from './leaderboard.dto';
 import { buildPageButtonRow } from './leaderboard-buttons';
 
@@ -64,6 +65,8 @@ export class LeaderboardCommand {
         limit: LEADERBOARD_LIMIT,
         viewerUserId: interaction.user.id,
         locale: this.toCanvasLocale(locale),
+        requesterUserId: interaction.user.id,
+        requesterIsGuildAdmin: isGuildAdmin(interaction),
       });
 
       if (!result.ok) {
@@ -74,6 +77,16 @@ export class LeaderboardCommand {
       if (!result.isEnabled) {
         await interaction.editReply({
           content: this.i18n.t(locale, 'commands.leaderboardDisabled'),
+        });
+        return;
+      }
+
+      // U10 — 가시성 거부는 서버 판정 결과다(200 정상 응답, 예외 아님). isEnabled 조기 반환
+      // 다음, 데이터 없음 판정보다 앞에 둔다(서버가 이미 total=0/data=null로 응답하므로 순서
+      // 자체는 결과에 영향 없으나 "관리자 전용" 문구가 "활동 없음" 문구보다 우선해야 한다).
+      if (!result.visible) {
+        await interaction.editReply({
+          content: this.i18n.t(locale, 'commands.leaderboardAdminOnly'),
         });
         return;
       }

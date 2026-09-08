@@ -142,11 +142,12 @@ function makeExclusiveConfigResponse(
 
 describe('RolePanelInteractionService', () => {
   let service: RolePanelInteractionService;
-  let apiClient: { getRolePanelConfig: Mock };
+  let apiClient: { getRolePanelConfig: Mock; recordAutoAction: Mock };
 
   beforeEach(() => {
     apiClient = {
       getRolePanelConfig: vi.fn(),
+      recordAutoAction: vi.fn().mockResolvedValue(undefined),
     };
 
     service = new RolePanelInteractionService(apiClient as never);
@@ -761,6 +762,112 @@ describe('RolePanelInteractionService', () => {
       await expect(service.handle(makeInput({ buttonId: 10, member }))).rejects.toThrow(
         '네트워크 오류',
       );
+    });
+  });
+
+  // ──────────────────────────────────────────────────────
+  // AUTO-ACTION 계측(D5, F-USAGE-042) — 공개 진입점 1지점 status→action 매핑
+  // ──────────────────────────────────────────────────────
+  describe('AUTO-ACTION 계측 — status→action 매핑(D5)', () => {
+    it('GRANTED → role-granted 1회', async () => {
+      apiClient.getRolePanelConfig.mockResolvedValue(makeConfigResponse('GRANT'));
+      const member = makeMember({ hasRole: false });
+
+      await service.handle(makeInput({ member }));
+
+      expect(apiClient.recordAutoAction).toHaveBeenCalledTimes(1);
+      expect(apiClient.recordAutoAction).toHaveBeenCalledWith({
+        guildId: 'guild-1',
+        domain: 'role-panel',
+        action: 'role-granted',
+      });
+    });
+
+    it('REMOVED → role-revoked 1회', async () => {
+      apiClient.getRolePanelConfig.mockResolvedValue(makeConfigResponse('TOGGLE'));
+      const member = makeMember({ hasRole: true });
+
+      await service.handle(makeInput({ member }));
+
+      expect(apiClient.recordAutoAction).toHaveBeenCalledTimes(1);
+      expect(apiClient.recordAutoAction).toHaveBeenCalledWith({
+        guildId: 'guild-1',
+        domain: 'role-panel',
+        action: 'role-revoked',
+      });
+    });
+
+    it('SWAPPED → role-granted + role-revoked 각 1회', async () => {
+      apiClient.getRolePanelConfig.mockResolvedValue(makeExclusiveConfigResponse());
+      const member = makeMember({ ownedRoleIds: ['role-member', 'role-ko'] });
+
+      await service.handle(makeInput({ buttonId: 11, member }));
+
+      expect(apiClient.recordAutoAction).toHaveBeenCalledTimes(2);
+      expect(apiClient.recordAutoAction).toHaveBeenCalledWith({
+        guildId: 'guild-1',
+        domain: 'role-panel',
+        action: 'role-granted',
+      });
+      expect(apiClient.recordAutoAction).toHaveBeenCalledWith({
+        guildId: 'guild-1',
+        domain: 'role-panel',
+        action: 'role-revoked',
+      });
+    });
+
+    it('ALREADY_HAS → 기록하지 않는다(0회)', async () => {
+      apiClient.getRolePanelConfig.mockResolvedValue(makeConfigResponse('GRANT'));
+      const member = makeMember({ hasRole: true });
+
+      const result = await service.handle(makeInput({ member }));
+
+      expect(result.status).toBe('ALREADY_HAS');
+      expect(apiClient.recordAutoAction).not.toHaveBeenCalled();
+    });
+
+    it('ALREADY_SELECTED → 기록하지 않는다(0회)', async () => {
+      apiClient.getRolePanelConfig.mockResolvedValue(makeExclusiveConfigResponse());
+      const member = makeMember({ ownedRoleIds: ['role-member', 'role-ko'] });
+
+      const result = await service.handle(makeInput({ buttonId: 10, member }));
+
+      expect(result.status).toBe('ALREADY_SELECTED');
+      expect(apiClient.recordAutoAction).not.toHaveBeenCalled();
+    });
+
+    it('LOCKED → 기록하지 않는다(0회)', async () => {
+      apiClient.getRolePanelConfig.mockResolvedValue(makeConfigResponse('TOGGLE'));
+      let resolveFirstAdd!: () => void;
+      const firstMember = makeMember({ hasRole: false });
+      (firstMember.roles.add as Mock).mockReturnValue(
+        new Promise<void>((resolve) => {
+          resolveFirstAdd = resolve;
+        }),
+      );
+      const secondMember = makeMember({ hasRole: false });
+      const input = makeInput({ guildId: 'guild-lock2', userId: 'user-lock2', buttonId: 10 });
+
+      const firstPromise = service.handle({ ...input, member: firstMember });
+      apiClient.recordAutoAction.mockClear();
+      const secondResult = await service.handle({ ...input, member: secondMember });
+
+      expect(secondResult.status).toBe('LOCKED');
+      expect(apiClient.recordAutoAction).not.toHaveBeenCalled();
+
+      resolveFirstAdd();
+      await firstPromise;
+    });
+
+    it('NO_PERMISSION(전부 실패) → 기록하지 않는다(0회)', async () => {
+      apiClient.getRolePanelConfig.mockResolvedValue(makeConfigResponse('GRANT'));
+      const member = makeMember({ hasRole: false });
+      (member.roles.add as Mock).mockRejectedValue(makeDiscordAPIError(50013, 403));
+
+      const result = await service.handle(makeInput({ member }));
+
+      expect(result.status).toBe('NO_PERMISSION');
+      expect(apiClient.recordAutoAction).not.toHaveBeenCalled();
     });
   });
 });

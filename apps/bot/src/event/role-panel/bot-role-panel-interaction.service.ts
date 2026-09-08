@@ -113,9 +113,29 @@ export class RolePanelInteractionService {
           userId,
         });
       }
+      // D5 — role-panel 훅은 공개 진입점 1지점에서 status → action 매핑으로 기록한다
+      // (F-USAGE-042, fire-and-forget). catch 경로(mapDiscordError)는 기록하지 않는다.
+      this.recordRoleAction(guildId, result.status);
       return { ...result, localeTag };
     } catch (error) {
       return { ...this.mapDiscordError(error, { guildId, userId }), localeTag };
+    }
+  }
+
+  /**
+   * status → action 매핑으로 자동 동작을 기록한다(D5, F-USAGE-042). GRANTED→role-granted,
+   * REMOVED→role-revoked, SWAPPED→role-granted+role-revoked 각 1회. 그 외 상태는 기록 없음.
+   */
+  private recordRoleAction(guildId: string, status: RolePanelInteractionStatus): void {
+    if (status === 'GRANTED' || status === 'SWAPPED') {
+      void this.apiClient
+        .recordAutoAction({ guildId, domain: 'role-panel', action: 'role-granted' })
+        .catch(() => undefined);
+    }
+    if (status === 'REMOVED' || status === 'SWAPPED') {
+      void this.apiClient
+        .recordAutoAction({ guildId, domain: 'role-panel', action: 'role-revoked' })
+        .catch(() => undefined);
     }
   }
 

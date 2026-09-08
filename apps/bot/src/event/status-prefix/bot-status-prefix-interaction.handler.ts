@@ -108,6 +108,11 @@ export class BotStatusPrefixInteractionHandler {
         });
         return;
       }
+
+      // F-USAGE-041 — 자동 동작 계측(fire-and-forget). 실패가 원 동작을 막지 않는다(§18-10).
+      void this.apiClient
+        .recordAutoAction({ guildId, domain: 'status-prefix', action: 'apply' })
+        .catch(() => undefined);
     }
 
     await interaction.editReply({ content: resolveResultMessage(this.i18n, locale, result) });
@@ -131,6 +136,11 @@ export class BotStatusPrefixInteractionHandler {
         });
         return;
       }
+
+      // F-USAGE-041 — 자동 동작 계측(fire-and-forget). 실패가 원 동작을 막지 않는다(§18-10).
+      void this.apiClient
+        .recordAutoAction({ guildId, domain: 'status-prefix', action: 'reset' })
+        .catch(() => undefined);
     }
 
     await interaction.editReply({ content: resolveResultMessage(this.i18n, locale, result) });

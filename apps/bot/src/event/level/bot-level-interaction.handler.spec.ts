@@ -49,6 +49,8 @@ function leaderboardCardResponse(
     page: 2,
     totalPages: 3,
     total: 25,
+    visible: true,
+    deniedReason: null,
     ...overrides,
   };
 }
@@ -103,7 +105,12 @@ describe('BotLevelInteractionHandler', () => {
   // ─── customId 파싱 ───────────────────────────────────────────────────────────
 
   it('rank:next:{guildId}:{page} 파싱 후 다음 페이지(currentPage+1)로 조회한다', async () => {
-    const interaction = makeButtonInteraction({ customId: 'rank:next:guild-9:2' });
+    // W5(admin-action-guard-fixes.md) — customId의 guildId는 interaction.guildId(신뢰 소스)와
+    // 일치해야 통과한다.
+    const interaction = makeButtonInteraction({
+      guildId: 'guild-9',
+      customId: 'rank:next:guild-9:2',
+    });
 
     await handler.handle(interaction);
 
@@ -114,13 +121,78 @@ describe('BotLevelInteractionHandler', () => {
   });
 
   it('rank:prev:{guildId}:{page} 파싱 후 이전 페이지(currentPage-1)로 조회한다', async () => {
-    const interaction = makeButtonInteraction({ customId: 'rank:prev:guild-9:2' });
+    const interaction = makeButtonInteraction({
+      guildId: 'guild-9',
+      customId: 'rank:prev:guild-9:2',
+    });
 
     await handler.handle(interaction);
 
     expect(apiClient.getLevelLeaderboardCard).toHaveBeenCalledWith(
       expect.objectContaining({ guildId: 'guild-9', page: 1 }),
     );
+  });
+
+  it('customId의 guildId가 interaction.guildId와 불일치하면 거부되고 API를 호출하지 않는다(W5)', async () => {
+    const interaction = makeButtonInteraction({
+      guildId: 'guild-1',
+      customId: 'rank:next:guild-9:2',
+    });
+
+    await handler.handle(interaction);
+
+    expect(apiClient.getLevelLeaderboardCard).not.toHaveBeenCalled();
+    expect(interaction.deferUpdate).not.toHaveBeenCalled();
+    // defer 이전에 거부되므로(미ack 상태) reply() 경로를 탄다
+    expect(interaction.reply).toHaveBeenCalledWith({
+      ephemeral: true,
+      content: '서버 랭킹을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.',
+    });
+  });
+
+  // ─── U10 — 요청자 컨텍스트(클릭자 기준 재판정) + 가시성 거부 ──────────────────
+
+  it('클릭자 id와 memberPermissions 기반 관리자 여부를 함께 전달한다(카드를 처음 연 사람과 무관)', async () => {
+    const interaction = makeButtonInteraction({
+      user: { id: 'clicker-1' },
+      memberPermissions: { any: vi.fn().mockReturnValue(true) },
+    });
+
+    await handler.handle(interaction);
+
+    expect(apiClient.getLevelLeaderboardCard).toHaveBeenCalledWith(
+      expect.objectContaining({ requesterUserId: 'clicker-1', requesterIsGuildAdmin: true }),
+    );
+  });
+
+  it('memberPermissions가 없으면(방어) requesterIsGuildAdmin=false로 조회한다', async () => {
+    const interaction = makeButtonInteraction();
+
+    await handler.handle(interaction);
+
+    expect(apiClient.getLevelLeaderboardCard).toHaveBeenCalledWith(
+      expect.objectContaining({ requesterIsGuildAdmin: false }),
+    );
+  });
+
+  it('visible=false(관리자 전용 설정)로 전환되면 leaderboardAdminOnly 안내로 edit하고 버튼을 제거한다', async () => {
+    const interaction = makeButtonInteraction();
+    apiClient.getLevelLeaderboardCard.mockResolvedValue(
+      leaderboardCardResponse({
+        visible: false,
+        deniedReason: 'LEADERBOARD_ADMIN_ONLY',
+        data: null,
+      }),
+    );
+
+    await handler.handle(interaction);
+
+    expect(interaction.message.edit).toHaveBeenCalledWith({
+      content: '이 서버는 리더보드를 관리자만 볼 수 있도록 설정했습니다.',
+      embeds: [],
+      files: [],
+      components: [],
+    });
   });
 
   // ─── 정상 응답 — 메시지 갱신 + 버튼 재조립 ────────────────────────────────────
@@ -286,16 +358,15 @@ describe('BotLevelInteractionHandler', () => {
 
   // ─── customId 파싱 ───────────────────────────────────────────────────────────
 
-  it('customId에 페이지 번호가 없는 등 파싱이 어긋나도 예외를 던지지 않고 API를 호출한다(방어 검증 없음)', async () => {
-    // 'rank:next:' 접두어 이후 콜론이 없는 형태 — lastIndexOf(':')가 -1을 반환해
-    // guildId/page 파싱이 어긋난다(정상적으로는 봇 자신이 생성한 customId만 수신하므로
-    // 발생하지 않지만, 방어적으로 예외 없이 처리되는지 확인한다).
+  it('customId에 페이지 번호가 없는 등 파싱이 어긋나면 guildId 대조 실패로 거부되고 예외 없이 API를 호출하지 않는다(W5)', async () => {
+    // 'rank:next:' 접두어 이후 콜론이 없는 형태 — lastIndexOf(':')가 -1을 반환해 guildId 파싱이
+    // 'guild-'(마지막 글자 누락)로 어긋난다. resolveTrustedGuildId가 interaction.guildId
+    // ('guild-1')와 불일치로 판정해 API 호출 이전에 거부한다(W5 도입 전에는 방어가 없었다).
     const interaction = makeButtonInteraction({ customId: 'rank:next:guild-1' });
 
     await expect(handler.handle(interaction)).resolves.toBeUndefined();
 
-    expect(apiClient.getLevelLeaderboardCard).toHaveBeenCalledTimes(1);
-    const call = apiClient.getLevelLeaderboardCard.mock.calls[0][0] as { page: number };
-    expect(call.page).toBeNaN();
+    expect(apiClient.getLevelLeaderboardCard).not.toHaveBeenCalled();
+    expect(interaction.deferUpdate).not.toHaveBeenCalled();
   });
 });
