@@ -189,3 +189,10 @@ export interface AutoActionRecordDto {
   /** 배치 동작의 "N건 한 번에" 전송용 — 생략 시 1 (PRD Q1 → 본 계획 §3 D1) */
   count?: number;
 }
+
+// ── 신규 길드 첫 착지 빈 상태 계측 (F-USAGE-049~052) ──
+
+/** 빈 상태 패널 최초 렌더 수집(F-USAGE-049~052). 🔒 개인 미식별 — guildId 외 어떤 식별자도 싣지 않는다. */
+export interface EmptyStateSeenDto {
+  guildId: string;
+}

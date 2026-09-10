@@ -139,6 +139,15 @@ export class BotNewbieMemberAddHandler {
         `[BOT] Welcome message failed: guild=${member.guild.id} member=${member.id}`,
         err instanceof Error ? err.stack : err,
       );
+      // F-ADMIN-LOG-006 — 관리 로그 게시(fire-and-forget). 원 동작(환영 메시지 발송)에는
+      // 절대 영향을 주지 않는다(계획 §2 P4).
+      void this.apiClient
+        .recordNewbieOnboardingFailure({
+          guildId: member.guild.id,
+          memberId: member.id,
+          kind: 'welcome_message',
+        })
+        .catch(() => undefined);
     }
   }
 
@@ -265,8 +274,13 @@ export class BotNewbieMemberAddHandler {
   }
 
   private async assignRole(member: GuildMember, roleId: string, guildId: string): Promise<void> {
+    // F-ADMIN-LOG-006 — 이 try는 member.roles.add()와 notifyRoleAssigned() 둘 다 감싼다.
+    // isRoleAdded가 없으면 Discord 역할은 이미 부여됐는데 notifyRoleAssigned(NewbiePeriod
+    // 생성)만 실패한 경우까지 "역할 부여 실패"로 오보하게 된다(계획 §2 P4 §7 발견 5).
+    let isRoleAdded = false;
     try {
       await member.roles.add(roleId);
+      isRoleAdded = true;
       this.logger.log(`[BOT] Role assigned: guild=${guildId} member=${member.id} role=${roleId}`);
 
       // F-USAGE-042 — 자동 동작 계측(fire-and-forget). 통보(notifyRoleAssigned) 실패가
@@ -282,6 +296,17 @@ export class BotNewbieMemberAddHandler {
         `[BOT] Role assign failed: guild=${guildId} member=${member.id} role=${roleId}`,
         err instanceof Error ? err.stack : err,
       );
+      // Discord 역할 부여 자체가 실패했을 때만 게시한다 — isRoleAdded가 true면 실패 지점은
+      // notifyRoleAssigned(API 통보)뿐이고 역할은 이미 정상 부여됐으므로 오보하지 않는다.
+      if (!isRoleAdded) {
+        void this.apiClient
+          .recordNewbieOnboardingFailure({
+            guildId,
+            memberId: member.id,
+            kind: 'role_assignment',
+          })
+          .catch(() => undefined);
+      }
     }
   }
 }

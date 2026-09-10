@@ -56,6 +56,7 @@ describe('BotNewbieMemberAddHandler', () => {
     notifyRoleAssigned: Mock;
     getWelcomeCard: Mock;
     recordAutoAction: Mock;
+    recordNewbieOnboardingFailure: Mock;
   };
   let discordClient: { channels: { fetch: Mock } };
   let loggerErrorSpy: ReturnType<typeof vi.spyOn>;
@@ -68,6 +69,7 @@ describe('BotNewbieMemberAddHandler', () => {
       notifyRoleAssigned: vi.fn().mockResolvedValue(undefined),
       getWelcomeCard: vi.fn().mockResolvedValue({ ok: true, imageBase64: 'ZmFrZS1wbmc=' }),
       recordAutoAction: vi.fn().mockResolvedValue(undefined),
+      recordNewbieOnboardingFailure: vi.fn().mockResolvedValue(undefined),
     };
     discordClient = {
       channels: { fetch: vi.fn().mockResolvedValue(null) },
@@ -1096,6 +1098,80 @@ describe('BotNewbieMemberAddHandler', () => {
         domain: 'newbie',
         action: 'role-assigned',
       });
+    });
+  });
+
+  // ──────────────────────────────────────────────────────
+  // F-ADMIN-LOG-006 (계획 §2 P4) — 신입 온보딩 실패 관리 로그 게시.
+  // 핵심 회귀: 역할은 정상 부여됐는데 notifyRoleAssigned(NewbiePeriod 생성)만 실패한 경우
+  // "역할 부여 실패"로 오보되지 않아야 한다(isRoleAdded 가드).
+  // ──────────────────────────────────────────────────────
+  describe('F-ADMIN-LOG-006 — 신입 온보딩 실패 관리 로그 게시(P4)', () => {
+    it('환영 메시지 전송(channel.send) 실패 시 kind: "welcome_message"로 1회 게시를 시도한다', async () => {
+      // channels.fetch 실패는 내부에서 .catch(() => null)로 흡수돼 조용히 return하므로
+      // (외부 catch에 도달하지 않는다), 실제로 outer catch를 타는 channel.send 실패를 쓴다
+      // ("완전 실패(channel.send throw)" 테스트와 동형).
+      apiClient.getNewbieConfig.mockResolvedValue(
+        makeConfig({ welcomeEnabled: true, welcomeChannelId: 'ch-1', welcomeDisplayMode: 'EMBED' }),
+      );
+      discordClient.channels.fetch.mockResolvedValue({
+        isTextBased: () => true,
+        send: vi.fn().mockRejectedValue(new Error('Missing Permissions')),
+      });
+      const member = makeMember();
+
+      await handler.handleGuildMemberAdd(member);
+
+      expect(apiClient.recordNewbieOnboardingFailure).toHaveBeenCalledTimes(1);
+      expect(apiClient.recordNewbieOnboardingFailure).toHaveBeenCalledWith({
+        guildId: 'guild-1',
+        memberId: 'member-1',
+        kind: 'welcome_message',
+      });
+    });
+
+    it('역할 부여(roles.add) 자체가 실패하면 kind: "role_assignment"로 1회 게시를 시도한다', async () => {
+      apiClient.getNewbieConfig.mockResolvedValue(
+        makeConfig({ roleEnabled: true, newbieRoleId: 'role-1' }),
+      );
+      const member = makeMember({
+        roles: { add: vi.fn().mockRejectedValue(new Error('missing permission')) },
+      });
+
+      await handler.handleGuildMemberAdd(member);
+
+      expect(apiClient.recordNewbieOnboardingFailure).toHaveBeenCalledTimes(1);
+      expect(apiClient.recordNewbieOnboardingFailure).toHaveBeenCalledWith({
+        guildId: 'guild-1',
+        memberId: 'member-1',
+        kind: 'role_assignment',
+      });
+    });
+
+    it('핵심 회귀 — 역할은 정상 부여됐고 notifyRoleAssigned(API 통보)만 실패한 경우 recordNewbieOnboardingFailure를 호출하지 않는다(isRoleAdded 가드)', async () => {
+      apiClient.getNewbieConfig.mockResolvedValue(
+        makeConfig({ roleEnabled: true, newbieRoleId: 'role-1' }),
+      );
+      apiClient.notifyRoleAssigned.mockRejectedValue(new Error('NewbiePeriod 생성 실패'));
+      const member = makeMember();
+
+      await handler.handleGuildMemberAdd(member);
+
+      expect(member.roles.add).toHaveBeenCalledWith('role-1');
+      expect(apiClient.recordNewbieOnboardingFailure).not.toHaveBeenCalled();
+    });
+
+    it('recordNewbieOnboardingFailure가 reject해도 handleGuildMemberAdd 자체는 예외 없이 완료된다(fire-and-forget)', async () => {
+      apiClient.getNewbieConfig.mockResolvedValue(
+        makeConfig({ roleEnabled: true, newbieRoleId: 'role-1' }),
+      );
+      apiClient.recordNewbieOnboardingFailure.mockRejectedValue(new Error('bot-api down'));
+      const member = makeMember({
+        roles: { add: vi.fn().mockRejectedValue(new Error('missing permission')) },
+      });
+
+      await expect(handler.handleGuildMemberAdd(member)).resolves.toBeUndefined();
+      expect(apiClient.recordNewbieOnboardingFailure).toHaveBeenCalledTimes(1);
     });
   });
 });

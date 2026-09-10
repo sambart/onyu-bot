@@ -53,6 +53,7 @@ import type {
   MocoMyResponse,
   MocoRankResponse,
   NewbieConfigDto,
+  NewbieOnboardingFailureDto,
   RoleAssignedDto,
   RoleModifyDto,
   StatusPrefixApplyDto,
@@ -128,6 +129,14 @@ export class BotApiClientService {
 
   async notifyRoleAssigned(dto: RoleAssignedDto): Promise<void> {
     await this.post('/bot-api/newbie/role-assigned', dto);
+  }
+
+  /**
+   * F-ADMIN-LOG-006 — 신입 온보딩 실패(환영 메시지/역할 부여)를 관리 로그 채널 게시용으로
+   * 수집한다. `recordAutoAction()` 관례대로 호출측은 반드시 fire-and-forget으로 호출한다.
+   */
+  async recordNewbieOnboardingFailure(dto: NewbieOnboardingFailureDto): Promise<void> {
+    await this.post('/bot-api/newbie/onboarding-failure', dto);
   }
 
   /** F-NEWBIE-001-CANVAS — 환영 카드 PNG 렌더 요청(E4). 실패는 그대로 throw해 호출부가 EMBED로 강등한다 */

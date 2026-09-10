@@ -360,6 +360,28 @@ export interface AdminAssistCatalogResponse {
   promptVersion?: string;
 }
 
+/**
+ * F-ADMIN-ASSIST-070 — E8(GET publish-history) 응답 행. `admin_assist_history`의
+ * `executedAction IS NOT NULL`(게시 성공) 행만 담는다. PRD 계약 "전부 기존 컬럼, 신규 파생
+ * 없음" — `executorDisplayName` 등 신규 파생 필드를 추가하지 않는다(admin-action-history-undo
+ * 계획 §4.3 C3). `id`는 `bigint` PK라 TS 타입은 `string`이다.
+ */
+export interface AdminAssistPublishHistoryItem {
+  id: string;
+  createdAt: string;
+  userId: string;
+  /** 'generate.announcementDraft' | 'generate.rulesProposal' | null */
+  recipeId: string | null;
+  queryText: string;
+  responseText: string | null;
+  executedAction: { channelId: string; messageId: string; publishedAt: string };
+}
+
+/** 페이지네이션 없음(최근 20건 고정 상한) — `total`/`page` 필드를 두지 않는다. */
+export interface AdminAssistPublishHistoryResponse {
+  items: AdminAssistPublishHistoryItem[];
+}
+
 /** F-ADMIN-ASSIST-033 — E4/E5 응답. 미설정 길드는 두 필드 모두 null(404 아님, EP §5B-1). */
 export interface AdminAssistContextResponse {
   /** 저장된 규칙 텍스트 원문(trim 적용본). 행 부재 시 null, 빈 문자열 저장 시 '' */

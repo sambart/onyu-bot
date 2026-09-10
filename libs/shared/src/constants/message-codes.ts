@@ -101,5 +101,22 @@ export const MESSAGE_CODE = {
   // ── 관리 조치 안전장치 (docs/plans/admin-action-guard-fixes.md W2, F-AUTH-006) ──
   /** 킥 조치(ACTION_KICK/kick:true) 요청자가 KICK_MEMBERS 비트를 보유하지 않음(403). params 없음 */
   GUILD_KICK_PERMISSION_REQUIRED: 'GUILD_KICK_PERMISSION_REQUIRED',
+
+  // ── 관리 조치 되돌리기 (docs/plans/admin-action-history-undo.md A4, F-INACTIVE-012) ──
+  /** 되돌리기 대상 로그가 존재하지 않거나 타 길드 소유(404). params 없음 */
+  ACTION_LOG_NOT_FOUND: 'ACTION_LOG_NOT_FOUND',
+  /** 되돌리기 대상 actionType이 ACTION_DM/ACTION_KICK(되돌릴 수 없음, 400). params 없음 */
+  UNDO_NOT_SUPPORTED_ACTION_TYPE: 'UNDO_NOT_SUPPORTED_ACTION_TYPE',
+  /** 원본 로그에 roleId 스냅샷이 없음(레거시 로그, 400). params 없음 */
+  UNDO_MISSING_ROLE_SNAPSHOT: 'UNDO_MISSING_ROLE_SNAPSHOT',
+  /** 되돌리기 결과 로그 자체를 다시 되돌리려는 시도(연쇄 차단, 400). params 없음 */
+  UNDO_OF_UNDO_NOT_ALLOWED: 'UNDO_OF_UNDO_NOT_ALLOWED',
+
+  // ── 관리 로그 채널 (docs/plans/guild-admin-log-channel.md, F-ADMIN-LOG-009) ──
+  /**
+   * 관리 로그 채널 저장 시점 채널 접근성 preflight 거부(400, ERR_WEEKLY_REPORT_CHANNEL_UNREACHABLE
+   * 과 동형이나 도메인 접두사가 달라 재사용 불가). params: { channelId }
+   */
+  ERR_ADMIN_LOG_CHANNEL_UNREACHABLE: 'ERR_ADMIN_LOG_CHANNEL_UNREACHABLE',
 } as const;
 export type MessageCode = (typeof MESSAGE_CODE)[keyof typeof MESSAGE_CODE];

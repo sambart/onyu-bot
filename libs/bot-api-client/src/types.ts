@@ -4,10 +4,16 @@ import type {
   GuildLifecycleEventDto,
   LeaderboardDeniedReason,
   MessageCode,
+  NewbieOnboardingFailureDto,
   SupportedLocale,
 } from '@onyu/shared';
 
-export type { AutoActionRecordDto, CommandUsedDto, GuildLifecycleEventDto };
+export type {
+  AutoActionRecordDto,
+  CommandUsedDto,
+  GuildLifecycleEventDto,
+  NewbieOnboardingFailureDto,
+};
 
 /** Bot → API 요청/응답 DTO 타입 정의 */
 

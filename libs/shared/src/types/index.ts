@@ -13,6 +13,8 @@ export type {
   AdminAssistGenerativeAction,
   AdminAssistKind,
   AdminAssistParameter,
+  AdminAssistPublishHistoryItem,
+  AdminAssistPublishHistoryResponse,
   AdminAssistPublishRequest,
   AdminAssistPublishResponse,
   AdminAssistQuotaResponse,
@@ -85,6 +87,13 @@ export interface VoiceActivityData {
   }>;
 }
 
+export type {
+  AdminLogConfigDto,
+  AdminLogKind,
+  AdminLogPayloadMap,
+  AdminLogQuotaScope,
+  NewbieOnboardingFailureDto,
+} from './admin-log';
 export type { AccessTokenPayload, AuthTokenPair } from './auth';
 export type { MeCardThemeCategory, MeCardThemeKey } from './card-theme';
 export {
@@ -125,6 +134,12 @@ export type {
 export type { GuildQuotaItem, GuildQuotaResponse, MeQuotaItem, MeQuotaResponse } from './quota';
 export * from './role-panel';
 export type {
+  SettingsAuditLogItem,
+  SettingsAuditLogListQuery,
+  SettingsAuditLogListResponse,
+} from './settings-audit';
+export { SETTINGS_AUDIT_ACTOR_SENTINEL } from './settings-audit';
+export type {
   PlanScope,
   PlanTier,
   PremiumEntitlementState,
@@ -138,6 +153,7 @@ export type {
   AutoActionType,
   CommandUsedDto,
   DwellBucket,
+  EmptyStateSeenDto,
   GuildLifecycleEventDto,
   GuildLifecycleEventType,
   LandingEventDto,
