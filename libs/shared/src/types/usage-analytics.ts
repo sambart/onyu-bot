@@ -196,3 +196,34 @@ export interface AutoActionRecordDto {
 export interface EmptyStateSeenDto {
   guildId: string;
 }
+
+// ── 시작 가이드 완료 상태 서버 영속화 (F-USAGE-055, GETTING-STARTED-COMPLETION-PERSISTENCE) ──
+
+/**
+ * 시작 가이드 완료 상태 조회 응답(D1). 🔒 개인 미식별 — 누가 완료했는지(유저 ID)는 담지 않는다.
+ */
+export interface GettingStartedStatusResponse {
+  /** 완료 시각(ISO 8601). 미완료면 null. */
+  completedAt: string | null;
+}
+
+// ── 관리자 신원 축 계측 — 다길드 로그인 버킷 (ADMIN-IDENTITY-METRICS, F-USAGE-057) ──
+
+/** 다길드 로그인 버킷 화이트리스트 4종 (F-USAGE-057) — multi_guild_login_bucket_daily.bucket varchar(3) */
+export const MULTI_GUILD_LOGIN_BUCKETS = ['1', '2', '3-5', '6+'] as const;
+export type MultiGuildLoginBucket = (typeof MULTI_GUILD_LOGIN_BUCKETS)[number];
+
+/** '3-5' 버킷의 상한값(매직넘버 회피) */
+const MULTI_GUILD_LOGIN_BUCKET_MID_MAX = 5;
+
+/**
+ * managedGuilds.length → 1|2|3-5|6+ 버킷(F-USAGE-057, K20 — 봇참여 필터 미적용 원시값).
+ * `managedGuildCount <= 1`(0 포함)은 `'1'` 버킷에 흡수한다 — 관리 길드가 없어도 로그인 이벤트
+ * 자체는 발생하므로 버리지 않는다(PRD가 별도 '0' 버킷을 요구하지 않음, 🟨 구현 단계 판단).
+ */
+export function resolveMultiGuildLoginBucket(managedGuildCount: number): MultiGuildLoginBucket {
+  if (managedGuildCount <= 1) return '1';
+  if (managedGuildCount === 2) return '2';
+  if (managedGuildCount <= MULTI_GUILD_LOGIN_BUCKET_MID_MAX) return '3-5';
+  return '6+';
+}
