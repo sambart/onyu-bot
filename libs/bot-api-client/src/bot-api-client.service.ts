@@ -8,6 +8,10 @@ import type {
   AutoActionRecordDto,
   AutoChannelButtonClickDto,
   AutoChannelButtonResult,
+  AutoChannelNameInputQuery,
+  AutoChannelNameInputSpec,
+  AutoChannelNameSubmitDto,
+  AutoChannelNameSubmitResult,
   AutoChannelSubOptionDto,
   BestFriendCardResponse,
   BotApiResponse,
@@ -72,6 +76,18 @@ import type {
  * 조회/렌더 여유. 전역 타임아웃(10s)은 무옵션 경로에서 불변이다(PRD 명시).
  */
 const ME_PROFILE_MENT_TIMEOUT_MS = 20_000;
+
+/** N3 는 interaction 3초 데드라인 안에서 showModal 전에 호출된다 — 전역 10s 를 쓰면 데드라인을 넘긴다 */
+const AUTO_CHANNEL_NAME_INPUT_TIMEOUT_MS = 1_500;
+
+/**
+ * showModal 경로(N3)에서 dispatch 전 `localeResolver.resolve()` 가 이 메서드를 먼저 await 한다
+ * (EC-ACNI-35·51 문서는 N3 만 3초 예산에 넣었으나, 실제로는 locale 왕복도 같은 예산을 쓴다).
+ * 전역 10s 를 쓰면 N3 의 1.5s 예산과 무관하게 이 호출만으로 데드라인을 넘길 수 있다.
+ * 실패는 `LocaleResolverService.resolve()` 가 흡수하고 `interaction.locale` 로 폴백하므로
+ * per-request 타임아웃으로 짧게 끊어도 안전하다.
+ */
+const USER_LOCALE_TIMEOUT_MS = 1_000;
 
 /**
  * Bot → API HTTP 클라이언트.
@@ -171,6 +187,25 @@ export class BotApiClientService {
 
   async autoChannelSubOption(dto: AutoChannelSubOptionDto): Promise<AutoChannelButtonResult> {
     return this.post('/bot-api/auto-channel/sub-option', dto);
+  }
+
+  /** 모달 제출 → 서버 재검증(F-VOICE-127). deferReply 이후 호출되므로 전역 타임아웃(10s)을 쓴다. */
+  async autoChannelNameSubmit(dto: AutoChannelNameSubmitDto): Promise<AutoChannelNameSubmitResult> {
+    return this.post('/bot-api/auto-channel/name-submit', dto);
+  }
+
+  /**
+   * showModal 전 모달 사양 조회(F-VOICE-126) — interaction 3초 데드라인 안에서 호출되므로
+   * per-request 타임아웃(1.5s)을 쓴다. 404(off/설정없음/{input} 0회)는 axios가 throw한다 —
+   * 호출측이 예외 종류를 구분하지 않고 동일 처리한다(D-9).
+   */
+  async autoChannelNameInput(query: AutoChannelNameInputQuery): Promise<AutoChannelNameInputSpec> {
+    const params = new URLSearchParams({ buttonId: String(query.buttonId) });
+    if (query.subOptionId !== undefined) params.set('subOptionId', String(query.subOptionId));
+    if (query.locale) params.set('locale', query.locale);
+    return this.get(`/bot-api/auto-channel/name-input?${params.toString()}`, {
+      timeout: AUTO_CHANNEL_NAME_INPUT_TIMEOUT_MS,
+    });
   }
 
   // ── Sticky Message ──
@@ -407,7 +442,7 @@ export class BotApiClientService {
 
   /** 저장된 user locale 조회 (F-GENERAL-005). 봇 리졸버 1순위. */
   async getUserLocale(userId: string): Promise<UserLocaleResponse> {
-    return this.get(`/bot-api/locale/user/${userId}`);
+    return this.get(`/bot-api/locale/user/${userId}`, { timeout: USER_LOCALE_TIMEOUT_MS });
   }
 
   /** user locale 저장 (F-GENERAL-005). role-panel 게이트 버튼(F-ROLE-PANEL-010)이 1차 호출자. */
@@ -442,9 +477,9 @@ export class BotApiClientService {
     }
   }
 
-  private async get<T>(path: string): Promise<T> {
+  private async get<T>(path: string, config?: AxiosRequestConfig): Promise<T> {
     try {
-      const response = await firstValueFrom(this.http.get<T>(path));
+      const response = await firstValueFrom(this.http.get<T>(path, config));
       return response.data;
     } catch (err) {
       this.logger.error(`[BOT-API] GET ${path} failed`, err);

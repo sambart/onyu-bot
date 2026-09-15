@@ -118,5 +118,25 @@ export const MESSAGE_CODE = {
    * 과 동형이나 도메인 접두사가 달라 재사용 불가). params: { channelId }
    */
   ERR_ADMIN_LOG_CHANNEL_UNREACHABLE: 'ERR_ADMIN_LOG_CHANNEL_UNREACHABLE',
+
+  // ── auto-channel 방제 자유 입력 (docs/plans/auto-channel-name-input.md §3-4, F-VOICE-125~133) ──
+  /** required 모드 + trim 후 빈 입력(400/봇 error 분기). params 없음 */
+  ERR_AUTO_CHANNEL_NAME_REQUIRED: 'ERR_AUTO_CHANNEL_NAME_REQUIRED',
+  /** 입력 길이가 minLength 미만(빈 입력 제외). params: { minLength } */
+  ERR_AUTO_CHANNEL_NAME_TOO_SHORT: 'ERR_AUTO_CHANNEL_NAME_TOO_SHORT',
+  /** 입력 길이가 maxLength 초과. params: { maxLength } */
+  ERR_AUTO_CHANNEL_NAME_TOO_LONG: 'ERR_AUTO_CHANNEL_NAME_TOO_LONG',
+  /** 입력에 금칙어 부분 포함(대소문자 무시). params: { word } */
+  ERR_AUTO_CHANNEL_NAME_FORBIDDEN_WORD: 'ERR_AUTO_CHANNEL_NAME_FORBIDDEN_WORD',
+  /** 저장 시점 R1·R6 — 버튼 channelNameTemplate 에 {input} 이 정확히 1회가 아님(0회/2회 이상). params 없음 */
+  ERR_AUTO_CHANNEL_TEMPLATE_MISSING_INPUT: 'ERR_AUTO_CHANNEL_TEMPLATE_MISSING_INPUT',
+  /** 저장 시점 R2·R6 — 하위 선택지 channelNameTemplate 에 {input} 이 정확히 1회가 아님. params 없음 */
+  ERR_AUTO_CHANNEL_SUB_TEMPLATE_MISSING_INPUT: 'ERR_AUTO_CHANNEL_SUB_TEMPLATE_MISSING_INPUT',
+  /** 저장 시점 R3 — instantNameTemplate 에 {input} 포함(즉시 생성 모드는 입력 토큰 금지). params 없음 */
+  ERR_AUTO_CHANNEL_INSTANT_INPUT_NOT_ALLOWED: 'ERR_AUTO_CHANNEL_INSTANT_INPUT_NOT_ALLOWED',
+  /** 저장 시점 R4·R5 — minLength/maxLength 모순(min>max) 또는 계산된 상한보다 큼. params 없음 */
+  ERR_AUTO_CHANNEL_NAME_RULE_INVALID: 'ERR_AUTO_CHANNEL_NAME_RULE_INVALID',
+  /** N3 조회 시 대상 버튼/선택지의 nameInputMode='off' 이거나 최종 템플릿에 {input} 0회(404). params 없음 */
+  ERR_AUTO_CHANNEL_NAME_INPUT_DISABLED: 'ERR_AUTO_CHANNEL_NAME_INPUT_DISABLED',
 } as const;
 export type MessageCode = (typeof MESSAGE_CODE)[keyof typeof MESSAGE_CODE];

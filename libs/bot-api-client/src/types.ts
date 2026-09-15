@@ -213,6 +213,60 @@ export interface AutoChannelButtonResult {
   subOptions?: AutoChannelSubOptionInfo[];
   code?: MessageCode;
   params?: Record<string, string | number>;
+  /**
+   * 신규(F-VOICE-125·auto-channel-name-input §3-3) — `action='show_sub_options'`일 때만
+   * 채워진다. 봇이 `auto_sub` customId(§3-1)에 실을 모드. 구 API(필드 미전송)와의 하위호환을
+   * 위해 optional — 봇은 `result.nameInputMode ?? 'off'`로 폴백해 사용한다.
+   */
+  nameInputMode?: 'off' | 'optional' | 'required';
+}
+
+// ── Auto Channel 방제 자유 입력 (F-VOICE-125~133, auto-channel-name-input) ──
+
+/** POST /bot-api/auto-channel/name-submit 요청 (모달 제출 → 서버 재검증). */
+export interface AutoChannelNameSubmitDto {
+  guildId: string;
+  userId: string;
+  displayName: string;
+  voiceChannelId: string | null;
+  /** 봇이 항상 `?? ''`로 정규화해 보낸다(null 금지 — API DTO가 null을 거부한다) */
+  userInput: string;
+  /** buttonId / subOptionId 중 정확히 하나만 채운다(둘 다/둘 다 없음은 서버가 error로 처리) */
+  buttonId?: number;
+  subOptionId?: number;
+}
+
+/** POST /bot-api/auto-channel/name-submit 응답 — `AutoChannelButtonResult`와 별개 타입(D-6, `show_sub_options` 없음). */
+export interface AutoChannelNameSubmitResult {
+  action: 'created' | 'validation_error' | 'error';
+  channelId?: string;
+  channelName?: string;
+  message: string;
+  code?: MessageCode;
+  params?: Record<string, string | number>;
+}
+
+/**
+ * GET /bot-api/auto-channel/name-input 요청. 🔒 `buttonId`는 N1(`AutoChannelNameSubmitDto`)과
+ * 달리 **항상 필수**다 — N3는 하위 선택지 클릭 시에도 소속 버튼 ID를 함께 요구한다
+ * (endpoint-spec §12-2b-2). 혼동 주의.
+ */
+export interface AutoChannelNameInputQuery {
+  buttonId: number;
+  subOptionId?: number;
+  locale?: SupportedLocale;
+}
+
+/** GET /bot-api/auto-channel/name-input 응답 — 모달 사양(Discord showModal 전 조회). */
+export interface AutoChannelNameInputSpec {
+  /** 'off'는 이 타입에 없다 — 서버가 404(ERR_AUTO_CHANNEL_NAME_INPUT_DISABLED)로 응답한다 */
+  mode: 'optional' | 'required';
+  templatePreview: string;
+  minLength: number;
+  maxLength: number;
+  placeholder: string;
+  /** 1차 미전송(D-6) — 계약 필드는 미래 확장 여지로 유지 */
+  label?: string;
 }
 
 // ── Sticky Message ──

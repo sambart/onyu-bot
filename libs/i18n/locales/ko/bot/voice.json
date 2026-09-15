@@ -1,4 +1,14 @@
 {
   "autoChannelDefaultName": "{username}의 {label}",
-  "autoChannelDefaultInstantName": "{username}의 방"
+  "autoChannelDefaultInstantName": "{username}의 방",
+  "autoChannelNameModalTitle": "방 제목 입력",
+  "autoChannelNameInputLabel": "방 제목",
+  "autoChannelNameInputPlaceholder": "양식: {preview} · {min}~{max}자",
+  "autoChannelNameRetryButton": "다시 입력",
+  "autoChannelNameInputUnavailable": "지금은 방 제목을 입력할 수 없어요. 잠시 후 다시 시도해주세요.",
+  "autoChannelNameInvalidMode": "버튼 설정이 오래되었어요. 관리자에게 안내 메시지 재발행을 요청해주세요.",
+  "autoChannelNameRequired": "방 제목을 입력해야 방을 만들 수 있어요.",
+  "autoChannelNameTooShort": "방 제목은 {minLength}자 이상이어야 해요.",
+  "autoChannelNameTooLong": "방 제목은 {maxLength}자까지 쓸 수 있어요.",
+  "autoChannelNameForbiddenWord": "'{word}' 는 사용할 수 없어요."
 }

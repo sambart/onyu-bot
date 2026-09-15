@@ -144,7 +144,7 @@ describe('AppModule', () => {
       expect(ignore({ url: '/metrics' })).toBe(true);
     });
 
-    it('/metrics 이외의 경로는 autoLogging에서 ignore되지 않는다', () => {
+    it('/health, /health/liveness 경로 요청은 autoLogging에서 ignore된다(F-MONITORING-039 — compose healthcheck 반복 호출 로그 잡음 방지)', () => {
       const useFactory = getUseFactory();
       const mockConfig = {
         get: vi.fn().mockReturnValue('development'),
@@ -157,9 +157,44 @@ describe('AppModule', () => {
       };
 
       const ignore = result.pinoHttp.autoLogging.ignore;
-      expect(ignore({ url: '/health' })).toBe(false);
+      expect(ignore({ url: '/health' })).toBe(true);
+      expect(ignore({ url: '/health/liveness' })).toBe(true);
+    });
+
+    it('/metrics, /health, /health/liveness 이외의 경로는 autoLogging에서 ignore되지 않는다', () => {
+      const useFactory = getUseFactory();
+      const mockConfig = {
+        get: vi.fn().mockReturnValue('development'),
+      } as unknown as ConfigService;
+
+      const result = useFactory(mockConfig) as {
+        pinoHttp: {
+          autoLogging: { ignore: (req: { url?: string }) => boolean };
+        };
+      };
+
+      const ignore = result.pinoHttp.autoLogging.ignore;
       expect(ignore({ url: '/' })).toBe(false);
       expect(ignore({ url: undefined })).toBe(false);
+    });
+
+    it('ignore 판정은 정확 일치이며 접두사/접미사가 붙은 유사 경로는 ignore되지 않는다', () => {
+      const useFactory = getUseFactory();
+      const mockConfig = {
+        get: vi.fn().mockReturnValue('development'),
+      } as unknown as ConfigService;
+
+      const result = useFactory(mockConfig) as {
+        pinoHttp: {
+          autoLogging: { ignore: (req: { url?: string }) => boolean };
+        };
+      };
+
+      const ignore = result.pinoHttp.autoLogging.ignore;
+      expect(ignore({ url: '/healthz' })).toBe(false);
+      expect(ignore({ url: '/health?x=1' })).toBe(false);
+      expect(ignore({ url: '/health/' })).toBe(false);
+      expect(ignore({ url: '/metricsx' })).toBe(false);
     });
   });
 });

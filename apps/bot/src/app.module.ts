@@ -14,6 +14,14 @@ import { BotMetricsModule } from './monitoring/bot-metrics.module';
 import { BotSchedulerModule } from './scheduler/bot-scheduler.module';
 
 const METRICS_PATH = '/metrics';
+// compose healthcheck(15초 간격, F-MONITORING-039)가 반복 호출하는 경로 — 로그 잡음 방지
+const HEALTH_PATH = '/health';
+const HEALTH_LIVENESS_PATH = '/health/liveness';
+const AUTO_LOGGING_IGNORED_PATHS: readonly string[] = [
+  METRICS_PATH,
+  HEALTH_PATH,
+  HEALTH_LIVENESS_PATH,
+];
 
 @Module({
   imports: [
@@ -27,7 +35,7 @@ const METRICS_PATH = '/metrics';
           pinoHttp: {
             level: isProduction ? 'info' : 'debug',
             autoLogging: {
-              ignore: (req: IncomingMessage) => req.url === METRICS_PATH,
+              ignore: (req: IncomingMessage) => AUTO_LOGGING_IGNORED_PATHS.includes(req.url ?? ''),
             },
             ...(isProduction
               ? {}

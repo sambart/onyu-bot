@@ -1,4 +1,14 @@
 {
   "autoChannelDefaultName": "{username}'s {label}",
-  "autoChannelDefaultInstantName": "{username}'s room"
+  "autoChannelDefaultInstantName": "{username}'s room",
+  "autoChannelNameModalTitle": "Enter room name",
+  "autoChannelNameInputLabel": "Room name",
+  "autoChannelNameInputPlaceholder": "Format: {preview} · {min}-{max} chars",
+  "autoChannelNameRetryButton": "Try again",
+  "autoChannelNameInputUnavailable": "Room name input isn't available right now. Please try again in a moment.",
+  "autoChannelNameInvalidMode": "This button's settings are outdated. Ask an admin to republish the guide message.",
+  "autoChannelNameRequired": "You need to enter a room name to create a room.",
+  "autoChannelNameTooShort": "The room name must be at least {minLength} characters.",
+  "autoChannelNameTooLong": "The room name can be up to {maxLength} characters.",
+  "autoChannelNameForbiddenWord": "'{word}' isn't allowed."
 }

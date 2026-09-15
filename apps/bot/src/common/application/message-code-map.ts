@@ -26,6 +26,12 @@ export const MESSAGE_CODE_TO_BOT_KEY: Partial<Record<MessageCode, string>> = {
   ERR_STATUS_PREFIX_RESET_FAILED: 'commands.statusPrefixResetError',
   ERR_STATUS_PREFIX_DISABLED: 'commands.statusPrefixDisabled',
   ERR_STATUS_PREFIX_NICKNAME_TOO_LONG: 'commands.statusPrefixNicknameTooLong',
+
+  // ── auto-channel 방제 자유 입력 (auto-channel-name-input, F-VOICE-125~133) ──
+  ERR_AUTO_CHANNEL_NAME_REQUIRED: 'voice.autoChannelNameRequired',
+  ERR_AUTO_CHANNEL_NAME_TOO_SHORT: 'voice.autoChannelNameTooShort',
+  ERR_AUTO_CHANNEL_NAME_TOO_LONG: 'voice.autoChannelNameTooLong',
+  ERR_AUTO_CHANNEL_NAME_FORBIDDEN_WORD: 'voice.autoChannelNameForbiddenWord',
 };
 
 /** result.code 가 매핑 테이블에 등록된 MessageCode 인지 판별하는 타입 가드 (unsafe `as` 단언 대체). */
