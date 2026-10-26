@@ -1,4 +1,5 @@
 import type {
+  AdminAssistRecommendResponse,
   AutoActionRecordDto,
   CommandUsedDto,
   GuildLifecycleEventDto,
@@ -255,6 +256,8 @@ export interface AutoChannelNameInputQuery {
   buttonId: number;
   subOptionId?: number;
   locale?: SupportedLocale;
+  /** 버튼이 이 길드 소속인지 API 가 대조한다. 배포 스큐(구 봇 미전송) 대비 optional */
+  guildId?: string;
 }
 
 /** GET /bot-api/auto-channel/name-input 응답 — 모달 사양(Discord showModal 전 조회). */
@@ -396,6 +399,19 @@ export interface GetDuoChemistryOptions {
 
 /** POST /bot-api/co-presence/duo 응답 — 기존 CanvasCardResponse와 동일 셰이프(신규 타입 아님) */
 export type DuoChemistryCardResponse = CanvasCardResponse;
+
+/** checkDuoEligibility 요청 옵션(B3) — API 듀오 eligibility DTO 와 수기 정합 필수 */
+export interface CheckDuoEligibilityOptions {
+  guildId: string;
+  /** 🔒 커맨드 실행자(버튼 클릭자) */
+  userId: string;
+  peerId: string;
+}
+
+/** POST /bot-api/co-presence/duo/eligibility 응답 — `ok:false` 는 provider 실패(fail-closed 대상) */
+export interface DuoEligibilityResponse {
+  ok: boolean;
+}
 
 /** getMeProfile 요청 옵션(R3, F-VOICE-082) — API `MeProfileRequestDto`와 수기 정합 필수 */
 export interface GetMeProfileOptions {
@@ -597,7 +613,12 @@ export interface MissionMyProgress {
   targetPlaytimeSec: number;
   targetPlayCount: number | null;
   endDate: string;
-  daysLeft: number;
+  /** 종결(COMPLETED/FAILED) 미션은 null */
+  daysLeft: number | null;
+  /** IN_PROGRESS 이면 true, 최신 종결 미션 폴백이면 false */
+  isCurrent: boolean;
+  /** ISO 8601. COMPLETED + 완료 시각이 기록된 전이분만 값 */
+  completedAt: string | null;
 }
 
 export type MissionMyResponse =
@@ -774,6 +795,34 @@ export interface BotApiResponse<T = unknown> {
   error?: string;
 }
 
+// ── Admin Assist (E8, F-ADMIN-ASSIST-078~081, M4/A2 봇 read-only 진입점) ──
+
+/**
+ * getAdminAssistRecommendation 요청 옵션 — API `BotAdminAssistRecommendDto`(endpoint-spec
+ * §5E-2)와 수기 정합 필수. `source`·`surface`·`parentHistoryId`·`requesterIsGuildAdmin` 은
+ * 두지 않는다 — API 가 상수로 고정하거나(source/surface) 봇 표면 비범위(parentHistoryId)이거나
+ * 검증 불가한 필드라 계약에서 뺐다(requesterIsGuildAdmin).
+ */
+export interface GetAdminAssistRecommendationOptions {
+  guildId: string;
+  /** 🔒 언제나 커맨드 실행자(`interaction.user.id`) — 조회 대상이 아니다 */
+  userId: string;
+  queryText: string;
+  locale?: SupportedLocale;
+  /** 🟨 1차 구현은 봇이 전송하지 않는다(endpoint-spec §5E-2 — 길드 전체가 읽는 글에 실행자 1인 로케일을 강제하지 않기 위함) */
+  writeLocale?: SupportedLocale;
+}
+
+/**
+ * getAdminAssistRecommendation 반환 — 판별 가능한 결과(endpoint-spec §5E-6 🟨 권고안 ⓐ).
+ * "쿼터 소진"(정상·예상된 결과)과 "장애"가 커맨드 핸들러에서 `catch` 안 문자열 매칭으로
+ * 판별되지 않도록 SDK 가 axios 에러 해석을 이 메서드 안에 가둔다.
+ */
+export type AdminAssistRecommendationResult =
+  | { ok: true; data: AdminAssistRecommendResponse }
+  | { ok: false; reason: 'quota_exhausted' }
+  | { ok: false; reason: 'error' };
+
 // ── Health (U9a-2 F-SUPER-ADMIN-016) ──
 
 /** Bot → API 헬스 스냅샷 push payload. `@onyu/shared`의 `BotHealthSnapshot`과 동형. */
@@ -788,4 +837,12 @@ export interface BotHealthSnapshotDto {
   heapUsedBytes: number;
   /** 직전 샘플 대비 CPU 사용률(%) — 단일 코어 100% 기준, 소수 1자리 */
   cpuPercent: number;
+}
+
+// ── Settings Auto Action (F-WEB-043 / F-VOICE-144) ──
+
+/** Bot → API 채널 삭제 사실 통지 payload. 채널 이름은 포함하지 않는다(EC-WEBA-26). */
+export interface SettingsChannelDeletedDto {
+  guildId: string;
+  channelId: string;
 }

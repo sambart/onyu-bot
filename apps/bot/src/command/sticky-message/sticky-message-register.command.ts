@@ -10,7 +10,10 @@ import { LocaleResolverService } from '../../common/application/locale-resolver.
   name: 'sticky-register',
   nameLocalizations: { ko: '고정메세지등록' },
   description: 'Register sticky messages in the web dashboard',
-  descriptionLocalizations: { ko: '고정메세지를 웹 대시보드에서 등록합니다' },
+  descriptionLocalizations: {
+    ko: '고정메세지를 웹 대시보드에서 등록합니다',
+    'pt-BR': 'Registre mensagens fixas no painel web',
+  },
   defaultMemberPermissions: PermissionFlagsBits.ManageGuild,
 })
 @Injectable()

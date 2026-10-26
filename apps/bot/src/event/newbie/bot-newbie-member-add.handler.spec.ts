@@ -139,6 +139,8 @@ describe('BotNewbieMemberAddHandler', () => {
       const send = vi.fn().mockResolvedValue(undefined);
       discordClient.channels.fetch.mockResolvedValue({
         isTextBased: () => true,
+        isDMBased: () => false,
+        guildId: 'guild-1',
         send,
       });
       const member = makeMember();
@@ -147,6 +149,50 @@ describe('BotNewbieMemberAddHandler', () => {
 
       expect(discordClient.channels.fetch).toHaveBeenCalledWith('ch-1');
       expect(send).toHaveBeenCalledTimes(1);
+    });
+
+    it('채널의 guildId 가 입장 길드와 다르면 전송을 생략하고 warn 하되 역할 부여는 계속한다', async () => {
+      apiClient.getNewbieConfig.mockResolvedValue(
+        makeConfig({
+          welcomeEnabled: true,
+          welcomeChannelId: 'ch-foreign',
+          roleEnabled: true,
+          newbieRoleId: 'role-1',
+        }),
+      );
+      const send = vi.fn().mockResolvedValue(undefined);
+      discordClient.channels.fetch.mockResolvedValue({
+        isTextBased: () => true,
+        isDMBased: () => false,
+        guildId: 'guild-other',
+        send,
+      });
+      const warnSpy = vi
+        .spyOn((handler as unknown as { logger: { warn: (m: string) => void } }).logger, 'warn')
+        .mockImplementation(() => undefined);
+      const member = makeMember();
+
+      await handler.handleGuildMemberAdd(member);
+
+      expect(send).not.toHaveBeenCalled();
+      expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('[channel-guild]'));
+      expect(member.roles.add).toHaveBeenCalledWith('role-1');
+    });
+
+    it('DM 채널이면 전송하지 않는다', async () => {
+      apiClient.getNewbieConfig.mockResolvedValue(
+        makeConfig({ welcomeEnabled: true, welcomeChannelId: 'ch-dm' }),
+      );
+      const send = vi.fn().mockResolvedValue(undefined);
+      discordClient.channels.fetch.mockResolvedValue({
+        isTextBased: () => true,
+        isDMBased: () => true,
+        send,
+      });
+
+      await handler.handleGuildMemberAdd(makeMember());
+
+      expect(send).not.toHaveBeenCalled();
     });
 
     it('welcomeEnabled=false이면 채널을 조회하지 않는다', async () => {
@@ -208,7 +254,12 @@ describe('BotNewbieMemberAddHandler', () => {
         }),
       );
       const send = vi.fn().mockRejectedValue(new Error('Missing Permissions'));
-      discordClient.channels.fetch.mockResolvedValue({ isTextBased: () => true, send });
+      discordClient.channels.fetch.mockResolvedValue({
+        isTextBased: () => true,
+        isDMBased: () => false,
+        guildId: 'guild-1',
+        send,
+      });
       const member = makeMember();
 
       await expect(handler.handleGuildMemberAdd(member)).resolves.toBeUndefined();
@@ -345,7 +396,12 @@ describe('BotNewbieMemberAddHandler', () => {
         makeConfig({ welcomeEnabled: true, welcomeChannelId: 'ch-1', welcomeDisplayMode: 'EMBED' }),
       );
       const send = vi.fn().mockResolvedValue(undefined);
-      discordClient.channels.fetch.mockResolvedValue({ isTextBased: () => true, send });
+      discordClient.channels.fetch.mockResolvedValue({
+        isTextBased: () => true,
+        isDMBased: () => false,
+        guildId: 'guild-1',
+        send,
+      });
       const member = makeMember();
 
       await handler.handleGuildMemberAdd(member);
@@ -364,7 +420,12 @@ describe('BotNewbieMemberAddHandler', () => {
         }),
       );
       const send = vi.fn().mockResolvedValue(undefined);
-      discordClient.channels.fetch.mockResolvedValue({ isTextBased: () => true, send });
+      discordClient.channels.fetch.mockResolvedValue({
+        isTextBased: () => true,
+        isDMBased: () => false,
+        guildId: 'guild-1',
+        send,
+      });
       const member = makeMember();
 
       await handler.handleGuildMemberAdd(member);
@@ -382,7 +443,12 @@ describe('BotNewbieMemberAddHandler', () => {
         }),
       );
       const send = vi.fn().mockResolvedValue(undefined);
-      discordClient.channels.fetch.mockResolvedValue({ isTextBased: () => true, send });
+      discordClient.channels.fetch.mockResolvedValue({
+        isTextBased: () => true,
+        isDMBased: () => false,
+        guildId: 'guild-1',
+        send,
+      });
       const member = makeMember();
 
       await handler.handleGuildMemberAdd(member);
@@ -404,6 +470,8 @@ describe('BotNewbieMemberAddHandler', () => {
       );
       discordClient.channels.fetch.mockResolvedValue({
         isTextBased: () => true,
+        isDMBased: () => false,
+        guildId: 'guild-1',
         send: vi.fn().mockResolvedValue(undefined),
       });
       const member = makeMember();
@@ -430,7 +498,12 @@ describe('BotNewbieMemberAddHandler', () => {
       );
       apiClient.getWelcomeCard.mockRejectedValue(new Error('API 500'));
       const send = vi.fn().mockResolvedValue(undefined);
-      discordClient.channels.fetch.mockResolvedValue({ isTextBased: () => true, send });
+      discordClient.channels.fetch.mockResolvedValue({
+        isTextBased: () => true,
+        isDMBased: () => false,
+        guildId: 'guild-1',
+        send,
+      });
       const member = makeMember();
 
       await handler.handleGuildMemberAdd(member);
@@ -451,7 +524,12 @@ describe('BotNewbieMemberAddHandler', () => {
       );
       apiClient.getWelcomeCard.mockRejectedValue(new Error('401 Unauthorized'));
       const send = vi.fn().mockResolvedValue(undefined);
-      discordClient.channels.fetch.mockResolvedValue({ isTextBased: () => true, send });
+      discordClient.channels.fetch.mockResolvedValue({
+        isTextBased: () => true,
+        isDMBased: () => false,
+        guildId: 'guild-1',
+        send,
+      });
       const member = makeMember();
 
       await handler.handleGuildMemberAdd(member);
@@ -470,7 +548,12 @@ describe('BotNewbieMemberAddHandler', () => {
       );
       apiClient.getWelcomeCard.mockResolvedValue({ ok: true, imageBase64: '' });
       const send = vi.fn().mockResolvedValue(undefined);
-      discordClient.channels.fetch.mockResolvedValue({ isTextBased: () => true, send });
+      discordClient.channels.fetch.mockResolvedValue({
+        isTextBased: () => true,
+        isDMBased: () => false,
+        guildId: 'guild-1',
+        send,
+      });
       const member = makeMember();
 
       await handler.handleGuildMemberAdd(member);
@@ -490,7 +573,12 @@ describe('BotNewbieMemberAddHandler', () => {
       );
       apiClient.getWelcomeCard.mockRejectedValue(new Error('API 500'));
       const send = vi.fn().mockResolvedValue(undefined);
-      discordClient.channels.fetch.mockResolvedValue({ isTextBased: () => true, send });
+      discordClient.channels.fetch.mockResolvedValue({
+        isTextBased: () => true,
+        isDMBased: () => false,
+        guildId: 'guild-1',
+        send,
+      });
       const member = makeMember();
 
       await handler.handleGuildMemberAdd(member);
@@ -531,7 +619,12 @@ describe('BotNewbieMemberAddHandler', () => {
           }),
         );
         const send = vi.fn().mockResolvedValue(undefined);
-        discordClient.channels.fetch.mockResolvedValue({ isTextBased: () => true, send });
+        discordClient.channels.fetch.mockResolvedValue({
+          isTextBased: () => true,
+          isDMBased: () => false,
+          guildId: 'guild-1',
+          send,
+        });
 
         await handler.handleGuildMemberAdd(member);
 
@@ -550,7 +643,12 @@ describe('BotNewbieMemberAddHandler', () => {
           }),
         );
         const send = vi.fn().mockResolvedValue(undefined);
-        discordClient.channels.fetch.mockResolvedValue({ isTextBased: () => true, send });
+        discordClient.channels.fetch.mockResolvedValue({
+          isTextBased: () => true,
+          isDMBased: () => false,
+          guildId: 'guild-1',
+          send,
+        });
 
         await handler.handleGuildMemberAdd(member);
 
@@ -568,7 +666,12 @@ describe('BotNewbieMemberAddHandler', () => {
           }),
         );
         const send = vi.fn().mockResolvedValue(undefined);
-        discordClient.channels.fetch.mockResolvedValue({ isTextBased: () => true, send });
+        discordClient.channels.fetch.mockResolvedValue({
+          isTextBased: () => true,
+          isDMBased: () => false,
+          guildId: 'guild-1',
+          send,
+        });
 
         await handler.handleGuildMemberAdd(member);
 
@@ -591,7 +694,12 @@ describe('BotNewbieMemberAddHandler', () => {
           }),
         );
         const send = vi.fn().mockResolvedValue(undefined);
-        discordClient.channels.fetch.mockResolvedValue({ isTextBased: () => true, send });
+        discordClient.channels.fetch.mockResolvedValue({
+          isTextBased: () => true,
+          isDMBased: () => false,
+          guildId: 'guild-1',
+          send,
+        });
 
         await handler.handleGuildMemberAdd(member);
 
@@ -612,7 +720,12 @@ describe('BotNewbieMemberAddHandler', () => {
         }),
       );
       const send = vi.fn().mockRejectedValue(new Error('Missing Permissions'));
-      discordClient.channels.fetch.mockResolvedValue({ isTextBased: () => true, send });
+      discordClient.channels.fetch.mockResolvedValue({
+        isTextBased: () => true,
+        isDMBased: () => false,
+        guildId: 'guild-1',
+        send,
+      });
       const member = makeMember();
 
       await expect(handler.handleGuildMemberAdd(member)).resolves.toBeUndefined();
@@ -642,7 +755,12 @@ describe('BotNewbieMemberAddHandler', () => {
         }),
       );
       const send = vi.fn().mockResolvedValue(undefined);
-      discordClient.channels.fetch.mockResolvedValue({ isTextBased: () => true, send });
+      discordClient.channels.fetch.mockResolvedValue({
+        isTextBased: () => true,
+        isDMBased: () => false,
+        guildId: 'guild-1',
+        send,
+      });
       const member = makeMember();
 
       await handler.handleGuildMemberAdd(member);
@@ -666,7 +784,12 @@ describe('BotNewbieMemberAddHandler', () => {
         }),
       );
       const send = vi.fn().mockResolvedValue(undefined);
-      discordClient.channels.fetch.mockResolvedValue({ isTextBased: () => true, send });
+      discordClient.channels.fetch.mockResolvedValue({
+        isTextBased: () => true,
+        isDMBased: () => false,
+        guildId: 'guild-1',
+        send,
+      });
       const member = makeMember();
 
       await handler.handleGuildMemberAdd(member);
@@ -689,7 +812,12 @@ describe('BotNewbieMemberAddHandler', () => {
         }),
       );
       const send = vi.fn().mockResolvedValue(undefined);
-      discordClient.channels.fetch.mockResolvedValue({ isTextBased: () => true, send });
+      discordClient.channels.fetch.mockResolvedValue({
+        isTextBased: () => true,
+        isDMBased: () => false,
+        guildId: 'guild-1',
+        send,
+      });
       const member = makeMember();
 
       await handler.handleGuildMemberAdd(member);
@@ -711,7 +839,12 @@ describe('BotNewbieMemberAddHandler', () => {
         }),
       );
       const send = vi.fn().mockResolvedValue(undefined);
-      discordClient.channels.fetch.mockResolvedValue({ isTextBased: () => true, send });
+      discordClient.channels.fetch.mockResolvedValue({
+        isTextBased: () => true,
+        isDMBased: () => false,
+        guildId: 'guild-1',
+        send,
+      });
       const member = makeMember();
 
       await handler.handleGuildMemberAdd(member);
@@ -732,7 +865,12 @@ describe('BotNewbieMemberAddHandler', () => {
         }),
       );
       const send = vi.fn().mockResolvedValue(undefined);
-      discordClient.channels.fetch.mockResolvedValue({ isTextBased: () => true, send });
+      discordClient.channels.fetch.mockResolvedValue({
+        isTextBased: () => true,
+        isDMBased: () => false,
+        guildId: 'guild-1',
+        send,
+      });
       const member = makeMember();
 
       await handler.handleGuildMemberAdd(member);
@@ -757,7 +895,12 @@ describe('BotNewbieMemberAddHandler', () => {
         }),
       );
       const send = vi.fn().mockResolvedValue(undefined);
-      discordClient.channels.fetch.mockResolvedValue({ isTextBased: () => true, send });
+      discordClient.channels.fetch.mockResolvedValue({
+        isTextBased: () => true,
+        isDMBased: () => false,
+        guildId: 'guild-1',
+        send,
+      });
       const member = makeMember();
 
       await handler.handleGuildMemberAdd(member);
@@ -783,7 +926,12 @@ describe('BotNewbieMemberAddHandler', () => {
         }),
       );
       const send = vi.fn().mockResolvedValue(undefined);
-      discordClient.channels.fetch.mockResolvedValue({ isTextBased: () => true, send });
+      discordClient.channels.fetch.mockResolvedValue({
+        isTextBased: () => true,
+        isDMBased: () => false,
+        guildId: 'guild-1',
+        send,
+      });
       const member = makeMember();
 
       await handler.handleGuildMemberAdd(member);
@@ -806,7 +954,12 @@ describe('BotNewbieMemberAddHandler', () => {
       );
       apiClient.getWelcomeCard.mockRejectedValue(new Error('API 500'));
       const send = vi.fn().mockResolvedValue(undefined);
-      discordClient.channels.fetch.mockResolvedValue({ isTextBased: () => true, send });
+      discordClient.channels.fetch.mockResolvedValue({
+        isTextBased: () => true,
+        isDMBased: () => false,
+        guildId: 'guild-1',
+        send,
+      });
       const member = makeMember();
 
       await handler.handleGuildMemberAdd(member);
@@ -834,7 +987,12 @@ describe('BotNewbieMemberAddHandler', () => {
         }),
       );
       const send = vi.fn().mockResolvedValue(undefined);
-      discordClient.channels.fetch.mockResolvedValue({ isTextBased: () => true, send });
+      discordClient.channels.fetch.mockResolvedValue({
+        isTextBased: () => true,
+        isDMBased: () => false,
+        guildId: 'guild-1',
+        send,
+      });
       const member = makeMember();
 
       await handler.handleGuildMemberAdd(member);
@@ -857,7 +1015,12 @@ describe('BotNewbieMemberAddHandler', () => {
         }),
       );
       const send = vi.fn().mockResolvedValue(undefined);
-      discordClient.channels.fetch.mockResolvedValue({ isTextBased: () => true, send });
+      discordClient.channels.fetch.mockResolvedValue({
+        isTextBased: () => true,
+        isDMBased: () => false,
+        guildId: 'guild-1',
+        send,
+      });
       const member = makeMember();
 
       await handler.handleGuildMemberAdd(member);
@@ -879,7 +1042,12 @@ describe('BotNewbieMemberAddHandler', () => {
         }),
       );
       const send = vi.fn().mockResolvedValue(undefined);
-      discordClient.channels.fetch.mockResolvedValue({ isTextBased: () => true, send });
+      discordClient.channels.fetch.mockResolvedValue({
+        isTextBased: () => true,
+        isDMBased: () => false,
+        guildId: 'guild-1',
+        send,
+      });
       const member = makeMember();
 
       await handler.handleGuildMemberAdd(member);
@@ -903,7 +1071,12 @@ describe('BotNewbieMemberAddHandler', () => {
         }),
       );
       const send = vi.fn().mockResolvedValue(undefined);
-      discordClient.channels.fetch.mockResolvedValue({ isTextBased: () => true, send });
+      discordClient.channels.fetch.mockResolvedValue({
+        isTextBased: () => true,
+        isDMBased: () => false,
+        guildId: 'guild-1',
+        send,
+      });
       const member = makeMember();
 
       await handler.handleGuildMemberAdd(member);
@@ -924,7 +1097,12 @@ describe('BotNewbieMemberAddHandler', () => {
         }),
       );
       const send = vi.fn().mockResolvedValue(undefined);
-      discordClient.channels.fetch.mockResolvedValue({ isTextBased: () => true, send });
+      discordClient.channels.fetch.mockResolvedValue({
+        isTextBased: () => true,
+        isDMBased: () => false,
+        guildId: 'guild-1',
+        send,
+      });
       const member = makeMember();
 
       await handler.handleGuildMemberAdd(member);
@@ -952,7 +1130,12 @@ describe('BotNewbieMemberAddHandler', () => {
         }),
       );
       const send = vi.fn().mockResolvedValue(undefined);
-      discordClient.channels.fetch.mockResolvedValue({ isTextBased: () => true, send });
+      discordClient.channels.fetch.mockResolvedValue({
+        isTextBased: () => true,
+        isDMBased: () => false,
+        guildId: 'guild-1',
+        send,
+      });
       const member = makeMember();
 
       await handler.handleGuildMemberAdd(member);
@@ -969,7 +1152,7 @@ describe('BotNewbieMemberAddHandler', () => {
   // AUTO-ACTION 계측(F-USAGE-042) — welcome-sent / role-assigned
   // ──────────────────────────────────────────────────────
   describe('AUTO-ACTION 계측 — welcome-sent', () => {
-    it('CANVAS 성공 시 welcome-sent 1회만 기록한다(EMBED 강등 이중 계상 없음)', async () => {
+    it('CANVAS 성공 시 welcome-sent + welcome-canvas-sent 2건을 기록한다(2026-09-21 강등 계측 추가)', async () => {
       apiClient.getNewbieConfig.mockResolvedValue(
         makeConfig({
           welcomeEnabled: true,
@@ -979,21 +1162,28 @@ describe('BotNewbieMemberAddHandler', () => {
       );
       discordClient.channels.fetch.mockResolvedValue({
         isTextBased: () => true,
+        isDMBased: () => false,
+        guildId: 'guild-1',
         send: vi.fn().mockResolvedValue(undefined),
       });
       const member = makeMember();
 
       await handler.handleGuildMemberAdd(member);
 
-      expect(apiClient.recordAutoAction).toHaveBeenCalledTimes(1);
+      expect(apiClient.recordAutoAction).toHaveBeenCalledTimes(2);
       expect(apiClient.recordAutoAction).toHaveBeenCalledWith({
         guildId: 'guild-1',
         domain: 'newbie',
         action: 'welcome-sent',
       });
+      expect(apiClient.recordAutoAction).toHaveBeenCalledWith({
+        guildId: 'guild-1',
+        domain: 'newbie',
+        action: 'welcome-canvas-sent',
+      });
     });
 
-    it('CANVAS 실패 → EMBED 성공 시 welcome-sent 1회만 기록한다', async () => {
+    it('CANVAS 실패 → EMBED 성공 시 welcome-canvas-fallback + welcome-sent 2건을 기록한다(2026-09-21 강등 계측 추가)', async () => {
       apiClient.getNewbieConfig.mockResolvedValue(
         makeConfig({
           welcomeEnabled: true,
@@ -1004,7 +1194,41 @@ describe('BotNewbieMemberAddHandler', () => {
       apiClient.getWelcomeCard.mockRejectedValue(new Error('API 500'));
       discordClient.channels.fetch.mockResolvedValue({
         isTextBased: () => true,
+        isDMBased: () => false,
+        guildId: 'guild-1',
         send: vi.fn().mockResolvedValue(undefined),
+      });
+      const member = makeMember();
+
+      await handler.handleGuildMemberAdd(member);
+
+      expect(apiClient.recordAutoAction).toHaveBeenCalledTimes(2);
+      expect(apiClient.recordAutoAction).toHaveBeenCalledWith({
+        guildId: 'guild-1',
+        domain: 'newbie',
+        action: 'welcome-canvas-fallback',
+      });
+      expect(apiClient.recordAutoAction).toHaveBeenCalledWith({
+        guildId: 'guild-1',
+        domain: 'newbie',
+        action: 'welcome-sent',
+      });
+    });
+
+    it('CANVAS 실패 → EMBED 까지 실패 시 welcome-canvas-fallback만 기록되고 welcome-sent는 기록되지 않는다', async () => {
+      apiClient.getNewbieConfig.mockResolvedValue(
+        makeConfig({
+          welcomeEnabled: true,
+          welcomeChannelId: 'ch-1',
+          welcomeDisplayMode: 'CANVAS',
+        }),
+      );
+      apiClient.getWelcomeCard.mockRejectedValue(new Error('API 500'));
+      discordClient.channels.fetch.mockResolvedValue({
+        isTextBased: () => true,
+        isDMBased: () => false,
+        guildId: 'guild-1',
+        send: vi.fn().mockRejectedValue(new Error('Missing Permissions')),
       });
       const member = makeMember();
 
@@ -1014,7 +1238,7 @@ describe('BotNewbieMemberAddHandler', () => {
       expect(apiClient.recordAutoAction).toHaveBeenCalledWith({
         guildId: 'guild-1',
         domain: 'newbie',
-        action: 'welcome-sent',
+        action: 'welcome-canvas-fallback',
       });
     });
 
@@ -1024,6 +1248,8 @@ describe('BotNewbieMemberAddHandler', () => {
       );
       discordClient.channels.fetch.mockResolvedValue({
         isTextBased: () => true,
+        isDMBased: () => false,
+        guildId: 'guild-1',
         send: vi.fn().mockRejectedValue(new Error('Missing Permissions')),
       });
       const member = makeMember();
@@ -1046,12 +1272,86 @@ describe('BotNewbieMemberAddHandler', () => {
       apiClient.recordAutoAction.mockRejectedValue(new Error('bot-api down'));
       discordClient.channels.fetch.mockResolvedValue({
         isTextBased: () => true,
+        isDMBased: () => false,
+        guildId: 'guild-1',
         send: vi.fn().mockResolvedValue(undefined),
       });
       const member = makeMember();
 
       await expect(handler.handleGuildMemberAdd(member)).resolves.toBeUndefined();
       expect(member.roles.add).toHaveBeenCalledWith('role-1');
+    });
+
+    it('CANVAS 성공 경로의 2건(welcome-sent/welcome-canvas-sent)이 모두 reject해도 핸들러가 정상 완료되고 카드 발송 자체는 이미 성공한 상태를 유지한다(불변식 5 — fire-and-forget)', async () => {
+      apiClient.getNewbieConfig.mockResolvedValue(
+        makeConfig({
+          welcomeEnabled: true,
+          welcomeChannelId: 'ch-1',
+          welcomeDisplayMode: 'CANVAS',
+          missionEnabled: true,
+        }),
+      );
+      apiClient.recordAutoAction.mockRejectedValue(new Error('bot-api down'));
+      const send = vi.fn().mockResolvedValue(undefined);
+      discordClient.channels.fetch.mockResolvedValue({
+        isTextBased: () => true,
+        isDMBased: () => false,
+        guildId: 'guild-1',
+        send,
+      });
+      const member = makeMember();
+
+      await expect(handler.handleGuildMemberAdd(member)).resolves.toBeUndefined();
+
+      // 카드 발송(channel.send)은 recordAutoAction 호출/거부 이전에 이미 완료돼 있어야 한다 —
+      // 계측 실패가 원 동작에 영향을 주지 않았음을 직접 증명한다.
+      expect(send).toHaveBeenCalledTimes(1);
+      // 두 계측 모두 거부되더라도 시도 자체는 이루어졌어야 한다(이중 fire-and-forget 독립성).
+      expect(apiClient.recordAutoAction).toHaveBeenCalledTimes(2);
+      expect(apiClient.recordAutoAction).toHaveBeenCalledWith({
+        guildId: 'guild-1',
+        domain: 'newbie',
+        action: 'welcome-sent',
+      });
+      expect(apiClient.recordAutoAction).toHaveBeenCalledWith({
+        guildId: 'guild-1',
+        domain: 'newbie',
+        action: 'welcome-canvas-sent',
+      });
+      // step 3(미션 생성) 이후 로직도 계측 실패와 무관하게 계속 진행된다.
+      expect(apiClient.sendMemberJoin).toHaveBeenCalled();
+    });
+
+    it('CANVAS 강등(welcome-canvas-fallback) 계측이 reject해도 EMBED 발송은 정상 진행된다(불변식 5 — fire-and-forget)', async () => {
+      apiClient.getNewbieConfig.mockResolvedValue(
+        makeConfig({
+          welcomeEnabled: true,
+          welcomeChannelId: 'ch-1',
+          welcomeDisplayMode: 'CANVAS',
+        }),
+      );
+      apiClient.getWelcomeCard.mockRejectedValue(new Error('API 500'));
+      apiClient.recordAutoAction.mockRejectedValue(new Error('bot-api down'));
+      const send = vi.fn().mockResolvedValue(undefined);
+      discordClient.channels.fetch.mockResolvedValue({
+        isTextBased: () => true,
+        isDMBased: () => false,
+        guildId: 'guild-1',
+        send,
+      });
+      const member = makeMember();
+
+      await expect(handler.handleGuildMemberAdd(member)).resolves.toBeUndefined();
+
+      // welcome-canvas-fallback 계측이 거부됐어도 EMBED 발송(channel.send)이 실행됐어야 한다 —
+      // fallback 계측이 EMBED 발송 시도 전에 걸려 있으므로, 계측 실패가 EMBED 경로 자체를
+      // 막지 않는다는 것을 직접 증명한다.
+      expect(send).toHaveBeenCalledTimes(1);
+      expect(apiClient.recordAutoAction).toHaveBeenCalledWith({
+        guildId: 'guild-1',
+        domain: 'newbie',
+        action: 'welcome-canvas-fallback',
+      });
     });
   });
 
@@ -1116,6 +1416,8 @@ describe('BotNewbieMemberAddHandler', () => {
       );
       discordClient.channels.fetch.mockResolvedValue({
         isTextBased: () => true,
+        isDMBased: () => false,
+        guildId: 'guild-1',
         send: vi.fn().mockRejectedValue(new Error('Missing Permissions')),
       });
       const member = makeMember();

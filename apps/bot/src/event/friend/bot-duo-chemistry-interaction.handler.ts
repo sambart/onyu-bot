@@ -1,5 +1,6 @@
 import { On } from '@discord-nestjs/core';
 import { Injectable, Logger } from '@nestjs/common';
+import { BotApiClientService, isDuoPeerHiddenError } from '@onyu/bot-api-client';
 import { AttachmentBuilder, type ButtonInteraction, type Interaction } from 'discord.js';
 
 import { BotI18nService } from '../../common/application/bot-i18n.service';
@@ -38,6 +39,7 @@ export class BotDuoChemistryInteractionHandler {
   constructor(
     private readonly i18n: BotI18nService,
     private readonly localeResolver: LocaleResolverService,
+    private readonly apiClient: BotApiClientService,
   ) {}
 
   @On('interactionCreate')
@@ -89,6 +91,12 @@ export class BotDuoChemistryInteractionHandler {
       return;
     }
 
+    // 클릭 시점 재검증(M6, B3) — 카드 캐시가 살아 있어도 그 사이 상대가 표시를 거부했을 수 있다.
+    // 거부·provider 실패·네트워크 오류 모두 게시하지 않는다(fail-closed).
+    const peerId = interaction.customId.slice(CUSTOM_ID_PREFIX.length);
+    const isEligible = await this.verifyEligibility(interaction, locale, guildId, userId, peerId);
+    if (!isEligible) return;
+
     const attachment = new AttachmentBuilder(sourceUrl, { name: PUBLISHED_ATTACHMENT_NAME });
 
     // ① 원본 ephemeral 메시지 버튼 제거(중복 게시 방지) → ② 채널 공개 게시(Q3 확정) → ③ 게시
@@ -131,6 +139,40 @@ export class BotDuoChemistryInteractionHandler {
         }`,
       );
     }
+  }
+
+  /**
+   * B3 재검증. 통과면 true. 거부면 안내 + 원본 버튼 제거 후 false, 그 외(`ok:false`·기타 오류)는
+   * 일반 실패 안내 후 false(fail-closed). 안내 전송 실패는 바깥 catch 로 흘려 EC-CP-49 처리에 맡긴다.
+   */
+  private async verifyEligibility(
+    interaction: ButtonInteraction,
+    locale: string,
+    guildId: string,
+    userId: string,
+    peerId: string,
+  ): Promise<boolean> {
+    try {
+      const result = await this.apiClient.checkDuoEligibility({ guildId, userId, peerId });
+      if (result.ok) return true;
+    } catch (error) {
+      if (isDuoPeerHiddenError(error)) {
+        await interaction.editReply({ components: [] });
+        await interaction.followUp({
+          content: this.i18n.t(locale, `${NS}.bestFriendDuoPeerHidden`),
+          ephemeral: true,
+        });
+        return false;
+      }
+      this.logger.warn(
+        `[DUO] eligibility check failed: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
+    await interaction.followUp({
+      content: this.i18n.t(locale, `${NS}.bestFriendDuoPublishFailed`),
+      ephemeral: true,
+    });
+    return false;
   }
 
   /**

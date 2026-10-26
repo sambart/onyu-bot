@@ -19,7 +19,10 @@ import { StickyMessageDeleteDto } from './sticky-message-delete.dto';
   name: 'sticky-delete',
   nameLocalizations: { ko: '고정메세지삭제' },
   description: 'Delete all sticky messages in the selected channel',
-  descriptionLocalizations: { ko: '선택한 채널의 고정메세지를 모두 삭제합니다' },
+  descriptionLocalizations: {
+    ko: '선택한 채널의 고정메세지를 모두 삭제합니다',
+    'pt-BR': 'Exclui todas as mensagens fixas do canal selecionado',
+  },
   defaultMemberPermissions: PermissionFlagsBits.ManageGuild,
 })
 @Injectable()

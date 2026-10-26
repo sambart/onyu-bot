@@ -45,16 +45,36 @@ function makeMember(overrides: Record<string, unknown> = {}) {
   };
 }
 
-function makeVoiceChannel(id: string, members: ReturnType<typeof makeMember>[]) {
+/**
+ * F-VOICE-135 — `flagsBitfield`/`parentId`/`parentFlagsBitfield` 인자를 추가해 은닉 채널·
+ * 카테고리 판별을 목킹할 수 있게 확장한다(dispatcher spec T1 과 동일 목 패턴 — `flags` 는
+ * `{ bitfield: number }` 형태의 순수 객체).
+ */
+function makeVoiceChannel(
+  id: string,
+  members: ReturnType<typeof makeMember>[],
+  flagsBitfield = 0,
+  parentId: string | null = null,
+  parentFlagsBitfield = 0,
+  name: string = `채널-${id}`,
+) {
   return {
     id,
-    name: `채널-${id}`,
+    name,
     type: ChannelType.GuildVoice,
-    parentId: null,
-    parent: null,
+    flags: { bitfield: flagsBitfield },
+    parentId,
+    parent: parentId
+      ? { name: `${parentId}-name`, flags: { bitfield: parentFlagsBitfield } }
+      : null,
     members: makeCollection(members),
   };
 }
+
+/** F-VOICE-135 실측(리뷰 §⑤-5) 대로 은닉 채널·카테고리의 `name` 은 정확히 이 리터럴로 온다. */
+const OBFUSCATED_NAME = '___hidden___';
+/** F-VOICE-135 — `CHANNEL_OBFUSCATED` 플래그 비트(`1 << 17` = 131072, 실측값). */
+const OBFUSCATED_BIT = 131072;
 
 function makeGuild(id: string, channels: ReturnType<typeof makeVoiceChannel>[]) {
   return {
@@ -325,6 +345,175 @@ describe('BotVoiceSyncHandler', () => {
       expect(apiClient.pushVoiceSync).not.toHaveBeenCalled();
       expect(vi.getTimerCount()).toBe(0);
       expect((handler as unknown as { intervalId: unknown }).intervalId).toBeNull();
+    });
+  });
+
+  // ──────────────────────────────────────────────
+  // Discord 채널 은닉(Channel Obfuscation) 유입 차단 — F-VOICE-135, 계획 §7 T2
+  // ──────────────────────────────────────────────
+  describe('채널 은닉 판별(F-VOICE-135)', () => {
+    it('T2-1: 은닉 채널 재적자도 수집은 된다(F2 회귀 방지 핵심 단언)', async () => {
+      const member = makeMember();
+      const guild = makeGuild('guild-1', [
+        makeVoiceChannel('ch-1', [member], OBFUSCATED_BIT, null, 0, OBFUSCATED_NAME),
+      ]);
+      const handler = makeHandler([guild]);
+
+      await handler.handleReady();
+
+      expect(apiClient.pushVoiceSync).toHaveBeenCalledOnce();
+      const dto = apiClient.pushVoiceSync.mock.calls[0][0] as VoiceSyncDto;
+      expect(dto.users).toHaveLength(1);
+      expect(dto.users[0].userId).toBe('user-1');
+    });
+
+    it('T2-2: 은닉 채널 재적자의 channelName은 빈 문자열, categoryName은 null이 된다', async () => {
+      const member = makeMember();
+      const guild = makeGuild('guild-1', [
+        makeVoiceChannel(
+          'ch-1',
+          [member],
+          OBFUSCATED_BIT,
+          'cat-1',
+          OBFUSCATED_BIT,
+          OBFUSCATED_NAME,
+        ),
+      ]);
+      const handler = makeHandler([guild]);
+
+      await handler.handleReady();
+
+      const dto = apiClient.pushVoiceSync.mock.calls[0][0] as VoiceSyncDto;
+      expect(dto.users[0].channelName).toBe('');
+      expect(dto.users[0].categoryName).toBeNull();
+    });
+
+    it('T2-2b(엣지 ⓐ): 채널만 은닉이면 categoryName은 실명 그대로 보존된다', async () => {
+      const member = makeMember();
+      const guild = makeGuild('guild-1', [
+        makeVoiceChannel('ch-1', [member], OBFUSCATED_BIT, 'cat-1', 0, OBFUSCATED_NAME),
+      ]);
+      const handler = makeHandler([guild]);
+
+      await handler.handleReady();
+
+      const dto = apiClient.pushVoiceSync.mock.calls[0][0] as VoiceSyncDto;
+      expect(dto.users[0].channelName).toBe('');
+      expect(dto.users[0].categoryName).toBe('cat-1-name');
+    });
+
+    it('T2-3: 일반 채널 유저는 기존과 동일하다(회귀 없음)', async () => {
+      const member = makeMember();
+      const guild = makeGuild('guild-1', [makeVoiceChannel('ch-1', [member], 0, 'cat-1', 0)]);
+      const handler = makeHandler([guild]);
+
+      await handler.handleReady();
+
+      const dto = apiClient.pushVoiceSync.mock.calls[0][0] as VoiceSyncDto;
+      expect(dto.users[0].channelName).toBe('채널-ch-1');
+      expect(dto.users[0].categoryName).toBe('cat-1-name');
+    });
+
+    it('T2-4: 은닉·일반 채널이 섞인 길드에서 은닉 쪽만 벗겨진다', async () => {
+      const hiddenMember = makeMember({ id: 'user-hidden' });
+      const visibleMember = makeMember({ id: 'user-visible' });
+      const guild = makeGuild('guild-1', [
+        makeVoiceChannel('ch-hidden', [hiddenMember], OBFUSCATED_BIT, null, 0, OBFUSCATED_NAME),
+        makeVoiceChannel('ch-visible', [visibleMember], 0),
+      ]);
+      const handler = makeHandler([guild]);
+
+      await handler.handleReady();
+
+      const dto = apiClient.pushVoiceSync.mock.calls[0][0] as VoiceSyncDto;
+      const hidden = dto.users.find((u) => u.userId === 'user-hidden');
+      const visible = dto.users.find((u) => u.userId === 'user-visible');
+      expect(hidden?.channelName).toBe('');
+      expect(visible?.channelName).toBe('채널-ch-visible');
+    });
+  });
+
+  // ──────────────────────────────────────────────
+  // 은닉 판정 집계 로그 정확성(리뷰 후속) — PR #630 review, F-VOICE-135
+  // 결함: 카운터가 채널 단위가 아니라 멤버·이벤트 단위로 증가해 은닉 확산도를 왜곡했다.
+  // ──────────────────────────────────────────────
+  describe('은닉 판정 집계 로그 정확성(리뷰 후속)', () => {
+    function findSummaryLog(logSpy: { mock: { calls: unknown[][] } }): string | undefined {
+      return logSpy.mock.calls
+        .map((call) => call[0])
+        .find((msg): msg is string => typeof msg === 'string' && msg.includes('은닉 판정 집계'));
+    }
+
+    it('T3-1: 같은 은닉 채널에 재적자 3명이 있어도 집계는 채널 1개로 수렴한다(멤버 단위 뻥튀기 회귀 방지)', async () => {
+      const members = [
+        makeMember({ id: 'user-1' }),
+        makeMember({ id: 'user-2' }),
+        makeMember({ id: 'user-3' }),
+      ];
+      const guild = makeGuild('guild-1', [
+        makeVoiceChannel('ch-hidden', members, OBFUSCATED_BIT, null, 0, OBFUSCATED_NAME),
+      ]);
+      const handler = makeHandler([guild]);
+      const state = handler as unknown as {
+        obfuscatedChannelIds: Set<string>;
+        obfuscatedChannelEvents: number;
+        lastObfuscationLogAt: number;
+      };
+      // lastObfuscationLogAt=0(기본값)이면 첫 멤버 판정 직후 스로틀을 즉시 통과해 flush되어
+      // 버려, 이어지는 2·3번째 멤버 판정이 다른 창으로 갈리는 타이밍 아티팩트가 생긴다.
+      // "방금"으로 고정해 3명 전원의 판정이 flush 없이 같은 창에 누적되게 한다.
+      state.lastObfuscationLogAt = Date.now();
+
+      await handler.handleReady();
+
+      // 버그였다면(멤버 단위 카운터) size가 아니라 count가 3이 됐을 것 — Set이므로 고유 1.
+      expect(state.obfuscatedChannelIds.size).toBe(1);
+      expect(state.obfuscatedChannelIds.has('ch-hidden')).toBe(true);
+      expect(state.obfuscatedChannelEvents).toBe(3);
+    });
+
+    it('T3-2: 은닉 판정 로그 플러시 후 집계가 초기화되어 다음 창으로 누적되지 않는다', async () => {
+      vi.useFakeTimers();
+      const member = makeMember();
+      const guild = makeGuild('guild-1', [
+        makeVoiceChannel('ch-hidden', [member], OBFUSCATED_BIT, null, 0, OBFUSCATED_NAME),
+      ]);
+      const handler = makeHandler([guild]);
+      const state = handler as unknown as {
+        obfuscatedChannelIds: Set<string>;
+        obfuscatedChannelEvents: number;
+      };
+
+      await handler.handleReady();
+      // 최초 실행은 lastObfuscationLogAt=0이라 스로틀을 즉시 통과해 로그+초기화가 일어난다.
+      expect(state.obfuscatedChannelIds.size).toBe(0);
+      expect(state.obfuscatedChannelEvents).toBe(0);
+
+      // 5분 뒤 두 번째 주기 sync — 같은 은닉 채널을 다시 판정한다. 스로틀(1시간)이 아직
+      // 끝나지 않아 로그는 나가지 않지만 판정 자체는 계속 집계돼야 한다.
+      await vi.advanceTimersByTimeAsync(300_000);
+      // 이전 창이 초기화되지 않았다면 여기서 channelEvents가 2가 됐을 것이다.
+      expect(state.obfuscatedChannelIds.size).toBe(1);
+      expect(state.obfuscatedChannelEvents).toBe(1);
+
+      vi.useRealTimers();
+    });
+
+    it('T3-3: 집계 로그 문자열에 채널 id가 포함되지 않는다(개별 식별자 로깅 금지)', async () => {
+      const member = makeMember();
+      const guild = makeGuild('guild-1', [
+        makeVoiceChannel('ch-secret-id', [member], OBFUSCATED_BIT, null, 0, OBFUSCATED_NAME),
+      ]);
+      const handler = makeHandler([guild]);
+      const logSpy = vi.spyOn(Logger.prototype, 'log').mockImplementation(() => undefined as never);
+
+      await handler.handleReady();
+
+      const summaryLog = findSummaryLog(logSpy);
+      expect(summaryLog).toBeDefined();
+      expect(summaryLog).not.toContain('ch-secret-id');
+
+      logSpy.mockRestore();
     });
   });
 });

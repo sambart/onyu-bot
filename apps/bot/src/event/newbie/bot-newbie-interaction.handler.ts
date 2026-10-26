@@ -1,6 +1,7 @@
 import { On } from '@discord-nestjs/core';
 import { Injectable, Logger } from '@nestjs/common';
 import type {
+  MissionMyProgress,
   MissionMyProgressStatus,
   MissionMyResponse,
   MocoMyCanvasResponse,
@@ -29,6 +30,8 @@ const NEWBIE_CUSTOM_ID = {
   MOCO_REFRESH: 'newbie_moco:refresh:',
   MOCO_MY: 'newbie_moco:my:',
 } as const;
+
+const MS_PER_SECOND = 1000;
 
 /** A4 "내 진행도" 상태 → i18n 키 매핑 — newbie-template.constants.ts DEFAULT_STATUS_MAPPING과 정합 */
 const MISSION_STATUS_KEY: Record<MissionMyProgressStatus, string> = {
@@ -213,21 +216,74 @@ export class BotNewbieInteractionHandler {
         ? this.i18n.t(locale, 'newbie.missionTargetNone')
         : this.i18n.t(locale, 'newbie.missionTargetCount', { count: data.targetPlayCount });
 
+    const playCountLine = this.i18n.t(locale, 'newbie.missionMyPlayCount', {
+      count: data.playCount,
+      target: targetPlayCountText,
+    });
+    const title = this.i18n.t(locale, 'newbie.missionMyTitle');
+    // D14: 구 API 응답(isCurrent 부재) 수신 창 방어 — false 일 때만 종결 미션 폴백으로 본다
+    const isTerminalFallback =
+      data.isCurrent === false && (data.status === 'COMPLETED' || data.status === 'FAILED');
+
+    if (isTerminalFallback) {
+      return this.formatTerminalMission(
+        data,
+        { title, playCountLine, playtime, targetPlaytime },
+        locale,
+      );
+    }
+
     const lines = [
-      this.i18n.t(locale, 'newbie.missionMyTitle'),
+      title,
       this.i18n.t(locale, 'newbie.missionMyStatus', { status: statusLabel }),
       this.i18n.t(locale, 'newbie.missionMyPlaytime', { playtime, target: targetPlaytime }),
-      this.i18n.t(locale, 'newbie.missionMyPlayCount', {
-        count: data.playCount,
-        target: targetPlayCountText,
-      }),
-      this.i18n.t(locale, 'newbie.missionMyDeadline', {
-        endDate: data.endDate,
-        daysLeft: data.daysLeft,
-      }),
+      playCountLine,
+      data.daysLeft === null || data.daysLeft === undefined
+        ? this.i18n.t(locale, 'newbie.missionMyEndDate', { endDate: data.endDate })
+        : this.i18n.t(locale, 'newbie.missionMyDeadline', {
+            endDate: data.endDate,
+            daysLeft: data.daysLeft,
+          }),
     ];
 
     return lines.join('\n');
+  }
+
+  /** 진행 중 미션이 없을 때 최신 종결(COMPLETED/FAILED) 미션 1건의 결과 렌더. */
+  private formatTerminalMission(
+    data: MissionMyProgress,
+    parts: { title: string; playCountLine: string; playtime: string; targetPlaytime: string },
+    locale: string,
+  ): string {
+    const resultKey =
+      data.status === 'COMPLETED'
+        ? 'newbie.missionMyResultCompleted'
+        : 'newbie.missionMyResultFailed';
+    const lines = [
+      parts.title,
+      this.i18n.t(locale, resultKey, { playtime: parts.playtime, target: parts.targetPlaytime }),
+      parts.playCountLine,
+      this.i18n.t(locale, 'newbie.missionMyEndDate', { endDate: data.endDate }),
+    ];
+
+    const completedAtText =
+      data.status === 'COMPLETED' ? this.formatCompletedAt(data.completedAt) : null;
+    if (completedAtText !== null) {
+      lines.push(
+        this.i18n.t(locale, 'newbie.missionMyCompletedAt', { completedAt: completedAtText }),
+      );
+    }
+    lines.push(this.i18n.t(locale, 'newbie.missionMyLatestNotice'));
+
+    return lines.join('\n');
+  }
+
+  /** ISO 8601 → Discord 타임스탬프(`<t:unix:f>`, 로케일 무관). null·파싱 실패 시 null(줄 생략). */
+  private formatCompletedAt(completedAt: string | null | undefined): string | null {
+    if (!completedAt) return null;
+    const ms = new Date(completedAt).getTime();
+    if (Number.isNaN(ms)) return null;
+    return `<t:${Math.floor(ms / MS_PER_SECOND)}:f>`;
   }
 
   private formatSecToHourMin(totalSec: number, locale: string): string {

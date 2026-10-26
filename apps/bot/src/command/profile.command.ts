@@ -22,7 +22,10 @@ import { MeCommand } from './me.command';
   name: 'profile',
   nameLocalizations: { ko: '프로필' },
   description: 'View your profile and voice activity',
-  descriptionLocalizations: { ko: '내 프로필과 음성 활동을 확인합니다' },
+  descriptionLocalizations: {
+    ko: '내 프로필과 음성 활동을 확인합니다',
+    'pt-BR': 'Veja seu perfil e sua atividade de voz',
+  },
 })
 @Injectable()
 export class ProfileCommand extends MeCommand {}

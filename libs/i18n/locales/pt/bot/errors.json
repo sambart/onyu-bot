@@ -1,0 +1,8 @@
+{
+  "guildOnly": "Este comando só pode ser usado em um servidor.",
+  "manageGuildOnly": "Este comando está disponível apenas para administradores do servidor.",
+  "invalidRequest": "Solicitação inválida.",
+  "genericError": "Ocorreu um erro. Tente novamente em breve.",
+  "unknownError": "Erro desconhecido",
+  "nicknamePermission": "Não tenho permissão para alterar apelidos. Verifique o cargo do bot."
+}

@@ -112,6 +112,8 @@ describe('BotNewbieInteractionHandler', () => {
           targetPlayCount: 5,
           endDate: '2026-03-08',
           daysLeft: 3,
+          isCurrent: true,
+          completedAt: null,
         },
       };
       apiClient.getMyMissionData.mockResolvedValue(response);
@@ -140,6 +142,8 @@ describe('BotNewbieInteractionHandler', () => {
           targetPlayCount: null,
           endDate: '2026-03-08',
           daysLeft: 3,
+          isCurrent: true,
+          completedAt: null,
         },
       };
       apiClient.getMyMissionData.mockResolvedValue(response);
@@ -148,6 +152,139 @@ describe('BotNewbieInteractionHandler', () => {
 
       const editReplyArg = (interaction.editReply as Mock).mock.calls[0][0] as { content: string };
       expect(editReplyArg.content).toContain('설정 없음');
+    });
+
+    it('종결 미션 폴백(COMPLETED)은 완료 헤더·완료 시각·안내 문구를 보이고 D-/null/NaN 이 없다', async () => {
+      const interaction = makeButtonInteraction();
+      const response: MissionMyResponse = {
+        ok: true,
+        hasMission: true,
+        data: {
+          status: 'COMPLETED',
+          playtimeSec: 10800,
+          playCount: 5,
+          targetPlaytimeSec: 10800,
+          targetPlayCount: 5,
+          endDate: '2026-03-08',
+          daysLeft: null,
+          isCurrent: false,
+          completedAt: '2026-03-05T00:00:00.000Z',
+        },
+      };
+      apiClient.getMyMissionData.mockResolvedValue(response);
+
+      await handler.handle(interaction);
+
+      const { content } = (interaction.editReply as Mock).mock.calls[0][0] as { content: string };
+      expect(content).toContain('🎉 완료');
+      expect(content).toContain('<t:1772668800:f>');
+      expect(content).toContain('가장 최근 미션 결과');
+      expect(content).not.toMatch(/D-|null|NaN|Invalid Date/);
+    });
+
+    it('종결 미션 폴백(FAILED)은 실패 헤더를 보이고 완료 시각 줄이 없다', async () => {
+      const interaction = makeButtonInteraction();
+      const response: MissionMyResponse = {
+        ok: true,
+        hasMission: true,
+        data: {
+          status: 'FAILED',
+          playtimeSec: 600,
+          playCount: 1,
+          targetPlaytimeSec: 10800,
+          targetPlayCount: null,
+          endDate: '2026-03-08',
+          daysLeft: null,
+          isCurrent: false,
+          completedAt: null,
+        },
+      };
+      apiClient.getMyMissionData.mockResolvedValue(response);
+
+      await handler.handle(interaction);
+
+      const { content } = (interaction.editReply as Mock).mock.calls[0][0] as { content: string };
+      expect(content).toContain('❌ 실패');
+      expect(content).not.toContain('완료 시각');
+    });
+
+    it('COMPLETED 인데 completedAt 이 null 이면 완료 시각 줄을 생략한다', async () => {
+      const interaction = makeButtonInteraction();
+      const response: MissionMyResponse = {
+        ok: true,
+        hasMission: true,
+        data: {
+          status: 'COMPLETED',
+          playtimeSec: 10800,
+          playCount: 5,
+          targetPlaytimeSec: 10800,
+          targetPlayCount: 5,
+          endDate: '2026-03-08',
+          daysLeft: null,
+          isCurrent: false,
+          completedAt: null,
+        },
+      };
+      apiClient.getMyMissionData.mockResolvedValue(response);
+
+      await handler.handle(interaction);
+
+      const { content } = (interaction.editReply as Mock).mock.calls[0][0] as { content: string };
+      expect(content).not.toContain('완료 시각');
+      expect(content).not.toContain('null');
+    });
+
+    it('COMPLETED 인데 completedAt 이 파싱 불가 문자열이면 Invalid Date/NaN 없이 완료 시각 줄을 생략한다 (EC-99)', async () => {
+      const interaction = makeButtonInteraction();
+      const response: MissionMyResponse = {
+        ok: true,
+        hasMission: true,
+        data: {
+          status: 'COMPLETED',
+          playtimeSec: 10800,
+          playCount: 5,
+          targetPlaytimeSec: 10800,
+          targetPlayCount: 5,
+          endDate: '2026-03-08',
+          daysLeft: null,
+          isCurrent: false,
+          completedAt: 'not-a-date',
+        },
+      };
+      apiClient.getMyMissionData.mockResolvedValue(response);
+
+      await handler.handle(interaction);
+
+      const { content } = (interaction.editReply as Mock).mock.calls[0][0] as { content: string };
+      expect(content).toContain('🎉 완료');
+      expect(content).not.toContain('완료 시각');
+      expect(content).not.toMatch(/Invalid Date|NaN|<t:/);
+    });
+
+    it('진행 중인데 daysLeft 가 null 이면 D-null 대신 마감일만 표기한다', async () => {
+      const interaction = makeButtonInteraction();
+      const response: MissionMyResponse = {
+        ok: true,
+        hasMission: true,
+        data: {
+          status: 'IN_PROGRESS',
+          playtimeSec: 0,
+          playCount: 0,
+          targetPlaytimeSec: 10800,
+          targetPlayCount: null,
+          endDate: '2026-03-08',
+          daysLeft: null,
+          isCurrent: true,
+          completedAt: null,
+        },
+      };
+      apiClient.getMyMissionData.mockResolvedValue(response);
+
+      await handler.handle(interaction);
+
+      const { content } = (interaction.editReply as Mock).mock.calls[0][0] as { content: string };
+      expect(content).toContain('마감일: 2026-03-08');
+      expect(content).not.toMatch(/D-|null|NaN/);
     });
 
     it('guildId가 비어있으면(잘못된 customId) deferReply 없이 잘못된 요청 메시지를 reply한다', async () => {
@@ -386,6 +523,8 @@ describe('BotNewbieInteractionHandler', () => {
           targetPlayCount: 5,
           endDate: '2026-03-08',
           daysLeft: 3,
+          isCurrent: true,
+          completedAt: null,
         },
       };
       apiClient.getMyMissionData.mockResolvedValue(response);
@@ -416,6 +555,8 @@ describe('BotNewbieInteractionHandler', () => {
           targetPlayCount: null,
           endDate: '2026-03-08',
           daysLeft: 3,
+          isCurrent: true,
+          completedAt: null,
         },
       };
       apiClient.getMyMissionData.mockResolvedValue(response);

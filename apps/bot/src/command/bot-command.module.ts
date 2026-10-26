@@ -2,6 +2,7 @@ import { DiscordModule } from '@discord-nestjs/core';
 import { Module } from '@nestjs/common';
 
 import { BotCommonModule } from '../common/bot-common.module';
+import { AdminAssistCommand } from './admin-assist/admin-assist.command';
 import { BestFriendCommand } from './friend/best-friend.command';
 import { HelpCommand } from './help.command';
 import { LeaderboardCommand } from './level/leaderboard.command';
@@ -34,6 +35,8 @@ import { VersionCommand } from './version.command';
     // U9: /rank · /랭킹
     RankCommand,
     LeaderboardCommand,
+    // M4/A2: /관리도우미 · /admin-assist(본 도메인 최초의 봇 read-only 진입점, 11/12)
+    AdminAssistCommand,
   ],
 })
 export class BotCommandModule {}

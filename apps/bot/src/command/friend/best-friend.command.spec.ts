@@ -14,6 +14,8 @@ import type {
   BotApiClientService,
   DuoChemistryCardResponse,
 } from '@onyu/bot-api-client';
+import { MESSAGE_CODE } from '@onyu/shared';
+import { AxiosError, type AxiosResponse } from 'axios';
 import type { ChatInputCommandInteraction, GuildMember, User } from 'discord.js';
 import { beforeEach, describe, expect, it, type Mock, vi } from 'vitest';
 
@@ -382,5 +384,35 @@ describe('BestFriendCommand', () => {
     expect(apiClient.getMyBestFriends).toHaveBeenCalledWith(
       expect.objectContaining({ userId: USER_ID }),
     );
+  });
+
+  it('상대가 표시를 거부했으면(400 CO_PRESENCE_PEER_HIDDEN) ephemeral 안내만 하고 버튼·첨부를 붙이지 않는다', async () => {
+    const error = new AxiosError('Bad Request');
+    // as 단언 사유: 테스트용 최소 응답 — 판별 헬퍼가 status/data 만 읽는다.
+    error.response = {
+      status: 400,
+      data: { message: 'hidden', code: MESSAGE_CODE.CO_PRESENCE_PEER_HIDDEN },
+    } as AxiosResponse;
+    apiClient.getDuoChemistry.mockRejectedValue(error);
+    const interaction = makeInteraction({ options: makeOptions(makePeerUser('peer-1'), {}) });
+
+    await command.onBestFriend(interaction, new BestFriendCommandDto());
+
+    expect(interaction.deferReply).toHaveBeenCalledWith({ ephemeral: true });
+    expect(interaction.editReply).toHaveBeenCalledWith({
+      content: '이 멤버와의 케미 카드는 표시할 수 없어요.',
+      components: [],
+    });
+  });
+
+  it('그 외 오류는 기존 bestFriendDuoError 안내를 유지한다', async () => {
+    apiClient.getDuoChemistry.mockRejectedValue(new Error('boom'));
+    const interaction = makeInteraction({ options: makeOptions(makePeerUser('peer-1'), {}) });
+
+    await command.onBestFriend(interaction, new BestFriendCommandDto());
+
+    expect(interaction.editReply).toHaveBeenCalledWith({
+      content: expect.not.stringContaining('표시할 수 없어요'),
+    });
   });
 });

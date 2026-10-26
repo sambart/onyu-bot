@@ -1,0 +1,14 @@
+{
+  "autoChannelDefaultName": "{label} de {username}",
+  "autoChannelDefaultInstantName": "Sala de {username}",
+  "autoChannelNameModalTitle": "Digite o nome da sala",
+  "autoChannelNameInputLabel": "Nome da sala",
+  "autoChannelNameInputPlaceholder": "Formato: {preview} · {min}-{max} carats",
+  "autoChannelNameRetryButton": "Tentar novamente",
+  "autoChannelNameInputUnavailable": "A alteração de nome da sala não está disponível no momento. Tente novamente em instantes.",
+  "autoChannelNameInvalidMode": "As configurações deste botão estão desatualizadas. Peça a um admin para republicar a mensagem de guia.",
+  "autoChannelNameRequired": "Você precisa digitar um nome para criar uma sala.",
+  "autoChannelNameTooShort": "O nome da sala deve ter pelo menos {minLength} caracteres.",
+  "autoChannelNameTooLong": "O nome da sala pode ter no máximo {maxLength} caracteres.",
+  "autoChannelNameForbiddenWord": "'{word}' não é permitido."
+}

@@ -1,8 +1,8 @@
 import { On } from '@discord-nestjs/core';
 import { Injectable, Logger } from '@nestjs/common';
-import type { ActivityDetailSection, CanvasCardLocale } from '@onyu/bot-api-client';
+import type { ActivityDetailSection } from '@onyu/bot-api-client';
 import { BotApiClientService } from '@onyu/bot-api-client';
-import { BRAND_INT } from '@onyu/shared';
+import { BRAND_INT, defineLocaleTable, interpolate, parseLocale, pickLocale } from '@onyu/shared';
 import { type ButtonInteraction, EmbedBuilder, type Interaction } from 'discord.js';
 
 import { isGuildAdmin } from '../../command/level/guild-admin';
@@ -25,6 +25,13 @@ const CHANNEL_NAME_MAX_LEN = 32;
 const CHANNEL_NAME_ELLIPSIS = '…';
 /** 채널 행 index 1-base 시작값 */
 const CHANNEL_ROW_INDEX_START = 1;
+
+/** 소요 시간 표기 템플릿 — 시간이 0 이면 minutesOnly 를 쓴다(분기는 formatDuration 코드). */
+const DURATION_TEXT = defineLocaleTable<{ withHours: string; minutesOnly: string }>({
+  ko: { withHours: '{hours}시간 {minutes}분', minutesOnly: '{minutes}분' },
+  en: { withHours: '{hours}h {minutes}m', minutesOnly: '{minutes}m' },
+  pt: { withHours: '{hours}h {minutes}min', minutesOnly: '{minutes}min' },
+});
 
 /**
  * `/미` 카드 버튼([💬 활동 상세]/[🏆 서버 리더보드]) interactionCreate 이벤트를 처리한다.
@@ -127,7 +134,7 @@ export class BotMeInteractionHandler {
       page: LEADERBOARD_DEFAULT_PAGE,
       limit: LEADERBOARD_LIMIT,
       viewerUserId: interaction.user.id,
-      locale: this.toCanvasLocale(locale),
+      locale: parseLocale(locale),
       requesterUserId: interaction.user.id,
       requesterIsGuildAdmin: isGuildAdmin(interaction),
     });
@@ -159,11 +166,6 @@ export class BotMeInteractionHandler {
     await interaction.editReply({
       files: [{ attachment: imageBuffer, name: 'leaderboard.png' }],
     });
-  }
-
-  /** LocaleResolverService는 'ko' | 'en' 중 하나만 반환하므로 안전하게 캔버스 카드 로케일로 변환한다 */
-  private toCanvasLocale(locale: string): CanvasCardLocale {
-    return locale === 'ko' ? 'ko' : 'en';
   }
 
   /**
@@ -253,10 +255,9 @@ export class BotMeInteractionHandler {
   private formatDuration(sec: number, locale: string): string {
     const hours = Math.floor(sec / SECONDS_PER_HOUR);
     const minutes = Math.floor((sec % SECONDS_PER_HOUR) / SECONDS_PER_MINUTE);
-    if (locale === 'en') {
-      return hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`;
-    }
-    return hours > 0 ? `${hours}시간 ${minutes}분` : `${minutes}분`;
+    // 미지원 로케일은 기존대로 한국어 표기(parseLocale 폴백 ko), 2군은 pickLocale 이 en 으로 채운다
+    const text = pickLocale(parseLocale(locale, 'ko'), DURATION_TEXT);
+    return interpolate(hours > 0 ? text.withHours : text.minutesOnly, { hours, minutes });
   }
 
   private async replyGenericError(

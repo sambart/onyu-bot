@@ -17,7 +17,10 @@ export class MeCommandDto {
     name: 'view',
     nameLocalizations: { ko: '보기' },
     description: 'Card view: level (default) or the legacy voice-time card',
-    descriptionLocalizations: { ko: '카드 보기: 레벨(기본) 또는 레거시 음성 시간 카드' },
+    descriptionLocalizations: {
+      ko: '카드 보기: 레벨(기본) 또는 레거시 음성 시간 카드',
+      'pt-BR': 'Visualização do cartão: nível (padrão) ou o cartão antigo de tempo de voz',
+    },
     required: false,
     type: ParamType.STRING,
   })

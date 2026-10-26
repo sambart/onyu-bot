@@ -219,4 +219,54 @@ describe('BotStatusPrefixInteractionHandler', () => {
     await expect(handler.handle(interaction)).resolves.toBeUndefined();
     expect(interaction.editReply as Mock).toHaveBeenCalled();
   });
+
+  describe('setNickname 실패 진단 로그', () => {
+    function spyWarn(): Mock {
+      // logger 는 private 이라 테스트에서만 타입 우회로 접근한다
+      const logger = (handler as unknown as { logger: { warn: Mock } }).logger;
+      return vi.spyOn(logger, 'warn').mockImplementation(() => undefined) as unknown as Mock;
+    }
+
+    it('DiscordAPIError 면 code/status 와 닉네임 길이만 warn 하고 no_permission 응답을 유지한다', async () => {
+      const warn = spyWarn();
+      apiClient.applyStatusPrefix.mockResolvedValue({
+        success: true,
+        newNickname: '[뉴닉]nick',
+        message: 'ok',
+      });
+      const err = makeDiscordAPIError(DISCORD_ERR_MISSING_PERMISSIONS);
+      (err as unknown as { status: number }).status = 403;
+      const member = {
+        ...makeMember(vi.fn().mockRejectedValue(err)),
+        id: 'member-1',
+        guild: { id: 'guild-1' },
+      } as unknown as GuildMember;
+
+      await handler.handle(makeInteraction({ member }));
+
+      const logged = String(warn.mock.calls[0][0]);
+      expect(logged).toContain('[STATUS_PREFIX] setNickname failed');
+      expect(logged).toContain('code=50013 status=403');
+      expect(logged).toContain('nicknameLength=8');
+      expect(logged).not.toContain('[뉴닉]nick');
+      expect(i18n.t).toHaveBeenCalledWith('ko', 'errors.nicknamePermission');
+    });
+
+    it('일반 에러면 message 를 warn 하고 genericError 응답을 유지한다', async () => {
+      const warn = spyWarn();
+      apiClient.applyStatusPrefix.mockResolvedValue({
+        success: true,
+        newNickname: 'abc',
+        message: 'ok',
+      });
+      const interaction = makeInteraction({
+        member: makeMember(vi.fn().mockRejectedValue(new Error('network error'))),
+      });
+
+      await handler.handle(interaction);
+
+      expect(String(warn.mock.calls[0][0])).toContain('message=network error');
+      expect(i18n.t).toHaveBeenCalledWith('ko', 'errors.genericError');
+    });
+  });
 });

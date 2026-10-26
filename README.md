@@ -63,7 +63,7 @@ Bot은 **얇은 클라이언트(thin client)** 로 설계되어 있습니다 —
 - **Runtime**: Node.js 20 + NestJS 10 (모듈러 아키텍처 + DI)
 - **Discord**: discord.js 14 + discord-nestjs 5
 - **Language**: TypeScript 5 (strict, `any` 금지 ESLint 룰)
-- **i18n**: [`libs/i18n`](libs/i18n) — ko/en 로케일, 디스코드 인터랙션 locale 기반 해석
+- **i18n**: [`libs/i18n`](libs/i18n) — ko/en (+ pt-BR 부분 번역 — 누락 키는 en 폴백) 로케일, 디스코드 인터랙션 locale 기반 해석
 - **테스트**: vitest 단위 테스트
 - **로깅**: pino 구조화 로깅 (nestjs-pino)
 - **관측성**: prom-client 기반 Prometheus 메트릭
@@ -106,7 +106,7 @@ apps/bot/src/
 
 libs/shared/            # 공유 타입/상수 (Bot ↔ API 계약 타입)
 libs/bot-api-client/    # Bot → API HTTP 클라이언트 SDK
-libs/i18n/              # 다국어 로케일 (ko/en, bot 네임스페이스)
+libs/i18n/              # 다국어 로케일 (ko/en + pt-BR 부분 번역, bot 네임스페이스)
 ```
 
 ## License

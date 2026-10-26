@@ -1,8 +1,8 @@
 import { On } from '@discord-nestjs/core';
 import { Injectable, Logger } from '@nestjs/common';
-import type { CanvasCardLocale, LevelLeaderboardCardResponse } from '@onyu/bot-api-client';
+import type { LevelLeaderboardCardResponse } from '@onyu/bot-api-client';
 import { BotApiClientService } from '@onyu/bot-api-client';
-import { DEFAULT_LOCALE } from '@onyu/shared';
+import { DEFAULT_LOCALE, parseLocale } from '@onyu/shared';
 import { type ButtonInteraction, type Interaction } from 'discord.js';
 
 import { isGuildAdmin } from '../../command/level/guild-admin';
@@ -79,7 +79,7 @@ export class BotLevelInteractionHandler {
         page: targetPage,
         limit: LEADERBOARD_LIMIT,
         viewerUserId: interaction.user.id,
-        locale: this.toCanvasLocale(locale),
+        locale: parseLocale(locale),
         requesterUserId: interaction.user.id,
         requesterIsGuildAdmin: isGuildAdmin(interaction),
       });
@@ -186,10 +186,5 @@ export class BotLevelInteractionHandler {
         notifyError instanceof Error ? notifyError.stack : notifyError,
       );
     }
-  }
-
-  /** LocaleResolverService는 'ko' | 'en' 중 하나만 반환하므로 안전하게 캔버스 카드 로케일로 변환한다 */
-  private toCanvasLocale(locale: string): CanvasCardLocale {
-    return locale === 'ko' ? 'ko' : 'en';
   }
 }

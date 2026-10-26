@@ -128,10 +128,17 @@ export class BotGuildMemberSyncHandler {
 
   /**
    * 봇이 실제로 참여 중인 길드 목록 전체를 API 로 1회 전송해 guild_directory 를 정정한다
-   * (F-SUPER-ADMIN-039, super-admin 도메인 소유 — 본 핸들러는 clientReady 트리거만 공유한다).
-   * 실패는 로그만 남기고 재시도하지 않는다 — 다음 봇 재기동이 자연 재시도 지점이다(UC-17 §6.1).
+   * (F-SUPER-ADMIN-039, super-admin 도메인 소유 — 본 핸들러는 clientReady/guildCreate 트리거만
+   * 공유한다). 실패는 로그만 남기고 재시도하지 않는다 — 다음 봇 재기동이 자연 재시도 지점이다
+   * (UC-17 §6.1).
+   *
+   * guildCreate 트리거(F-GUILD-MEMBER-002 A2, 2026-09-16 D1(b)): "새 길드 1건만 전송"하지 않고
+   * 매번 캐시 전체를 보낸다 — 1건만 보내면 candidates 비율이 상한(0.5)을 넘어 매 가입마다
+   * ratio-exceeded warn 로그가 남는다(수신측 write-through는 가드보다 먼저 실행돼 1건 전송도
+   * 데이터상 안전하지만, 로그 오염을 피하고 기존 계약을 그대로 재사용하기 위해 전체 전송을
+   * 택했다 — `docs/reviews/2026-09-15-giant-guild-join-leave-forensics.md` G1/A2).
    */
-  private async reconcileGuildDirectory(): Promise<void> {
+  async reconcileGuildDirectory(): Promise<void> {
     try {
       const guilds = [...this.client.guilds.cache.values()].map((g) => ({
         id: g.id,
@@ -157,15 +164,6 @@ export class BotGuildMemberSyncHandler {
   }
 
   private toUpsertDto(guildId: string, member: GuildMember): GuildMemberUpsertDto {
-    // TODO(maintainer 2026-04-04): 디버그 로그 — nick 누락 원인 조사 후 제거
-    if (!member.user.bot) {
-      this.logger.debug(
-        `[NICK-DEBUG] user=${member.id} nickname=${member.nickname} ` +
-          `displayName=${member.displayName} globalName=${member.user.globalName} ` +
-          `username=${member.user.username}`,
-      );
-    }
-
     return {
       guildId,
       userId: member.id,

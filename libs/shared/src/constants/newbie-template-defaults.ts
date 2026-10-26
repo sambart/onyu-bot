@@ -1,4 +1,4 @@
-import type { SupportedLocale } from './locale';
+import { defineLocaleTable } from '../helpers/locale-table';
 
 /**
  * 신입사용자(newbie) 미션/새싹 임베드 템플릿 기본값 + 허용 변수 단일 정본.
@@ -11,7 +11,7 @@ import type { SupportedLocale } from './locale';
  * 기본 템플릿이 갱신되지 않는 드리프트가 재발한다. 두 값을 한 파일에 두면 "기본 템플릿은
  * 자기 허용변수만 사용한다" 라는 드리프트 가드 테스트를 이 파일 하나로 작성할 수 있다.
  *
- * i18n G2(길드 로케일 분기): `NEWBIE_TEMPLATE_DEFAULTS`(Record<SupportedLocale, …>)가 신설
+ * i18n G2(길드 로케일 분기): `NEWBIE_TEMPLATE_DEFAULTS`(`defineLocaleTable`)가 신설
  * 정본이고, 아래 `DEFAULT_*` named export 전부는 `.ko` 별칭(참조 동일)으로 하위호환을 보존한다.
  * `en` 값은 `libs/i18n/locales/en/web/settings.json` 의 `newbie.template.*` 키가 정본이며
  * (드리프트 가드: `apps/web/app/lib/__tests__/newbie-api.test.ts`), 이 파일은 그 사본이다.
@@ -57,7 +57,7 @@ interface NewbieTemplateDefaults {
  * `ko` 는 기존 상수와 바이트 단위 동일 — 값 변경이 아니다.
  * `en` 은 `libs/i18n/locales/en/web/settings.json` `newbie.template.*` 값을 그대로 옮긴 것이다.
  */
-export const NEWBIE_TEMPLATE_DEFAULTS: Record<SupportedLocale, NewbieTemplateDefaults> = {
+export const NEWBIE_TEMPLATE_DEFAULTS = defineLocaleTable<NewbieTemplateDefaults>({
   ko: {
     missionTitle: '🧑‍🌾 신입 미션 체크',
     missionHeader: '🧑‍🌾 뉴비 멤버 (총 인원: {totalCount}명)',
@@ -104,7 +104,54 @@ export const NEWBIE_TEMPLATE_DEFAULTS: Record<SupportedLocale, NewbieTemplateDef
     mocoScoring:
       '── Scoring ──\n🎮 {scorePerSession} pts/session · ⏱️ {scorePerMinute} pts/min · 🌱 {scorePerUnique} pts/unique\n⏳ Min {minCoPresence}m co-presence',
   },
-};
+  pt: {
+    missionTitle: '🧑‍🌾 Missões dos novatos',
+    missionHeader: '🧑‍🌾 Novatos (Total: {totalCount})',
+    missionItem:
+      '{mention} 🌱\n{startDate} ~ {endDate}\n{statusEmoji} {statusText} | Tempo de jogo: {playtime} | Partidas: {playCount}',
+    missionFooter: 'Última atualização: {updatedAt}',
+    // J2 육안 판정 결함 수정(2026-09-01, 안 (a) 승인) — Canvas COL_STATUS_W(70px) 폭에서
+    // "In Progress"/"Completed"가 2행/1행으로 잘렸다(레이아웃 무변경 원칙 하 문자열 단축으로 대응).
+    // Embed {status} 템플릿 변수와 공유되는 값이라 두 표면 모두 짧아진다 — 승인된 파급.
+    // ko는 절대 무변경. FAILED/LEFT는 이미 짧아 무변경.
+    statusMapping: {
+      IN_PROGRESS: { emoji: '🟡', text: 'Ativa' },
+      COMPLETED: { emoji: '✅', text: 'Feita' },
+      FAILED: { emoji: '❌', text: 'Falhou' },
+      LEFT: { emoji: '🚪', text: 'Saiu' },
+    },
+    mocoTitle: '🏆 Ranking da Caça aos Brotos',
+    mocoBody:
+      '**TOP {rank} — {hunterName} 🌱**\n**🏆 {score} pts**\n⏱️ {totalMinutes}m · 🎮 {sessionCount} sessões · 🌱 {uniqueNewbieCount} novatos\n\n{mocoList}',
+    mocoItem: '🌱 **{newbieName}** — {minutes}m ({sessions} sessões)',
+    mocoFooter: 'Página {currentPage}/{totalPages} | Atualização automática a cada {interval}m',
+    mocoFooterNoInterval: 'Página {currentPage}/{totalPages}',
+    mocoScoring:
+      '── Pontuação ──\n🎮 {scorePerSession} pts/sessão · ⏱️ {scorePerMinute} pts/min · 🌱 {scorePerUnique} pts/único\n⏳ Mín. de {minCoPresence}m de presença simultânea',
+  },
+});
+
+/**
+ * 미션 완료 공지 템플릿 허용 변수. `NewbieTemplateDefaults` 인터페이스에 필드를 추가하지 않고
+ * 별도 상수로 둔다 — 추가하면 기존 `pt` 항목이 타입 에러가 나 2군 수동 작성이 강제되기 때문.
+ */
+export const MISSION_COMPLETE_ALLOWED_VARS = [
+  '{mention}',
+  '{username}',
+  '{playtime}',
+  '{playCount}',
+  '{targetPlaytime}',
+] as const;
+
+/**
+ * 미션 완료 공지 기본 템플릿(ko/en). pt 는 `defineLocaleTable` 폴백으로 en 을 따른다.
+ * 기본 템플릿은 `MISSION_COMPLETE_ALLOWED_VARS` 안의 변수만 사용해야 한다.
+ */
+export const NEWBIE_COMPLETE_TEMPLATE_DEFAULTS = defineLocaleTable<string>({
+  ko: '🎉 {mention} 님이 신입 미션을 완료했어요! ({playtime} · {playCount}회)',
+  en: '🎉 {mention} completed the newbie mission! ({playtime} · {playCount} plays)',
+  pt: '🎉 {mention} concluiu a missão de novato! ({playtime} · {playCount} partidas)',
+});
 
 // ---- 하위호환 별칭 — 기존 소비처(shim·controller·web·spec)의 import 경로와 참조 동일성을 보존한다 ----
 

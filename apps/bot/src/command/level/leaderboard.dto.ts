@@ -12,7 +12,10 @@ export class LeaderboardCommandDto {
     name: 'page',
     nameLocalizations: { ko: '페이지' },
     description: 'Leaderboard page number (default: 1)',
-    descriptionLocalizations: { ko: '리더보드 페이지 번호(기본값: 1)' },
+    descriptionLocalizations: {
+      ko: '리더보드 페이지 번호(기본값: 1)',
+      'pt-BR': 'Número da página do placar (padrão: 1)',
+    },
     required: false,
     type: ParamType.INTEGER,
     minValue: MIN_PAGE,

@@ -14,6 +14,8 @@ export const INACTIVE_MEMBER_CONFIG_DEFAULTS = {
   gracePeriodDays: 7,
   autoActionEnabled: false,
   autoRoleAdd: false,
+  // 자동 역할 교체(opt-in) — 켜면 자동 부여 시 removeRoleId 역할을 함께 제거한다.
+  autoRoleRemove: false,
   inactiveRoleId: null,
   removeRoleId: null,
   dmEmbedTitle: null,

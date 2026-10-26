@@ -295,7 +295,7 @@ describe('BotAutoChannelInteractionHandler', () => {
       await handler.handle(interaction);
 
       expect(apiClient.autoChannelNameInput).toHaveBeenCalledWith(
-        expect.objectContaining({ buttonId: 10 }),
+        expect.objectContaining({ buttonId: 10, guildId: 'guild-1' }),
       );
       expect(interaction.showModal).toHaveBeenCalledOnce();
       expect(interaction.deferReply).not.toHaveBeenCalled();

@@ -155,11 +155,23 @@ export class BotStatusPrefixInteractionHandler {
       await member.setNickname(nickname);
       return 'ok';
     } catch (error) {
+      this.logSetNicknameFailure(member, nickname, error);
       if (error instanceof DiscordAPIError && error.code === DISCORD_ERR_MISSING_PERMISSIONS) {
         return 'no_permission';
       }
       return 'other_error';
     }
+  }
+
+  /** 닉네임 원문은 개인정보라 길이만 남긴다 */
+  private logSetNicknameFailure(member: GuildMember, nickname: string, error: unknown): void {
+    const detail =
+      error instanceof DiscordAPIError
+        ? `code=${error.code} status=${error.status}`
+        : `message=${error instanceof Error ? error.message : String(error)}`;
+    this.logger.warn(
+      `[STATUS_PREFIX] setNickname failed: guild=${member.guild?.id} member=${member.id} nicknameLength=${nickname.length} ${detail}`,
+    );
   }
 
   /**

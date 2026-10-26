@@ -10,6 +10,8 @@
  * `deleteReply()`로 ephemeral 원본을 삭제한다.
  */
 import { Logger } from '@nestjs/common';
+import { MESSAGE_CODE } from '@onyu/shared';
+import { AxiosError, type AxiosResponse } from 'axios';
 import type { ButtonInteraction, Interaction } from 'discord.js';
 import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from 'vitest';
 
@@ -24,6 +26,17 @@ const PEER_ID = 'peer-1';
 const ATTACHMENT_URL = 'https://cdn.discordapp.com/attachments/1/2/duo-chemistry.png';
 
 const PUBLISH_FAILED_KO = '채널에 공개하지 못했어요. 잠시 후 다시 시도해주세요.';
+const PEER_HIDDEN_KO = '이 멤버와의 케미 카드는 표시할 수 없어요.';
+
+function makePeerHiddenError(): AxiosError {
+  const error = new AxiosError('Bad Request');
+  // as 단언 사유: 테스트용 최소 응답 — 판별 헬퍼가 status/data 만 읽는다.
+  error.response = {
+    status: 400,
+    data: { message: 'hidden', code: MESSAGE_CODE.CO_PRESENCE_PEER_HIDDEN },
+  } as AxiosResponse;
+  return error;
+}
 
 function makeAttachmentCollection(url: string | undefined): {
   first: () => { url: string } | undefined;
@@ -54,16 +67,19 @@ function makeButtonInteraction(overrides: Record<string, unknown> = {}): ButtonI
 describe('BotDuoChemistryInteractionHandler', () => {
   let handler: BotDuoChemistryInteractionHandler;
   let warnSpy: ReturnType<typeof vi.spyOn>;
+  let checkDuoEligibility: Mock;
 
   beforeEach(() => {
     warnSpy = vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined as never);
     const i18n = new BotI18nService();
     i18n.onModuleInit();
+    checkDuoEligibility = vi.fn().mockResolvedValue({ ok: true });
     handler = new BotDuoChemistryInteractionHandler(
       i18n,
       new LocaleResolverService({
         getUserLocale: vi.fn().mockResolvedValue({ locale: null }),
       } as never),
+      { checkDuoEligibility } as never,
     );
   });
 
@@ -167,6 +183,67 @@ describe('BotDuoChemistryInteractionHandler', () => {
       expect(warnSpy).toHaveBeenCalledWith(
         expect.stringContaining('[DUO] ephemeral deleteReply failed: Unknown Message'),
       );
+    });
+  });
+
+  // ─── 클릭 시점 재검증(F-COPRESENCE-035, M6) ──────────────────────────────────
+
+  describe('클릭 시점 재검증', () => {
+    it('실행자·피어·길드로 checkDuoEligibility 를 호출하고 통과하면 게시한다', async () => {
+      const interaction = makeButtonInteraction();
+
+      await handler.handle(interaction);
+
+      expect(checkDuoEligibility).toHaveBeenCalledWith({
+        guildId: GUILD_ID,
+        userId: USER_ID,
+        peerId: PEER_ID,
+      });
+      expect(interaction.followUp).toHaveBeenCalledWith(
+        expect.objectContaining({ ephemeral: false, files: expect.any(Array) }),
+      );
+    });
+
+    it('상대가 거부했으면(400 CO_PRESENCE_PEER_HIDDEN) 안내 후 게시하지 않고 버튼을 제거한다', async () => {
+      checkDuoEligibility.mockRejectedValue(makePeerHiddenError());
+      const interaction = makeButtonInteraction();
+
+      await handler.handle(interaction);
+
+      expect(interaction.followUp).toHaveBeenCalledTimes(1);
+      expect(interaction.followUp).toHaveBeenCalledWith({
+        content: PEER_HIDDEN_KO,
+        ephemeral: true,
+      });
+      expect(interaction.editReply).toHaveBeenCalledWith({ components: [] });
+      expect(interaction.deleteReply).not.toHaveBeenCalled();
+    });
+
+    it('provider 실패({ok:false})면 fail-closed — 게시하지 않고 실패 안내한다', async () => {
+      checkDuoEligibility.mockResolvedValue({ ok: false });
+      const interaction = makeButtonInteraction();
+
+      await handler.handle(interaction);
+
+      expect(interaction.followUp).toHaveBeenCalledTimes(1);
+      expect(interaction.followUp).toHaveBeenCalledWith({
+        content: PUBLISH_FAILED_KO,
+        ephemeral: true,
+      });
+      expect(interaction.deleteReply).not.toHaveBeenCalled();
+    });
+
+    it('네트워크 등 그 외 오류도 fail-closed — 게시하지 않고 실패 안내한다', async () => {
+      checkDuoEligibility.mockRejectedValue(new Error('ECONNREFUSED'));
+      const interaction = makeButtonInteraction();
+
+      await handler.handle(interaction);
+
+      expect(interaction.followUp).toHaveBeenCalledTimes(1);
+      expect(interaction.followUp).toHaveBeenCalledWith({
+        content: PUBLISH_FAILED_KO,
+        ephemeral: true,
+      });
     });
   });
 

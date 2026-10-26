@@ -2,9 +2,10 @@
  * BotCommandModule — provider 등록 스모크 테스트
  *
  * `/voice-flush` 폐지 후 6종 → `/help`(F-GENERAL-006) 추가로 7종 → U9(`/rank`·`/랭킹`,
- * F-LVL-24~26) 추가로 9종 → `/profile`(`/프로필`, F-VOICE-123 별칭) 추가로 10종 커맨드가
- * 정확히 등록되어 있는지, 그리고 삭제된 커맨드가 다시 섞여 들어오지 않는지(회귀 방지)를
- * 검증한다.
+ * F-LVL-24~26) 추가로 9종 → `/profile`(`/프로필`, F-VOICE-123 별칭) 추가로 10종 →
+ * `/admin-assist`(`/관리도우미`, F-ADMIN-ASSIST-078, M4/A2) 추가로 **11종**(총량 상한 12,
+ * command-policy §6) 커맨드가 정확히 등록되어 있는지, 그리고 삭제된 커맨드가 다시 섞여
+ * 들어오지 않는지(회귀 방지)를 검증한다.
  *
  * DiscordModule.forFeature() / BotCommonModule 은 Discord 클라이언트 등
  * 실제 인프라 의존을 요구하므로 여기서는 @Module 데코레이터 메타데이터만
@@ -16,6 +17,7 @@ import 'reflect-metadata';
 import { describe, expect, it } from 'vitest';
 
 import { BotCommonModule } from '../common/bot-common.module';
+import { AdminAssistCommand } from './admin-assist/admin-assist.command';
 import { BotCommandModule } from './bot-command.module';
 import { BestFriendCommand } from './friend/best-friend.command';
 import { HelpCommand } from './help.command';
@@ -30,10 +32,10 @@ import { VersionCommand } from './version.command';
 
 describe('BotCommandModule', () => {
   describe('providers', () => {
-    it('F-VOICE-123(/profile·/프로필) 추가 후 정확히 10개의 커맨드만 등록되어 있다', () => {
+    it('F-ADMIN-ASSIST-078(/admin-assist·/관리도우미) 추가 후 정확히 11개의 커맨드만 등록되어 있다', () => {
       const providers = Reflect.getMetadata('providers', BotCommandModule) as unknown[];
 
-      expect(providers).toHaveLength(10);
+      expect(providers).toHaveLength(11);
       expect(providers).toEqual(
         expect.arrayContaining([
           VersionCommand,
@@ -46,6 +48,7 @@ describe('BotCommandModule', () => {
           BestFriendCommand,
           RankCommand,
           LeaderboardCommand,
+          AdminAssistCommand,
         ]),
       );
     });

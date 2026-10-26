@@ -1,10 +1,17 @@
 import { HttpService } from '@nestjs/axios';
 import { Injectable, Logger } from '@nestjs/common';
-import type { LevelLeaderboardResponse, SupportedLocale } from '@onyu/shared';
+import type {
+  AdminAssistRecommendResponse,
+  LevelLeaderboardResponse,
+  SupportedLocale,
+} from '@onyu/shared';
+import { ADMIN_ASSIST_RECOMMEND_TIMEOUT_MS, MESSAGE_CODE } from '@onyu/shared';
 import type { AxiosRequestConfig } from 'axios';
+import { isAxiosError } from 'axios';
 import { firstValueFrom } from 'rxjs';
 
 import type {
+  AdminAssistRecommendationResult,
   AutoActionRecordDto,
   AutoChannelButtonClickDto,
   AutoChannelButtonResult,
@@ -17,9 +24,12 @@ import type {
   BotApiResponse,
   BotHealthSnapshotDto,
   BotRolePanelConfigDto,
+  CheckDuoEligibilityOptions,
   CommandUsedDto,
   CoPresenceSnapshot,
   DuoChemistryCardResponse,
+  DuoEligibilityResponse,
+  GetAdminAssistRecommendationOptions,
   GetDuoChemistryOptions,
   GetLevelLeaderboardCardOptions,
   GetLevelRankCardOptions,
@@ -60,6 +70,7 @@ import type {
   NewbieOnboardingFailureDto,
   RoleAssignedDto,
   RoleModifyDto,
+  SettingsChannelDeletedDto,
   StatusPrefixApplyDto,
   StatusPrefixApplyResult,
   StatusPrefixResetDto,
@@ -88,6 +99,36 @@ const AUTO_CHANNEL_NAME_INPUT_TIMEOUT_MS = 1_500;
  * per-request 타임아웃으로 짧게 끊어도 안전하다.
  */
 const USER_LOCALE_TIMEOUT_MS = 1_000;
+
+/** admin-assist 쿼터 소진 응답(§5E-6) HTTP 상태 코드 — `bot-newbie-interaction.handler.ts` 관례 */
+const HTTP_STATUS_TOO_MANY_REQUESTS = 429;
+
+/** 듀오 상대 표시 거부 400 판별용 HTTP 상태 코드 */
+const HTTP_STATUS_BAD_REQUEST = 400;
+
+/**
+ * 듀오 케미 API 가 상대의 표시 거부(F-COPRESENCE-035)로 거절한 400 인지 판별한다.
+ * `getDuoChemistry`/`checkDuoEligibility` 의 throw 동작은 그대로 두고, 호출측 catch 에서 이 헬퍼로 분기한다.
+ * `AllExceptionsFilter` 가 `code` 를 최상위로 승격하지만 봉투 변화에 견고하도록 `message.code` 도 허용한다.
+ */
+export function isDuoPeerHiddenError(error: unknown): boolean {
+  if (!isAxiosError(error) || error.response?.status !== HTTP_STATUS_BAD_REQUEST) {
+    return false;
+  }
+  const data: unknown = error.response.data;
+  if (typeof data !== 'object' || data === null) {
+    return false;
+  }
+  // as 단언 사유: axios 에러 바디는 unknown 이라 `code` 후보 두 위치를 얕게 조회하는 구조 단언이 필요하다.
+  const envelope = data as { code?: unknown; message?: unknown };
+  if (envelope.code === MESSAGE_CODE.CO_PRESENCE_PEER_HIDDEN) {
+    return true;
+  }
+  if (typeof envelope.message === 'object' && envelope.message !== null) {
+    return (envelope.message as { code?: unknown }).code === MESSAGE_CODE.CO_PRESENCE_PEER_HIDDEN;
+  }
+  return false;
+}
 
 /**
  * Bot → API HTTP 클라이언트.
@@ -203,6 +244,7 @@ export class BotApiClientService {
     const params = new URLSearchParams({ buttonId: String(query.buttonId) });
     if (query.subOptionId !== undefined) params.set('subOptionId', String(query.subOptionId));
     if (query.locale) params.set('locale', query.locale);
+    if (query.guildId) params.set('guildId', query.guildId);
     return this.get(`/bot-api/auto-channel/name-input?${params.toString()}`, {
       timeout: AUTO_CHANNEL_NAME_INPUT_TIMEOUT_MS,
     });
@@ -251,6 +293,16 @@ export class BotApiClientService {
     await this.post('/bot-api/usage-analytics/auto-action', dto);
   }
 
+  /**
+   * F-VOICE-144 — 디스코드 채널 삭제 사실을 API 에 알린다(설정 자동 조치 기록 ④).
+   * `POST /bot-api/settings-auto-action/channel-deleted`. 응답 `{ ok, recorded }` 는 봇이 쓰지 않는다.
+   * ⚠️ `recordAutoAction()`(usage-analytics 자동 동작 *집계*)과 다른 기능이다. 채널 이름은 보내지 않는다.
+   * 호출부는 await 하지 않고 `.catch` 로 흡수해야 한다(실패 시 그대로 throw, 재시도 없음).
+   */
+  async reportChannelDeleted(dto: SettingsChannelDeletedDto): Promise<void> {
+    await this.post('/bot-api/settings-auto-action/channel-deleted', dto);
+  }
+
   // ── Voice User Count ──
 
   async pushVoiceUserCounts(counts: GuildVoiceUserCount[]): Promise<void> {
@@ -291,6 +343,14 @@ export class BotApiClientService {
    */
   async getDuoChemistry(options: GetDuoChemistryOptions): Promise<DuoChemistryCardResponse> {
     return this.post('/bot-api/co-presence/duo', options);
+  }
+
+  /**
+   * [채널에 공개하기] 클릭 시점 재검증(F-COPRESENCE-035, B3) — 렌더·집계 없이 상대 표시 거부 여부만 확인한다.
+   * 거부(self 포함)는 400 `CO_PRESENCE_PEER_HIDDEN` 으로 throw 되며 `isDuoPeerHiddenError` 로 판별한다.
+   */
+  async checkDuoEligibility(options: CheckDuoEligibilityOptions): Promise<DuoEligibilityResponse> {
+    return this.post('/bot-api/co-presence/duo/eligibility', options);
   }
 
   // ── Me ──
@@ -436,6 +496,68 @@ export class BotApiClientService {
 
   async getRolePanelConfig(guildId: string): Promise<BotApiResponse<BotRolePanelConfigDto[]>> {
     return this.get(`/bot-api/role-panel/config?guildId=${guildId}`);
+  }
+
+  // ── Admin Assist (E8, F-ADMIN-ASSIST-078~081, M4/A2 봇 read-only 진입점) ──
+
+  /**
+   * `/관리도우미` 슬래시 커맨드(E8) — `AdminAssistService.recommend()` 를 웹 E1 과 동일하게
+   * 호출한다. ⚠️ **전역 타임아웃(10s)을 반드시 덮는다** — 정상 응답이 `kind='recipe'`·
+   * `'generative'` 경로에서 수십 초가 정상 범위이며, 기본값을 쓰면 봇은 포기해도 API 는
+   * 계속 돌아 쿼터가 소모되고 이력엔 `success` 로 남는데 사용자는 오류를 본다(조용한 실패
+   * 모드, endpoint-spec §5E-9).
+   *
+   * 판별 가능한 결과를 반환한다(§5E-6 🟨 권고 ⓐ) — "쿼터 소진"(429, 정상·예상된 결과)과
+   * "장애"가 커맨드 핸들러의 `catch` 안 문자열 매칭으로 뭉개지지 않도록 axios 에러 해석을
+   * 이 메서드 안에 가둔다.
+   */
+  async getAdminAssistRecommendation(
+    options: GetAdminAssistRecommendationOptions,
+  ): Promise<AdminAssistRecommendationResult> {
+    try {
+      const data = await this.post<AdminAssistRecommendResponse>(
+        '/bot-api/admin-assist/recommend',
+        options,
+        { timeout: ADMIN_ASSIST_RECOMMEND_TIMEOUT_MS },
+      );
+      return { ok: true, data };
+    } catch (error) {
+      if (
+        isAxiosError(error) &&
+        error.response?.status === HTTP_STATUS_TOO_MANY_REQUESTS &&
+        this.extractQuotaExhaustedReason(error.response.data) === 'quota_exhausted'
+      ) {
+        return { ok: false, reason: 'quota_exhausted' };
+      }
+      return { ok: false, reason: 'error' };
+    }
+  }
+
+  /**
+   * 429 응답 바디에서 quota_exhausted 판별용 reason 을 추출한다.
+   * ⚠️ `AllExceptionsFilter`(apps/api/src/common/filters/all-exceptions.filter.ts)는
+   * `code`/`params`/`errors` 만 최상위로 승격하고 나머지는 `message` 아래 그대로 둔다 —
+   * 즉 `HttpException({ reason }, 429)` 의 실제 응답 계약은 `body.message.reason` 이다
+   * (apps/api/test/admin-assist-bot-entrypoint.e2e-spec.ts 가 이 형태를 단언한다).
+   * 최상위 `body.reason` 도 함께 허용해 향후 다른 봉투로도 견고하게 판별한다.
+   */
+  private extractQuotaExhaustedReason(data: unknown): string | undefined {
+    if (typeof data !== 'object' || data === null) {
+      return undefined;
+    }
+    // as 단언 사유: axios 에러 바디는 unknown 이라 형태를 직접 좁힐 수 없어, 두 후보 위치를
+    // 낙관적으로 조회하는 얕은 구조 단언이 필요하다(둘 다 없으면 undefined 로 자연 수렴).
+    const envelope = data as { reason?: unknown; message?: { reason?: unknown } };
+    if (typeof envelope.reason === 'string') {
+      return envelope.reason;
+    }
+    if (typeof envelope.message === 'object' && envelope.message !== null) {
+      const nestedReason = (envelope.message as { reason?: unknown }).reason;
+      if (typeof nestedReason === 'string') {
+        return nestedReason;
+      }
+    }
+    return undefined;
   }
 
   // ── Locale ──

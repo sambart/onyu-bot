@@ -11,7 +11,10 @@ export class RankCommandDto {
     name: 'user',
     nameLocalizations: { ko: '유저' },
     description: 'Check this member level rank card (default: yourself)',
-    descriptionLocalizations: { ko: '이 멤버의 레벨 랭크 카드를 확인합니다(기본값: 본인)' },
+    descriptionLocalizations: {
+      ko: '이 멤버의 레벨 랭크 카드를 확인합니다(기본값: 본인)',
+      'pt-BR': 'Veja o cartão de nível deste membro (padrão: você)',
+    },
     required: false,
     type: ParamType.USER,
   })

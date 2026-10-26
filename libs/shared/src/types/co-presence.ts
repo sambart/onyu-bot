@@ -19,6 +19,13 @@ export interface MeTopPeerItem {
   changePct: number | null;
   /** 직전 동기간 기록 없음 → 이번 기간 처음 등장 */
   isNew: boolean;
+  // ── F-COPRESENCE-035 (2026-10-20) ──
+  /**
+   * 상대가 관계 표시를 거부(opt-out)해 이름·아바타가 치환된 행. true 면 displayName 은 en 고정
+   * 폴백 문자열이며 userId 는 `anonymous:{n}` 순번 토큰(실 ID 아님) — 웹은 i18n 라벨로 렌더하고
+   * 상세(E2) 진입을 막는다.
+   */
+  isAnonymized: boolean;
 }
 
 /**
@@ -40,6 +47,8 @@ export interface MeFriendsSummary {
 export interface MeTopPeersResponse {
   days: number;
   peers: MeTopPeerItem[];
+  /** F-COPRESENCE-035. 본인의 현재 길드 관계 표시 거부 상태 — 토글 초기값 */
+  privacy: { hideRelations: boolean };
   /** F-COPRESENCE-032. 산출 실패 시 null — 목록(peers)은 정상 반환된다 (EC-CP-61) */
   summary: MeFriendsSummary | null;
 }
@@ -47,7 +56,13 @@ export interface MeTopPeersResponse {
 /** GET /api/users/me/co-presence/pairs/:peerId 응답 (E2, F-COPRESENCE-022) */
 export interface MePairDetailResponse {
   days: number;
-  peer: { userId: string; displayName: string; avatarUrl: string | null };
+  peer: {
+    userId: string;
+    displayName: string;
+    avatarUrl: string | null;
+    /** F-COPRESENCE-035. 상대가 opt-out 이면 true(이름·아바타 치환) */
+    isAnonymized: boolean;
+  };
   totalMinutes: number;
   /** 'YYYY-MM-DD' ASC */
   dailyData: { date: string; minutes: number }[];
@@ -58,6 +73,19 @@ export interface MePairDetailResponse {
   firstTogetherDate: string | null;
   /** 최근 90일 세션 기준 최다 채널. channelName 은 채널 행 부재 시 null(D3) */
   topChannel: { channelId: string; channelName: string | null; minutes: number } | null;
+}
+
+/** PATCH /api/users/me/co-presence/privacy 요청 body (E3, F-COPRESENCE-035) — userId 는 JWT 강제 */
+export interface MeCoPresencePrivacyRequest {
+  hideRelations: boolean;
+}
+
+/** PATCH /api/users/me/co-presence/privacy 응답 (E3, F-COPRESENCE-035) */
+export interface MeCoPresencePrivacyResponse {
+  guildId: string;
+  hideRelations: boolean;
+  /** ISO 8601 */
+  updatedAt: string;
 }
 
 // ─────────────────────────────────────────────────────────────────────────

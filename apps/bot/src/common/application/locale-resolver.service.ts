@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { BotApiClientService } from '@onyu/bot-api-client';
-import { DEFAULT_LOCALE, SUPPORTED_LOCALES } from '@onyu/shared';
+import { DEFAULT_LOCALE, isSupportedLocale } from '@onyu/shared';
 
 /**
  * Bot용 locale 리졸버.
@@ -23,7 +23,8 @@ export class LocaleResolverService {
     // 1순위: 저장된 user locale (F-GENERAL-005) — 실패는 삼키고 폴백(요구동작 4)
     try {
       const { locale } = await this.apiClient.getUserLocale(userId);
-      if (locale) return locale;
+      // 철회된 로케일 등 지원 목록 밖 저장값은 걸러 다음 순위로 폴백한다
+      if (isSupportedLocale(locale)) return locale;
     } catch (error) {
       this.logger.warn(`[LOCALE] getUserLocale failed: user=${userId}`, error);
     }
@@ -40,8 +41,6 @@ export class LocaleResolverService {
 
   private mapDiscordLocale(discordLocale: string): string | null {
     const prefix = discordLocale.slice(0, 2).toLowerCase();
-    // `SUPPORTED_LOCALES`가 `as const`(readonly ['ko','en'])라 string 인자를 받는
-    // `includes`와 타입이 맞지 않는다 — 좁힘만 해제(원소는 여전히 이 배열 값으로 검증됨).
-    return (SUPPORTED_LOCALES as readonly string[]).includes(prefix) ? prefix : null;
+    return isSupportedLocale(prefix) ? prefix : null;
   }
 }

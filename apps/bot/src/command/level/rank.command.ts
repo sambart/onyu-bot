@@ -1,8 +1,8 @@
 import { SlashCommandPipe } from '@discord-nestjs/common';
 import { Command, Handler, InteractionEvent } from '@discord-nestjs/core';
 import { Injectable, Logger } from '@nestjs/common';
-import type { CanvasCardLocale } from '@onyu/bot-api-client';
 import { BotApiClientService } from '@onyu/bot-api-client';
+import { parseLocale } from '@onyu/shared';
 import { AttachmentBuilder, ChatInputCommandInteraction, GuildMember, type User } from 'discord.js';
 
 import { BotI18nService } from '../../common/application/bot-i18n.service';
@@ -27,7 +27,10 @@ interface RankTarget {
   name: 'rank',
   nameLocalizations: { ko: '랭크' },
   description: 'Show your or another member level rank card',
-  descriptionLocalizations: { ko: '내 또는 다른 멤버의 레벨 랭크 카드를 보여줍니다' },
+  descriptionLocalizations: {
+    ko: '내 또는 다른 멤버의 레벨 랭크 카드를 보여줍니다',
+    'pt-BR': 'Mostra o cartão de nível seu ou de outro membro',
+  },
 })
 @Injectable()
 export class RankCommand {
@@ -103,7 +106,7 @@ export class RankCommand {
         userId: target.userId,
         displayName: target.displayName,
         avatarUrl: target.avatarUrl,
-        locale: this.toCanvasLocale(locale),
+        locale: parseLocale(locale),
         requesterUserId: interaction.user.id,
         requesterIsGuildAdmin: isGuildAdmin(interaction),
       });
@@ -153,7 +156,7 @@ export class RankCommand {
       userId: target.userId,
       displayName: target.displayName,
       avatarUrl: target.avatarUrl,
-      locale: this.toCanvasLocale(locale),
+      locale: parseLocale(locale),
       mentType: 'analysis',
     });
 
@@ -201,10 +204,5 @@ export class RankCommand {
     const displayName = peerMember?.displayName ?? peer.displayName;
     const avatarUrl = peer.displayAvatarURL({ extension: 'png', size: AVATAR_SIZE });
     return { userId: peer.id, displayName, avatarUrl };
-  }
-
-  /** LocaleResolverService는 'ko' | 'en' 중 하나만 반환하므로 안전하게 캔버스 카드 로케일로 변환한다 */
-  private toCanvasLocale(locale: string): CanvasCardLocale {
-    return locale === 'ko' ? 'ko' : 'en';
   }
 }

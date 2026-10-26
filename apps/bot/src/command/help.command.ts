@@ -18,7 +18,10 @@ const DEFAULT_WEB_URL = 'https://onyu.dev';
   name: 'help',
   nameLocalizations: { ko: '도움말' },
   description: "Show a quick guide to Onyu's features",
-  descriptionLocalizations: { ko: 'Onyu의 주요 기능과 도움말을 확인합니다' },
+  descriptionLocalizations: {
+    ko: 'Onyu의 주요 기능과 도움말을 확인합니다',
+    'pt-BR': 'Mostra um guia rápido dos recursos do Onyu',
+  },
 })
 @Injectable()
 export class HelpCommand {

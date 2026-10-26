@@ -13,7 +13,10 @@ export class BestFriendCommandDto {
     name: 'peer',
     nameLocalizations: { ko: '상대' },
     description: 'Check your duo chemistry with this user',
-    descriptionLocalizations: { ko: '이 사용자와의 케미를 확인합니다' },
+    descriptionLocalizations: {
+      ko: '이 사용자와의 케미를 확인합니다',
+      'pt-BR': 'Veja a sintonia da sua dupla com este usuário',
+    },
     required: false,
     type: ParamType.USER,
   })

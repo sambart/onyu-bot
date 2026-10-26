@@ -97,6 +97,13 @@ export class BotNewbieMemberAddHandler {
     try {
       const channel = await this.discord.channels.fetch(config.welcomeChannelId).catch(() => null);
       if (!channel?.isTextBased()) return;
+      // 이중 방어 — API 저장 검증을 통과한 레거시 값이라도 타 길드 채널로는 환영 메시지를 보내지 않는다
+      if (channel.isDMBased() || channel.guildId !== member.guild.id) {
+        this.logger.warn(
+          `[channel-guild] welcome blocked: guild=${member.guild.id} channel=${config.welcomeChannelId}`,
+        );
+        return;
+      }
 
       const vars: Record<string, string> = {
         username: member.displayName,
@@ -116,6 +123,8 @@ export class BotNewbieMemberAddHandler {
         const sent = await this.sendWelcomeCanvas(channel, member, content);
         if (sent) {
           // F-USAGE-042 — 자동 동작 계측(fire-and-forget). 실패가 원 동작을 막지 않는다(§18-10).
+          // welcome-sent(총 발송, 하위호환)에 더해 welcome-canvas-sent 를 함께 적재한다 —
+          // 강등률 분모(welcome-canvas-sent + welcome-canvas-fallback)를 만들기 위함(2026-09-21).
           void this.apiClient
             .recordAutoAction({
               guildId: member.guild.id,
@@ -123,9 +132,25 @@ export class BotNewbieMemberAddHandler {
               action: 'welcome-sent',
             })
             .catch(() => undefined);
+          void this.apiClient
+            .recordAutoAction({
+              guildId: member.guild.id,
+              domain: 'newbie',
+              action: 'welcome-canvas-sent',
+            })
+            .catch(() => undefined);
           return;
         }
-        // 재시도 없음 — 즉시 EMBED 강등(TC-02-06/TC-02-10)
+        // 재시도 없음 — 즉시 EMBED 강등(TC-02-06/TC-02-10). 강등 계측은 EMBED 발송 시도 전에
+        // 남긴다 — EMBED 까지 실패하는 케이스에서도 "CANVAS 시도가 실패했다"는 분자가
+        // 누락되면 안 되기 때문이다(분모=welcome-canvas-sent+welcome-canvas-fallback, 2026-09-21).
+        void this.apiClient
+          .recordAutoAction({
+            guildId: member.guild.id,
+            domain: 'newbie',
+            action: 'welcome-canvas-fallback',
+          })
+          .catch(() => undefined);
       }
 
       await this.sendWelcomeEmbed(channel, member, config, content, vars);

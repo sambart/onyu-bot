@@ -13,8 +13,46 @@ export interface RoleReward {
  * `DAILY_CAP`은 버킷 사유보다 항상 우선(상한이 걸린 날은 행동을 고쳐도 인정이 늘지 않으므로
  * 버킷 사유 표시가 오해를 유발한다). 버킷 사유 동점 시 표시 우선순위는
  * `ALONE` → `DEAF` → `MIC_OFF` → `SERVER_MUTED`(값 자체에는 영향 없는 결정론적 선택).
+ * `NO_XP_CHANNEL`(F-LVL-22 개정 2026-10-22)은 XP 제외 채널(`noXpChannelIds` + AFK 채널) 체류가
+ * 가장 큰 차감 몫일 때의 사유다 — 제외 채널 체류는 "오늘 음성"에는 포함되고 XP 에서만 빠진다.
  */
-export type LevelDeductionReason = 'ALONE' | 'MIC_OFF' | 'DEAF' | 'SERVER_MUTED' | 'DAILY_CAP';
+export type LevelDeductionReason =
+  | 'ALONE'
+  | 'MIC_OFF'
+  | 'DEAF'
+  | 'SERVER_MUTED'
+  | 'DAILY_CAP'
+  | 'NO_XP_CHANNEL';
+
+/** 채널 1개의 최근 활동 합계 — 음성은 `voice_daily` 채널 행(`GLOBAL` 센티널 제외)만 합산한다 */
+export interface LevelChannelActivityItem {
+  channelId: string;
+  /** 최근 `windowDays`일 체류 초 합 */
+  voiceSec: number;
+  /** 최근 `windowDays`일 메시지 수 합 */
+  messageCount: number;
+}
+
+/**
+ * GET `/api/guilds/:guildId/level-config/channel-activity` 응답 (F-LVL-33, A2).
+ * 제외 채널 지정 전에 채널별 최근 활동량을 보여 주기 위한 읽기 전용 집계다.
+ */
+export interface LevelChannelActivityResponse {
+  /** 집계 창 길이(일) — KST 오늘 포함 */
+  windowDays: number;
+  /** 활동이 있는 채널만. 정렬 순서는 계약이 아니다 */
+  items: LevelChannelActivityItem[];
+}
+
+/** {@link computeNoXpShare} 결과 — 제외 채널이 최근 활동에서 차지하는 비중(0~1, 분모 0이면 null) */
+export interface LevelNoXpShare {
+  voiceShare: number | null;
+  messageShare: number | null;
+  isVoiceOver: boolean;
+  isMessageOver: boolean;
+  /** 음성 또는 메시지 비중이 임계 이상 */
+  isOverThreshold: boolean;
+}
 
 /**
  * `level_config.curveParams` jsonb 셰이프 — 증분형(2026-07-23 확정 전환).
@@ -34,6 +72,26 @@ export interface LevelCurveParams {
  */
 export const LEADERBOARD_VISIBILITY_VALUES = ['GUILD_MEMBER', 'ADMIN_ONLY'] as const;
 export type LeaderboardVisibility = (typeof LEADERBOARD_VISIBILITY_VALUES)[number];
+
+/** 웹 리더보드 지표 탭 값(U11, F-LVL-32). `xp`=전체 XP, `voice`=음성 시간, `message`=메시지 수 */
+export const LEADERBOARD_METRIC_VALUES = ['xp', 'voice', 'message'] as const;
+export type LeaderboardMetric = (typeof LEADERBOARD_METRIC_VALUES)[number];
+
+/**
+ * 값이 지원하는 리더보드 지표인지 검사하는 타입 가드. 대소문자 정규화 없이 정확 일치만 허용한다
+ * (`'XP'` → false). 호출자는 false 일 때 `'xp'` 로 폴백한다(400 아님).
+ */
+export function isLeaderboardMetric(value: unknown): value is LeaderboardMetric {
+  return (
+    typeof value === 'string' && (LEADERBOARD_METRIC_VALUES as readonly string[]).includes(value)
+  );
+}
+
+/**
+ * 지표 탭(voice/message) 집계 창 길이(일). KST 기준 오늘 포함 고정 창이며 Pro 기간 필터가 아니다
+ * (premium-policy §4.2·§5).
+ */
+export const LEADERBOARD_METRIC_WINDOW_DAYS = 90;
 
 /**
  * 리더보드 접근 거부 사유 코드(U10, F-LVL-27). 현재 1종뿐이나 향후 확장 여지를 위해
@@ -90,6 +148,41 @@ export interface LevelConfigDto {
    * DB 어디에도 없다 (U10, F-LVL-29)
    */
   noXpRoleIds: string[];
+  /**
+   * 채널 XP 배율 목록(최대 20개, F-LVL-35). 텍스트·음성 채널 공통. 같은 ID 를 `noXpChannelIds` 와
+   * 동시에 지정할 수 없다(400). 항상 GET 응답에 포함된다. 저장 시 생략(undefined)하면 기존값 유지.
+   */
+  channelMultipliers: XpChannelMultiplier[];
+  /**
+   * 역할 XP 배율 목록(최대 20개, F-LVL-35). 보유한 배율 역할 중 최댓값 1개만 적용된다.
+   * 같은 ID 를 `noXpRoleIds` 와 동시에 지정할 수 없다(400). 저장 시 생략하면 기존값 유지.
+   */
+  roleMultipliers: XpRoleMultiplier[];
+  /**
+   * 레벨업 공지 1인 1줄 템플릿(최대 200자, 줄바꿈 금지, 변수 `{user}` `{level}` `{xp}` `{role}` 만 허용).
+   * `null` = 길드 언어 기본 템플릿 (F-LVL-36). 저장 시 생략하면 기존값 유지, `null`/빈 문자열이면 기본 복귀.
+   */
+  announceTemplate: string | null;
+}
+
+/** 채널 XP 배율 1건 (F-LVL-35). multiplier 는 소수 표현 0.1~5.0, 0.1 단위(정규화값). */
+export interface XpChannelMultiplier {
+  channelId: string;
+  multiplier: number;
+}
+
+/** 역할 XP 배율 1건 (F-LVL-35). 보유 배율 역할 중 max 1개만 적용. */
+export interface XpRoleMultiplier {
+  roleId: string;
+  multiplier: number;
+}
+
+/** 레벨업 공지 1줄 렌더 변수 (F-LVL-36). user/role 은 호출측이 만든 표시 문자열(api: 멘션, web: 샘플). */
+export interface LevelAnnounceLineVars {
+  user: string;
+  level: number;
+  xp: number;
+  role: string;
 }
 
 /**
@@ -121,7 +214,10 @@ export interface LevelSummary {
    * (생산자는 항상 채우되, 11개 스펙·리스팅 스크립트 리터럴 접촉을 피하기 위함, F-LVL-22)
    */
   todayCreditedVoiceMin?: number;
-  /** 오늘(KST) 총 체류 분(GLOBAL·noXpChannelIds·AFK 채널 제외 후 합산 — 인정 분과 동일한 조회 조건). U7 신규 */
+  /**
+   * 오늘(KST) 총 체류 분 — GLOBAL 센티널 제외, **XP 제외 채널(noXpChannelIds·AFK 채널) 체류 포함**
+   * (F-LVL-22 개정 2026-10-22, 결정 D1 (b) — 종전에는 제외 채널을 뺐다). U7 신규
+   */
   todayTotalVoiceMin?: number;
   /** 주된 차감 사유 1개(U7, F-LVL-22). 차감이 0이면(X = Y) `null` */
   primaryDeductionReason?: LevelDeductionReason | null;
@@ -185,6 +281,12 @@ export interface LevelLeaderboardEntry {
   isAnonymized: boolean;
   level: number;
   xp: number;
+  /**
+   * 🔒 최근 90일 음성 시간(초). `metric=voice` 응답에서만 숫자, 그 외 `null` (endpoint-spec §5-5).
+   */
+  voiceSec: number | null;
+  /** 🔒 최근 90일 메시지 수. `metric=message` 응답에서만 숫자, 그 외 `null` (endpoint-spec §5-5). */
+  messageCount: number | null;
 }
 
 /** 리더보드 응답 루트 (결정 A: 에코형 — `page`/`limit` 요청값 에코 포함) */
@@ -210,6 +312,13 @@ export interface LevelLeaderboardResponse {
   visible: boolean;
   /** ✅ **U10 신규** — 거부 사유 코드. `visible=true`면 `null` */
   deniedReason: LeaderboardDeniedReason | null;
+  /** ✅ **U11 신규** — 적용된 지표 에코(미지원·생략 요청은 `'xp'`) */
+  metric: LeaderboardMetric;
+  /**
+   * ✅ **U11 신규** — 요청자의 해당 지표 기준 순위(1-base, xp 포함 단일 규칙). 요청자가 모집단 밖이거나
+   * 식별 불가·비활성·가시성 거부면 `null`.
+   */
+  myRank: number | null;
 }
 
 // ── Discord 고위험 권한 비트 (레벨 역할 자동 부여 안전장치 §5.2) ──
@@ -242,3 +351,70 @@ export const DISCORD_MANAGE_GUILD_BIT = BIGINT_ONE << MANAGE_GUILD_BIT_POSITION;
 
 /** Discord MANAGE_ROLES 권한 비트마스크 (1 << 28 = 268435456) */
 export const DISCORD_MANAGE_ROLES_BIT = BIGINT_ONE << MANAGE_ROLES_BIT_POSITION;
+
+// ── 멤버 XP 수동 조정 (docs/plans/level-member-xp-adjust.md, F-LVL-34) ──
+
+/** 수동 조정 모드 — add: 가산 / remove: 차감(0 하한) / set: 절대값 지정 */
+export const LEVEL_XP_ADJUST_MODES = ['add', 'remove', 'set'] as const;
+export type LevelXpAdjustMode = (typeof LEVEL_XP_ADJUST_MODES)[number];
+
+export interface LevelXpAdjustmentRequest {
+  mode: LevelXpAdjustMode;
+  amount: number;
+  reason: string;
+}
+
+export type LevelXpAdjustNotAdjustableReason = 'BOT' | 'NOT_IN_GUILD';
+
+/** 멤버 XP 상태 조회 응답 (endpoint-spec §5-13) */
+export interface LevelMemberXpState {
+  userId: string;
+  displayName: string | null;
+  avatarUrl: string | null;
+  xp: number;
+  level: number;
+  hasUserLevelRow: boolean;
+  hasNoXpRole: boolean;
+  adjustable: boolean;
+  notAdjustableReason: LevelXpAdjustNotAdjustableReason | null;
+  curveParams: LevelCurveParams;
+}
+
+/** 조정 결과 응답 201 (endpoint-spec §5-14) */
+export interface LevelXpAdjustmentResult {
+  adjustmentId: string;
+  mode: LevelXpAdjustMode;
+  amount: number;
+  xpBefore: number;
+  xpAfter: number;
+  levelBefore: number;
+  levelAfter: number;
+  clamped: boolean;
+  roleGrantAttempted: boolean;
+  /** ISO 8601 UTC */
+  createdAt: string;
+}
+
+/** 조정 이력 목록 행 (endpoint-spec §5-15) */
+export interface LevelXpAdjustmentListItem {
+  id: string;
+  targetUserId: string;
+  targetDisplayName: string | null;
+  targetAvatarUrl: string | null;
+  actorUserId: string;
+  actorDisplayName: string | null;
+  actorAvatarUrl: string | null;
+  mode: LevelXpAdjustMode;
+  amount: number;
+  xpBefore: number;
+  xpAfter: number;
+  levelBefore: number;
+  levelAfter: number;
+  reason: string;
+  createdAt: string;
+}
+
+export interface LevelXpAdjustmentListResponse {
+  items: LevelXpAdjustmentListItem[];
+  nextCursor: string | null;
+}

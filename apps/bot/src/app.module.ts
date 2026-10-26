@@ -11,6 +11,7 @@ import { BotCommandModule } from './command/bot-command.module';
 import { DiscordConfig } from './config/discord.config';
 import { BotEventModule } from './event/bot-event.module';
 import { BotMetricsModule } from './monitoring/bot-metrics.module';
+import { InteractionDiagnosticsModule } from './monitoring/interaction-diagnostics/interaction-diagnostics.module';
 import { BotSchedulerModule } from './scheduler/bot-scheduler.module';
 
 const METRICS_PATH = '/metrics';
@@ -55,6 +56,7 @@ const AUTO_LOGGING_IGNORED_PATHS: readonly string[] = [
     BotCommandModule,
     BotSchedulerModule,
     BotMetricsModule,
+    InteractionDiagnosticsModule,
   ],
 })
 export class AppModule {}

@@ -1,12 +1,9 @@
 import { SlashCommandPipe } from '@discord-nestjs/common';
 import { Command, Handler, InteractionEvent } from '@discord-nestjs/core';
 import { Injectable, Logger } from '@nestjs/common';
-import type {
-  BestFriendCardResponse,
-  CanvasCardLocale,
-  DuoChemistryCardResponse,
-} from '@onyu/bot-api-client';
-import { BotApiClientService } from '@onyu/bot-api-client';
+import type { BestFriendCardResponse, DuoChemistryCardResponse } from '@onyu/bot-api-client';
+import { BotApiClientService, isDuoPeerHiddenError } from '@onyu/bot-api-client';
+import { parseLocale } from '@onyu/shared';
 import {
   ActionRowBuilder,
   AttachmentBuilder,
@@ -40,7 +37,10 @@ const DUO_PUBLISH_CUSTOM_ID_PREFIX = 'friend:duo:publish:';
   name: 'best-friend',
   nameLocalizations: { ko: '친한친구' },
   description: 'Show my best friend TOP card',
-  descriptionLocalizations: { ko: '내 베스트 프렌드 TOP을 카드로 보여줍니다' },
+  descriptionLocalizations: {
+    ko: '내 베스트 프렌드 TOP을 카드로 보여줍니다',
+    'pt-BR': 'Mostra o cartão TOP dos meus melhores amigos',
+  },
 })
 @Injectable()
 export class BestFriendCommand {
@@ -142,7 +142,7 @@ export class BestFriendCommand {
         avatarUrl,
         period: PERIOD,
         limit: LIMIT,
-        locale: this.toCanvasLocale(locale),
+        locale: parseLocale(locale),
       });
 
       if (!result.ok) {
@@ -172,11 +172,6 @@ export class BestFriendCommand {
         components: this.toButtonComponents(linkButtonRow),
       });
     }
-  }
-
-  /** LocaleResolverService는 'ko' | 'en' 중 하나만 반환하므로 안전하게 캔버스 카드 로케일로 변환한다 */
-  private toCanvasLocale(locale: string): CanvasCardLocale {
-    return locale === 'ko' ? 'ko' : 'en';
   }
 
   private buildLinkButtonRow(guildId: string, locale: string): ActionRowBuilder<ButtonBuilder> {
@@ -251,7 +246,7 @@ export class BestFriendCommand {
         selfAvatarUrl: avatarUrl,
         peerDisplayName,
         peerAvatarUrl,
-        locale: this.toCanvasLocale(locale),
+        locale: parseLocale(locale),
       });
 
       if (!result.ok || !result.data) {
@@ -263,6 +258,16 @@ export class BestFriendCommand {
 
       await this.renderDuoCard(interaction, result, peerUser.id, locale);
     } catch (error) {
+      // 상대가 관계 표시를 거부한 정상 흐름(F-COPRESENCE-035, B1) — 오류 로그 없이 상대를 단정하지 않는
+      // 안내만 ephemeral 로 보낸다(이미 deferReply({ephemeral:true}), 공개·링크 버튼·첨부 없음).
+      if (isDuoPeerHiddenError(error)) {
+        this.logger.debug('BestFriend duo peer hidden');
+        await interaction.editReply({
+          content: this.i18n.t(locale, 'commands.bestFriendDuoPeerHidden'),
+          components: [],
+        });
+        return;
+      }
       this.logger.error(
         'BestFriend duo command error',
         error instanceof Error ? error.stack : String(error),

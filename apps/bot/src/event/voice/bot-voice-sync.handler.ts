@@ -1,7 +1,8 @@
 import { InjectDiscordClient, Once } from '@discord-nestjs/core';
 import { Injectable, Logger, OnApplicationShutdown } from '@nestjs/common';
 import { BotApiClientService, type VoiceSyncUser } from '@onyu/bot-api-client';
-import { ActivityType, ChannelType, Client, type Guild } from 'discord.js';
+import { isObfuscatedChannel } from '@onyu/shared';
+import { ActivityType, ChannelType, Client, type Guild, type VoiceChannel } from 'discord.js';
 
 import { waitForApi } from '../../common/util/wait-for-api';
 
@@ -15,6 +16,13 @@ import { waitForApi } from '../../common/util/wait-for-api';
 const SYNC_INTERVAL_MS = 300_000;
 
 /**
+ * F-VOICE-135 — 은닉 판정 집계 로그 스로틀 간격(ms, 1시간). 2026-11-16 발효 전후로
+ * 판정 발생 빈도를 비교하는 것이 목적이라 시간 단위 해상도면 충분하다. sync 주기
+ * (`SYNC_INTERVAL_MS`)마다 매번 로깅하면 은닉 채널이 상시 점유된 길드에서 로그가 반복된다.
+ */
+const OBFUSCATION_LOG_THROTTLE_MS = 3_600_000;
+
+/**
  * Discord clientReady 이벤트 수신 후 모든 길드의 음성 채널 사용자를 수집하여 API로 전송한다.
  * F-VOICE-023 3단계: 봇 재시작 시 기존 음성 채널 사용자 세션 복구.
  * F-VOICE-117: 프로세스 수명당 1회만 실행되던 것을 최초 1회 + 5분 주기 반복으로 승격한다.
@@ -25,6 +33,20 @@ export class BotVoiceSyncHandler implements OnApplicationShutdown {
   private intervalId: ReturnType<typeof setInterval> | null = null;
   private isShuttingDown = false;
   private isSyncRunning = false;
+
+  /**
+   * F-VOICE-135(리뷰 후속) — 은닉 판정 집계는 "은닉이 얼마나 퍼졌는가"를 보려는 것이지
+   * 인원수·이벤트 빈도에 비례해 부풀어선 안 된다. `collectGuildVoiceUsers`가 채널당
+   * 멤버 수만큼 `resolveChannelName`/`resolveCategoryName`을 반복 호출하므로, 단순 카운터는
+   * 채널 1개에 재적자 10명이면 10으로 뻥튀기된다 — Set으로 고유 채널/카테고리 id만 모아
+   * `size`를 로깅하고, 원소(식별자)는 절대 출력하지 않는다(PRD 개별 식별자 로깅 금지).
+   * 이벤트 총 횟수는 참고용 부가 필드로만 별도 유지한다.
+   */
+  private readonly obfuscatedChannelIds = new Set<string>();
+  private readonly obfuscatedCategoryIds = new Set<string>();
+  private obfuscatedChannelEvents = 0;
+  private obfuscatedCategoryEvents = 0;
+  private lastObfuscationLogAt = 0;
 
   constructor(
     @InjectDiscordClient() private readonly client: Client,
@@ -125,9 +147,9 @@ export class BotVoiceSyncHandler implements OnApplicationShutdown {
         users.push({
           userId: member.id,
           channelId: channel.id,
-          channelName: channel.name,
+          channelName: this.resolveChannelName(channel),
           parentCategoryId: channel.parentId ?? null,
-          categoryName: channel.parent?.name ?? null,
+          categoryName: this.resolveCategoryName(channel),
           userName: member.displayName,
           avatarUrl: member.displayAvatarURL({ size: 128 }),
           micOn: !(voiceState.selfMute ?? false) && !(voiceState.serverMute ?? false),
@@ -143,6 +165,58 @@ export class BotVoiceSyncHandler implements OnApplicationShutdown {
     }
 
     return users;
+  }
+
+  /**
+   * 채널 이름을 은닉 여부에 따라 정규화한다. `VoiceSyncUser.channelName` 은
+   * non-nullable `string` 이라(계약 변경 비범위) 은닉 시 `null` 대신 빈 문자열을 돌려준다 —
+   * API 수신부가 어차피 `?? ''` 로 받으므로 값은 동등하게 수렴한다.
+   */
+  private resolveChannelName(channel: VoiceChannel): string {
+    if (!isObfuscatedChannel(channel.flags?.bitfield, channel.name)) return channel.name;
+    // 같은 채널이 멤버 루프 안에서 여러 번 판정돼도 Set은 채널 id 1개로만 수렴한다.
+    this.obfuscatedChannelIds.add(channel.id);
+    this.obfuscatedChannelEvents++;
+    this.maybeLogObfuscationSummary();
+    return '';
+  }
+
+  /**
+   * 카테고리(부모 채널) 이름을 은닉 여부에 따라 정규화한다.
+   * 채널과 카테고리는 각각 독립적으로 은닉될 수 있어(엣지 ⓐ), 채널 자체의 은닉
+   * 판정 결과를 재사용하지 않고 `channel.parent` 를 별도로 판정한다.
+   */
+  private resolveCategoryName(channel: VoiceChannel): string | null {
+    const parent = channel.parent;
+    if (!parent) return null;
+    if (!isObfuscatedChannel(parent.flags?.bitfield, parent.name)) return parent.name;
+    // 카테고리 식별자는 이미 갖고 있는 channel.parentId를 재사용한다(parent.id 목킹 요구 회피).
+    if (channel.parentId) this.obfuscatedCategoryIds.add(channel.parentId);
+    this.obfuscatedCategoryEvents++;
+    this.maybeLogObfuscationSummary();
+    return null;
+  }
+
+  /**
+   * F-VOICE-135(리뷰 후속) — 은닉 판정 발생 빈도 관측용 집계 로그. 개별 채널 식별자는
+   * 절대 출력하지 않고(PRD 금지), Set의 `size`(고유 채널/카테고리 수)만 스로틀 간격마다
+   * 1줄 남긴다. `channelEvents`/`categoryEvents`는 참고용 총 이벤트 수(중복 포함) 부가 필드다.
+   */
+  private maybeLogObfuscationSummary(): void {
+    const now = Date.now();
+    if (now - this.lastObfuscationLogAt < OBFUSCATION_LOG_THROTTLE_MS) return;
+    if (this.obfuscatedChannelIds.size === 0 && this.obfuscatedCategoryIds.size === 0) return;
+
+    this.logger.log(
+      `[VOICE-SYNC] 은닉 판정 집계(F-VOICE-135): channel=${this.obfuscatedChannelIds.size} ` +
+        `channelEvents=${this.obfuscatedChannelEvents} category=${this.obfuscatedCategoryIds.size} ` +
+        `categoryEvents=${this.obfuscatedCategoryEvents} intervalMs=${OBFUSCATION_LOG_THROTTLE_MS}`,
+    );
+    this.obfuscatedChannelIds.clear();
+    this.obfuscatedCategoryIds.clear();
+    this.obfuscatedChannelEvents = 0;
+    this.obfuscatedCategoryEvents = 0;
+    this.lastObfuscationLogAt = now;
   }
 
   /** 전송 실패는 해당 길드만 건너뛴다 — Q5: 실패는 성공 로그 억제 대상이 아니라 항상 남긴다. */

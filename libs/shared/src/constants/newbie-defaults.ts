@@ -24,6 +24,8 @@ export const NEWBIE_CONFIG_DEFAULTS = {
   mocoScorePerUnique: 5,
   mocoResetPeriod: 'NONE',
   roleEnabled: false,
+  missionCompleteAnnounce: false,
+  missionCompleteDm: false,
 } as const;
 
 /**
@@ -65,6 +67,12 @@ export const NEWBIE_EMBED_FALLBACK_COLOR_INT = {
  */
 export const MOCO_SCORE_PER_MINUTE_MIN = 1;
 export const MOCO_SCORE_PER_MINUTE_MAX = 10;
+
+/**
+ * MOCO 자동 갱신 주기 최대 분수(1440 = 24시간).
+ * 설정 저장 DTO(`newbie-config-save.dto.ts`)와 설정 자동 조치 [다시 켜기] 복원 값 검증(SA2)이 공유한다.
+ */
+export const MOCO_AUTO_REFRESH_MAX_MINUTES = 1440;
 
 export type NewbieConfigDefaults = typeof NEWBIE_CONFIG_DEFAULTS;
 

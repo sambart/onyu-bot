@@ -81,3 +81,14 @@ export interface MeGameCoMembersDto {
   days: number; // 요청 기간 echo(MeTopPeersResponse 선례)
   groups: GameCoMemberGroup[]; // gameTotal DESC, 최대 CO_MEMBER_GAME_LIMIT. 빈 배열이면 서비스가 null 반환
 }
+
+/**
+ * GET/PATCH /api/users/me/tracking-preference 공통 응답(GAME-PRESENCE-OPT-OUT, F-VOICE-140).
+ * 전역(길드 비귀속) 설정 — `guildId`를 갖지 않는다(D-3, endpoint-spec §13-2-2).
+ */
+export interface TrackingPreferenceDto {
+  /** 게임 활동(Presence) 추적 거부 여부. 레코드가 없으면 기본값 false(F-VOICE-136) */
+  gamePresenceOptOut: boolean;
+  /** 마지막 변경 시각(ISO 8601). 한 번도 설정한 적 없으면 null */
+  updatedAt: string | null;
+}

@@ -366,6 +366,30 @@ describe('BotMeInteractionHandler', () => {
       expect(fields[0].name).toBe('🎙️ Voice Activity');
       expect(fields[0].value).toBe('No activity recorded.');
     });
+
+    // formatDuration 출력 고정(번역 파이프라인 템플릿 전환 전후 동일해야 한다)
+    it('en 로케일이면 시간 표기가 "1h 30m"·분만이면 "18m" 이다', async () => {
+      const interaction = makeButtonInteraction({ locale: 'en-US' });
+      apiClient.getMeActivityDetail.mockResolvedValue(activityDetailResponse());
+
+      await handler.handle(interaction);
+
+      const fields = embedJson(interaction).fields as Array<{ name: string; value: string }>;
+      expect(fields[0].value).toContain('1h 30m\n');
+      expect(fields[0].value).toContain('18m');
+      expect(fields[0].value).not.toContain('시간');
+    });
+
+    it('미지원 로케일은 리졸버가 en 으로 해석하므로 시간 표기도 en 이다(현행 동작 고정)', async () => {
+      const interaction = makeButtonInteraction({ locale: 'fr' });
+      apiClient.getMeActivityDetail.mockResolvedValue(activityDetailResponse());
+
+      await handler.handle(interaction);
+
+      const fields = embedJson(interaction).fields as Array<{ name: string; value: string }>;
+      expect(fields[0].value).toContain('1h 30m\n');
+      expect(fields[0].value).toContain('18m/day');
+    });
   });
 
   describe('me:leaderboard 버튼 (F-VOICE-065, U9 S8 — 캔버스 이미지로 교체)', () => {

@@ -1,0 +1,13 @@
+{
+  "granted": "O cargo foi atribuído.",
+  "removed": "O cargo foi removido.",
+  "alreadyHas": "Você já possui este cargo.",
+  "notFound": "Configuração do botão de cargo não encontrada.",
+  "noPermission": "Não tenho permissão para atribuir este cargo. Fale com um administrador do servidor.",
+  "unknownRole": "O cargo especificado não foi encontrado.",
+  "swapped": "Seus cargos foram atualizados.",
+  "alreadySelected": "Você já selecionou esta opção.",
+  "locked": "Sua solicitação está sendo processada. Tente novamente em breve.",
+  "invalid": "Solicitação inválida.",
+  "genericError": "Ocorreu um erro. Tente novamente em breve."
+}

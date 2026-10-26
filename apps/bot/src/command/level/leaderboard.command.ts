@@ -1,8 +1,8 @@
 import { SlashCommandPipe } from '@discord-nestjs/common';
 import { Command, Handler, InteractionEvent } from '@discord-nestjs/core';
 import { Injectable, Logger } from '@nestjs/common';
-import type { CanvasCardLocale } from '@onyu/bot-api-client';
 import { BotApiClientService } from '@onyu/bot-api-client';
+import { parseLocale } from '@onyu/shared';
 import { AttachmentBuilder, ChatInputCommandInteraction } from 'discord.js';
 
 import { BotI18nService } from '../../common/application/bot-i18n.service';
@@ -20,7 +20,10 @@ const DEFAULT_PAGE = 1;
   name: 'leaderboard',
   nameLocalizations: { ko: '랭킹' },
   description: 'Show the server level leaderboard',
-  descriptionLocalizations: { ko: '서버 레벨 리더보드를 보여줍니다' },
+  descriptionLocalizations: {
+    ko: '서버 레벨 리더보드를 보여줍니다',
+    'pt-BR': 'Mostra o placar de níveis do servidor',
+  },
 })
 @Injectable()
 export class LeaderboardCommand {
@@ -64,7 +67,7 @@ export class LeaderboardCommand {
         page,
         limit: LEADERBOARD_LIMIT,
         viewerUserId: interaction.user.id,
-        locale: this.toCanvasLocale(locale),
+        locale: parseLocale(locale),
         requesterUserId: interaction.user.id,
         requesterIsGuildAdmin: isGuildAdmin(interaction),
       });
@@ -117,10 +120,5 @@ export class LeaderboardCommand {
       );
       await interaction.editReply({ content: this.i18n.t(locale, 'commands.leaderboardError') });
     }
-  }
-
-  /** LocaleResolverService는 'ko' | 'en' 중 하나만 반환하므로 안전하게 캔버스 카드 로케일로 변환한다 */
-  private toCanvasLocale(locale: string): CanvasCardLocale {
-    return locale === 'ko' ? 'ko' : 'en';
   }
 }

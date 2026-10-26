@@ -74,6 +74,14 @@ describe('HelpCommand', () => {
     expect(description).toContain('/select-guild');
   });
 
+  it('F-ADMIN-ASSIST-078(M4/A2) — /admin-assist(/관리도우미) 분류가 helpFeatures에 노출된다', async () => {
+    const interaction = makeInteraction();
+
+    await command.onHelp(interaction);
+
+    expect(getReplyDescription(interaction)).toContain('/관리도우미');
+  });
+
   it('DM(guildId: null)에서도 관리자 링크 없이 정상 응답한다(errors.guildOnly로 종료하지 않음)', async () => {
     const interaction = makeInteraction({ guildId: null });
 

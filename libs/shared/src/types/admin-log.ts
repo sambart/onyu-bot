@@ -15,7 +15,9 @@ export type AdminLogKind =
   | 'newbie_onboarding_failed' // 훅④ 신입 온보딩(환영 메시지/역할 부여) 실패
   | 'weekly_report_failed' // 훅⑤ 주간 리포트 발송 실패
   | 'weekly_report_auto_disabled' // 훅⑤ 주간 리포트 연속 실패로 자동 비활성화
-  | 'llm_quota_warning'; // 훅⑦ LLM 쿼터 80% 도달
+  | 'llm_quota_warning' // 훅⑦ LLM 쿼터 80% 도달
+  | 'moco_rank_auto_disabled' // 새싹 사냥 순위 채널 접근 불가로 자동 갱신 비활성화
+  | 'newbie_mission_reward_failed'; // 훅 신입 미션 완료 보상 역할 부여 실패 (집계 윈도우 미적용)
 
 /**
  * LLM 쿼터 scope — `apps/api` 의 `LlmQuotaScope`(`common/llm/llm-quota.service.ts`) 와 값이
@@ -48,6 +50,8 @@ export interface AdminLogPayloadMap {
     limit: number;
     resetAt: string;
   };
+  moco_rank_auto_disabled: { channelId: string; reason: 'unknown_channel' | 'missing_access' };
+  newbie_mission_reward_failed: { failCount: number };
 }
 
 /**

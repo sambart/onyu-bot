@@ -10,7 +10,10 @@ import { LocaleResolverService } from '../../common/application/locale-resolver.
   name: 'sticky-list',
   nameLocalizations: { ko: '고정메세지목록' },
   description: 'View the list of sticky messages in this server',
-  descriptionLocalizations: { ko: '이 서버의 고정메세지 목록을 확인합니다' },
+  descriptionLocalizations: {
+    ko: '이 서버의 고정메세지 목록을 확인합니다',
+    'pt-BR': 'Veja a lista de mensagens fixas deste servidor',
+  },
   defaultMemberPermissions: PermissionFlagsBits.ManageGuild,
 })
 @Injectable()

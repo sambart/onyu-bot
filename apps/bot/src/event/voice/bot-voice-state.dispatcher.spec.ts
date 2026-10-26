@@ -1,3 +1,4 @@
+import { Logger } from '@nestjs/common';
 import { type BotApiClientService, type VoiceStateUpdateDto } from '@onyu/bot-api-client';
 import type { GuildMember, VoiceState } from 'discord.js';
 import { type Mock } from 'vitest';
@@ -59,17 +60,37 @@ function makeMember(overrides: GuildMemberOverrides = {}): GuildMember {
   return { ...base, ...overrides } as unknown as GuildMember;
 }
 
-function makeChannel(name: string, memberIds: string[], parentId: string | null = null) {
+/**
+ * F-VOICE-135 — `flagsBitfield`/`parentFlagsBitfield` 인자를 추가해 은닉 채널·카테고리 판별을
+ * 목킹할 수 있게 확장한다. `flags` 는 `{ bitfield: number }` 형태의 순수 객체로 만든다 —
+ * 계획 §7 T1 근거: 프로덕션 코드가 읽는 것은 `channel.flags?.bitfield` 숫자 하나뿐이고,
+ * `ChannelFlagsBitField` 인스턴스 생성은 라이브러리 버전에 종속되는 취약한 목이 된다.
+ */
+function makeChannel(
+  name: string,
+  memberIds: string[],
+  parentId: string | null = null,
+  flagsBitfield = 0,
+  parentFlagsBitfield = 0,
+) {
   const members = new Map(
     memberIds.map((id) => [id, { id, user: { bot: false } }] as [string, unknown]),
   );
   return {
     name,
     parentId,
-    parent: parentId ? { name: `${parentId}-name` } : null,
+    flags: { bitfield: flagsBitfield },
+    parent: parentId
+      ? { name: `${parentId}-name`, flags: { bitfield: parentFlagsBitfield } }
+      : null,
     members,
   } as unknown as VoiceState['channel'];
 }
+
+/** F-VOICE-135 실측(리뷰 §⑤-5) 대로 은닉 채널·카테고리의 `name` 은 정확히 이 리터럴로 온다. */
+const OBFUSCATED_NAME = '___hidden___';
+/** F-VOICE-135 — `CHANNEL_OBFUSCATED` 플래그 비트(`1 << 17` = 131072, 실측값). */
+const OBFUSCATED_BIT = 131072;
 
 describe('BotVoiceStateDispatcher', () => {
   let apiClient: { sendVoiceStateUpdate: Mock };
@@ -477,6 +498,235 @@ describe('BotVoiceStateDispatcher', () => {
       await dispatcher.handleVoiceStateUpdate(oldState, newState);
 
       expect(apiClient.sendVoiceStateUpdate).toHaveBeenCalledOnce();
+    });
+  });
+
+  // ──────────────────────────────────────────────
+  // E. Discord 채널 은닉(Channel Obfuscation) 유입 차단 — F-VOICE-135, 계획 §7 T1
+  // ──────────────────────────────────────────────
+  describe('채널 은닉 판별(F-VOICE-135)', () => {
+    it('T1-1: 일반 채널(flags=0, 실명)은 4필드 전부 현행 그대로 전달된다(회귀 없음)', async () => {
+      const oldState = makeVoiceState({ channelId: null, channel: null });
+      const member = makeMember();
+      const newState = makeVoiceState({
+        channelId: 'ch-1',
+        channel: makeChannel('실명채널', ['user-1'], 'cat-1', 0, 0),
+        member,
+      });
+
+      await dispatcher.handleVoiceStateUpdate(oldState, newState);
+
+      const dto = apiClient.sendVoiceStateUpdate.mock.calls[0][0] as VoiceStateUpdateDto;
+      expect(dto.channelName).toBe('실명채널');
+      expect(dto.categoryName).toBe('cat-1-name');
+    });
+
+    it('T1-2: 비트가 켜지고 이름도 은닉 리터럴이면 channelName이 null이 된다', async () => {
+      const oldState = makeVoiceState({ channelId: null, channel: null });
+      const member = makeMember();
+      const newState = makeVoiceState({
+        channelId: 'ch-1',
+        channel: makeChannel(OBFUSCATED_NAME, ['user-1'], null, OBFUSCATED_BIT),
+        member,
+      });
+
+      await dispatcher.handleVoiceStateUpdate(oldState, newState);
+
+      const dto = apiClient.sendVoiceStateUpdate.mock.calls[0][0] as VoiceStateUpdateDto;
+      expect(dto.channelName).toBeNull();
+    });
+
+    it('T1-3(엣지 ⓓ): 비트는 꺼져 있어도 이름이 은닉 리터럴이면 channelName이 null이 된다(문자열 단독 판별 실동작)', async () => {
+      const oldState = makeVoiceState({ channelId: null, channel: null });
+      const member = makeMember();
+      const newState = makeVoiceState({
+        channelId: 'ch-1',
+        channel: makeChannel(OBFUSCATED_NAME, ['user-1'], null, 0),
+        member,
+      });
+
+      await dispatcher.handleVoiceStateUpdate(oldState, newState);
+
+      const dto = apiClient.sendVoiceStateUpdate.mock.calls[0][0] as VoiceStateUpdateDto;
+      expect(dto.channelName).toBeNull();
+    });
+
+    it('T1-4(엣지 ⓓ 역방향): 비트는 켜져 있어도 이름이 아직 실명이면 channelName이 null이 된다(비트 단독 판별 실동작)', async () => {
+      const oldState = makeVoiceState({ channelId: null, channel: null });
+      const member = makeMember();
+      const newState = makeVoiceState({
+        channelId: 'ch-1',
+        channel: makeChannel('실명', ['user-1'], null, OBFUSCATED_BIT),
+        member,
+      });
+
+      await dispatcher.handleVoiceStateUpdate(oldState, newState);
+
+      const dto = apiClient.sendVoiceStateUpdate.mock.calls[0][0] as VoiceStateUpdateDto;
+      expect(dto.channelName).toBeNull();
+    });
+
+    it('T1-5(엣지 ⓐ): 채널만 은닉이면 channelName은 null, categoryName은 실명 그대로 보존된다', async () => {
+      const oldState = makeVoiceState({ channelId: null, channel: null });
+      const member = makeMember();
+      const newState = makeVoiceState({
+        channelId: 'ch-1',
+        // 채널: 은닉(bit on) / 카테고리(parent): 실명(bit off)
+        channel: makeChannel(OBFUSCATED_NAME, ['user-1'], 'cat-1', OBFUSCATED_BIT, 0),
+        member,
+      });
+
+      await dispatcher.handleVoiceStateUpdate(oldState, newState);
+
+      const dto = apiClient.sendVoiceStateUpdate.mock.calls[0][0] as VoiceStateUpdateDto;
+      expect(dto.channelName).toBeNull();
+      expect(dto.categoryName).toBe('cat-1-name');
+    });
+
+    it('T1-6(엣지 ⓐ): 카테고리만 은닉이면 channelName은 실명 유지, categoryName만 null이 된다', async () => {
+      const oldState = makeVoiceState({ channelId: null, channel: null });
+      const member = makeMember();
+      const newState = makeVoiceState({
+        channelId: 'ch-1',
+        // 채널: 실명(bit off) / 카테고리(parent): 은닉(bit on)
+        channel: makeChannel('실명채널', ['user-1'], 'cat-1', 0, OBFUSCATED_BIT),
+        member,
+      });
+
+      await dispatcher.handleVoiceStateUpdate(oldState, newState);
+
+      const dto = apiClient.sendVoiceStateUpdate.mock.calls[0][0] as VoiceStateUpdateDto;
+      expect(dto.channelName).toBe('실명채널');
+      expect(dto.categoryName).toBeNull();
+    });
+
+    it('T1-7: move 이벤트에서 old 채널만 은닉이면 oldChannelName은 null, 신규 channelName은 실명이다', async () => {
+      const oldState = makeVoiceState({
+        channelId: 'ch-A',
+        channel: makeChannel(OBFUSCATED_NAME, [], null, OBFUSCATED_BIT),
+      });
+      const newState = makeVoiceState({
+        channelId: 'ch-B',
+        channel: makeChannel('실명B', ['user-1'], null, 0),
+      });
+
+      await dispatcher.handleVoiceStateUpdate(oldState, newState);
+
+      const dto = apiClient.sendVoiceStateUpdate.mock.calls[0][0] as VoiceStateUpdateDto;
+      expect(dto.eventType).toBe('move');
+      expect(dto.oldChannelName).toBeNull();
+      expect(dto.channelName).toBe('실명B');
+    });
+
+    it('T1-8: 은닉 채널이어도 channelId·parentCategoryId·channelMemberIds는 그대로 전달된다', async () => {
+      const oldState = makeVoiceState({ channelId: null, channel: null });
+      const member = makeMember();
+      const newState = makeVoiceState({
+        channelId: 'ch-1',
+        channel: makeChannel(OBFUSCATED_NAME, ['user-1', 'user-2'], 'cat-1', OBFUSCATED_BIT),
+        member,
+      });
+
+      await dispatcher.handleVoiceStateUpdate(oldState, newState);
+
+      const dto = apiClient.sendVoiceStateUpdate.mock.calls[0][0] as VoiceStateUpdateDto;
+      expect(dto.channelId).toBe('ch-1');
+      expect(dto.parentCategoryId).toBe('cat-1');
+      expect(dto.channelMemberCount).toBe(2);
+      expect(dto.channelMemberIds).toEqual(['user-1', 'user-2']);
+    });
+  });
+
+  // ──────────────────────────────────────────────
+  // F. 은닉 판정 집계 로그 정확성(리뷰 후속) — PR #630 review, F-VOICE-135
+  // 결함: old/new 채널 각각 카운터를 올려 채널 이동 1건이 2로 뻥튀기됐다.
+  // ──────────────────────────────────────────────
+  describe('은닉 판정 집계 로그 정확성(리뷰 후속)', () => {
+    function findSummaryLog(logSpy: { mock: { calls: unknown[][] } }): string | undefined {
+      return logSpy.mock.calls
+        .map((call) => call[0])
+        .find((msg): msg is string => typeof msg === 'string' && msg.includes('은닉 판정 집계'));
+    }
+
+    it('T-move-2: 서로 다른 은닉 채널 간 이동은 집계가 고유 채널 2개로 카운트된다', async () => {
+      const state = dispatcher as unknown as {
+        obfuscatedChannelIds: Set<string>;
+        obfuscatedChannelEvents: number;
+        lastObfuscationLogAt: number;
+      };
+      // lastObfuscationLogAt=0(기본값)이면 old 채널 판정 직후 스로틀을 즉시 통과해 flush돼
+      // buildPayload 안에서 old→new 두 판정이 다른 창으로 갈리는 타이밍 아티팩트가 생긴다.
+      // "방금"으로 고정해 하나의 move 이벤트 안에서 두 판정이 flush 없이 누적되게 한다.
+      state.lastObfuscationLogAt = Date.now();
+
+      const oldState = makeVoiceState({
+        channelId: 'ch-A',
+        channel: makeChannel(OBFUSCATED_NAME, [], null, OBFUSCATED_BIT),
+      });
+      const newState = makeVoiceState({
+        channelId: 'ch-B',
+        channel: makeChannel(OBFUSCATED_NAME, ['user-1'], null, OBFUSCATED_BIT),
+      });
+
+      await dispatcher.handleVoiceStateUpdate(oldState, newState);
+
+      // 버그였다면(이벤트 단위 카운터) 여기서도 2가 나와 구분이 안 됐겠지만, 이 테스트의
+      // 핵심은 "서로 다른 채널 2개"가 실제로 고유 2개로 잡히는지다(T-dedup과 대비).
+      expect(state.obfuscatedChannelIds.size).toBe(2);
+      expect(state.obfuscatedChannelIds.has('ch-A')).toBe(true);
+      expect(state.obfuscatedChannelIds.has('ch-B')).toBe(true);
+      expect(state.obfuscatedChannelEvents).toBe(2);
+    });
+
+    it('T-dedup: 서로 다른 이벤트가 같은 은닉 채널을 반복 판정해도 고유 채널 수는 1로 합쳐진다', async () => {
+      const state = dispatcher as unknown as {
+        obfuscatedChannelIds: Set<string>;
+        obfuscatedChannelEvents: number;
+        lastObfuscationLogAt: number;
+      };
+      // 첫 판정이 스로틀을 즉시 통과해 flush(초기화)해버리면 두 이벤트가 같은 창에서
+      // 누적되는지를 관찰할 수 없다 — lastObfuscationLogAt을 "방금"으로 고정해 이번
+      // 창 안에서 flush 없이 두 판정이 쌓이는지를 직접 검증한다.
+      state.lastObfuscationLogAt = Date.now();
+
+      const oldState1 = makeVoiceState({ channelId: null, channel: null });
+      const newState1 = makeVoiceState({
+        channelId: 'ch-hidden',
+        channel: makeChannel(OBFUSCATED_NAME, ['user-1'], null, OBFUSCATED_BIT),
+        member: makeMember({ id: 'user-1' }),
+      });
+      await dispatcher.handleVoiceStateUpdate(oldState1, newState1);
+
+      const oldState2 = makeVoiceState({ channelId: null, channel: null });
+      const newState2 = makeVoiceState({
+        channelId: 'ch-hidden',
+        channel: makeChannel(OBFUSCATED_NAME, ['user-1', 'user-2'], null, OBFUSCATED_BIT),
+        member: makeMember({ id: 'user-2' }),
+      });
+      await dispatcher.handleVoiceStateUpdate(oldState2, newState2);
+
+      expect(state.obfuscatedChannelIds.size).toBe(1);
+      expect(state.obfuscatedChannelIds.has('ch-hidden')).toBe(true);
+      expect(state.obfuscatedChannelEvents).toBe(2);
+    });
+
+    it('T-no-leak: 집계 로그 문자열에 채널 id가 포함되지 않는다(개별 식별자 로깅 금지)', async () => {
+      const logSpy = vi.spyOn(Logger.prototype, 'log').mockImplementation(() => undefined as never);
+
+      const oldState = makeVoiceState({ channelId: null, channel: null });
+      const newState = makeVoiceState({
+        channelId: 'ch-secret-id',
+        channel: makeChannel(OBFUSCATED_NAME, ['user-1'], null, OBFUSCATED_BIT),
+        member: makeMember(),
+      });
+
+      await dispatcher.handleVoiceStateUpdate(oldState, newState);
+
+      const summaryLog = findSummaryLog(logSpy);
+      expect(summaryLog).toBeDefined();
+      expect(summaryLog).not.toContain('ch-secret-id');
+
+      logSpy.mockRestore();
     });
   });
 });

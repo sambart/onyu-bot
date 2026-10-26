@@ -249,6 +249,7 @@ export class BotAutoChannelInteractionHandler {
         buttonId: parsed.buttonId as number,
         subOptionId: parsed.kind === 'sub' ? parsed.subOptionId : undefined,
         locale: isSupportedLocale(locale) ? locale : undefined,
+        guildId: interaction.guildId ?? undefined,
       });
 
       await interaction.showModal(this.buildNameInputModal(parsed, spec, locale));

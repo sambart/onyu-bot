@@ -31,6 +31,10 @@ export const MESSAGE_CODE = {
   GUILD_NOT_FOUND: 'GUILD_NOT_FOUND',
   INACTIVE_ROLE_NOT_CONFIGURED: 'INACTIVE_ROLE_NOT_CONFIGURED',
   REMOVE_ROLE_NOT_CONFIGURED: 'REMOVE_ROLE_NOT_CONFIGURED',
+  // 비활동 회원 설정 저장 시 역할 검증(감사 2026-10-22 A2·A3)
+  INACTIVE_ROLE_SAME_AS_REMOVE: 'INACTIVE_ROLE_SAME_AS_REMOVE',
+  INACTIVE_ROLE_HIERARCHY: 'INACTIVE_ROLE_HIERARCHY',
+  INACTIVE_ROLE_INVALID: 'INACTIVE_ROLE_INVALID',
   MISSION_NOT_IN_PROGRESS: 'MISSION_NOT_IN_PROGRESS',
   PREFIX_DUPLICATE: 'PREFIX_DUPLICATE',
   CONFIG_NOT_FOUND: 'CONFIG_NOT_FOUND',
@@ -42,6 +46,10 @@ export const MESSAGE_CODE = {
   ERR_DISCORD_MISSING_ACCESS: 'ERR_DISCORD_MISSING_ACCESS',
   /** 50013 Missing Permissions — 채널은 보이나 필요 권한 없음. params: { channelId } */
   ERR_DISCORD_MISSING_PERMISSIONS: 'ERR_DISCORD_MISSING_PERMISSIONS',
+  /** 저장 요청 채널이 이 길드 소속이 아니거나 삭제됨. params: { channelId } */
+  ERR_CHANNEL_NOT_IN_GUILD: 'ERR_CHANNEL_NOT_IN_GUILD',
+  /** Discord 장애·지연으로 채널 소속을 확인하지 못해 저장 거부(503). params: { channelId } */
+  ERR_CHANNEL_OWNERSHIP_UNVERIFIABLE: 'ERR_CHANNEL_OWNERSHIP_UNVERIFIABLE',
 
   // ── me-* 쿼리 파라미터 검증 400 (i18n G1-ⓑ 1차) ──
   /** guildId 쿼리 누락. params 없음 */
@@ -50,6 +58,8 @@ export const MESSAGE_CODE = {
   INVALID_DAYS_PARAM: 'INVALID_DAYS_PARAM',
   /** co-presence 페어 상세에서 peerId 가 본인(JWT.sub). params 없음 */
   SELF_PEER_NOT_ALLOWED: 'SELF_PEER_NOT_ALLOWED',
+  /** 듀오 케미 카드 상대가 관계 표시를 거부(F-COPRESENCE-035). 400 — 봇이 code 로 안내 분기, params 없음 */
+  CO_PRESENCE_PEER_HIDDEN: 'CO_PRESENCE_PEER_HIDDEN',
 
   // ── class-validator DTO 검증 400 (i18n G1-ⓑ 2차) ──
   /** 검증 실패 일반 코드(실패 2건 이상 또는 문구군 미배정). params: { fields } — 실패 필드 경로 목록 */
@@ -80,6 +90,8 @@ export const MESSAGE_CODE = {
   MISSION_NOT_FOUND: 'MISSION_NOT_FOUND',
   /** 템플릿에 허용되지 않은 변수 포함(400). 필드별 상세는 errors 맵. params 없음 */
   TEMPLATE_VARIABLE_NOT_ALLOWED: 'TEMPLATE_VARIABLE_NOT_ALLOWED',
+  /** newbie 완료 보상 역할 계층 검증 거부(403/400) 또는 역할 조회 실패(503). errors.missionCompleteRoleId 동반. params 없음 */
+  NEWBIE_COMPLETE_ROLE_REJECTED: 'NEWBIE_COMPLETE_ROLE_REJECTED',
 
   // ── i18n P3 — throwPeriodValidationError 코드화 (moco 기간 쿼리 검증 400) ──
   /**
@@ -119,6 +131,18 @@ export const MESSAGE_CODE = {
    */
   ERR_ADMIN_LOG_CHANNEL_UNREACHABLE: 'ERR_ADMIN_LOG_CHANNEL_UNREACHABLE',
 
+  // ── 설정 자동 조치 기록 [다시 켜기] (docs/plans/settings-auto-action-log.md, F-WEB-043 SA2) ──
+  /** 기록이 없거나 id 형식 불일치 / 다른 길드 소유(404). params 없음 */
+  ERR_SETTINGS_AUTO_ACTION_NOT_FOUND: 'ERR_SETTINGS_AUTO_ACTION_NOT_FOUND',
+  /** 복원 불가 기록(400). params: { reason: 'not_auto_disabled' | 'no_channel' | 'unsupported_target' | 'previous_value_invalid' } */
+  ERR_SETTINGS_AUTO_ACTION_NOT_RESTORABLE: 'ERR_SETTINGS_AUTO_ACTION_NOT_RESTORABLE',
+  /** 캐시 무시 재확인 결과 채널이 여전히 접근 불가(409). params 없음 */
+  ERR_SETTINGS_AUTO_ACTION_STILL_UNREACHABLE: 'ERR_SETTINGS_AUTO_ACTION_STILL_UNREACHABLE',
+  /** 조건부 복원 UPDATE affected 0 — 그 사이 설정이 바뀜(409). params 없음 */
+  ERR_SETTINGS_AUTO_ACTION_STATE_CHANGED: 'ERR_SETTINGS_AUTO_ACTION_STATE_CHANGED',
+  /** 재확인 결과 unknown — 켜지 않음(503). params 없음 */
+  ERR_SETTINGS_AUTO_ACTION_CHECK_UNAVAILABLE: 'ERR_SETTINGS_AUTO_ACTION_CHECK_UNAVAILABLE',
+
   // ── auto-channel 방제 자유 입력 (docs/plans/auto-channel-name-input.md §3-4, F-VOICE-125~133) ──
   /** required 모드 + trim 후 빈 입력(400/봇 error 분기). params 없음 */
   ERR_AUTO_CHANNEL_NAME_REQUIRED: 'ERR_AUTO_CHANNEL_NAME_REQUIRED',
@@ -138,5 +162,56 @@ export const MESSAGE_CODE = {
   ERR_AUTO_CHANNEL_NAME_RULE_INVALID: 'ERR_AUTO_CHANNEL_NAME_RULE_INVALID',
   /** N3 조회 시 대상 버튼/선택지의 nameInputMode='off' 이거나 최종 템플릿에 {input} 0회(404). params 없음 */
   ERR_AUTO_CHANNEL_NAME_INPUT_DISABLED: 'ERR_AUTO_CHANNEL_NAME_INPUT_DISABLED',
+
+  // ── 관리 어시스턴트 Phase 3 승인-실행 E9 (docs/plans/admin-assist-phase3-approval.md D-16) ──
+  /** 이력 행 없음 / 타 길드·타인 소유 / F5 동시 삭제(404). params 없음 */
+  ERR_ADMIN_ASSIST_HISTORY_NOT_FOUND: 'ERR_ADMIN_ASSIST_HISTORY_NOT_FOUND',
+  /** previewDigest 불일치 — 그 사이 값이 바뀜(409). details: { proposal } */
+  ERR_ADMIN_ASSIST_PREVIEW_STALE: 'ERR_ADMIN_ASSIST_PREVIEW_STALE',
+  /** 이미 적용됨(409, 멱등). details: { result } */
+  ERR_ADMIN_ASSIST_ALREADY_EXECUTED: 'ERR_ADMIN_ASSIST_ALREADY_EXECUTED',
+  /** 다른 요청이 실행 중(409). params 없음 */
+  ERR_ADMIN_ASSIST_EXECUTION_IN_PROGRESS: 'ERR_ADMIN_ASSIST_EXECUTION_IN_PROGRESS',
+  /** proposal TTL 초과(410). params 없음 */
+  ERR_ADMIN_ASSIST_PROPOSAL_EXPIRED: 'ERR_ADMIN_ASSIST_PROPOSAL_EXPIRED',
+  /** 실행 불가 행/액션(422). params: { reason: AdminAssistExecuteNotExecutableReason } */
+  ERR_ADMIN_ASSIST_NOT_EXECUTABLE: 'ERR_ADMIN_ASSIST_NOT_EXECUTABLE',
+  /** 킬 스위치 off(422). params 없음 */
+  ERR_ADMIN_ASSIST_EXECUTION_DISABLED: 'ERR_ADMIN_ASSIST_EXECUTION_DISABLED',
+  /** 도메인 저장 경로가 4xx 로 거절(422). params: { domainStatus, domainCode?: AdminAssistExecuteDomainCode } */
+  ERR_ADMIN_ASSIST_DOMAIN_REJECTED: 'ERR_ADMIN_ASSIST_DOMAIN_REJECTED',
+  /** 저장/조회 중 예외·도메인 5xx(503). params: { stage?, outcome?, domainCode? } */
+  ERR_ADMIN_ASSIST_EXECUTION_FAILED: 'ERR_ADMIN_ASSIST_EXECUTION_FAILED',
+
+  // ── report-intake 신고·권리침해 웹 접수 (공개 3종은 전역 네임스페이스 충돌 회피용 REPORT_INTAKE_ 접두) ──
+  /** 폼 토큰 누락·위조·형식 오류·만료(400). params 없음 */
+  REPORT_INTAKE_TOKEN_INVALID: 'REPORT_INTAKE_TOKEN_INVALID',
+  /** 작성 시작 후 최소 시간 미달(400). params 없음 */
+  REPORT_INTAKE_TOO_FAST: 'REPORT_INTAKE_TOO_FAST',
+  /** IP 시간/일 접수 한도 초과(429). params: { retryAfterSeconds } */
+  REPORT_INTAKE_RATE_LIMITED: 'REPORT_INTAKE_RATE_LIMITED',
+  /** 신고 접수 행 없음(404). params 없음 */
+  REPORT_NOT_FOUND: 'REPORT_NOT_FOUND',
+  /** 전이표에 없는 상태 전이(409). params 없음 */
+  REPORT_INVALID_TRANSITION: 'REPORT_INVALID_TRANSITION',
+  /** 화면이 본 상태와 저장 상태 불일치(409). params 없음 */
+  REPORT_STATUS_CONFLICT: 'REPORT_STATUS_CONFLICT',
+  /** 종결 전이인데 처리 결과 코드 누락(400). params 없음 */
+  REPORT_RESOLUTION_REQUIRED: 'REPORT_RESOLUTION_REQUIRED',
+  /** 익명화된 행에 대한 재오픈·메모·보존 설정 등(409). params 없음 */
+  REPORT_ALREADY_ANONYMIZED: 'REPORT_ALREADY_ANONYMIZED',
+  /** legalHold 중인 행의 익명화 시도(409). params 없음 */
+  REPORT_LEGAL_HOLD_ACTIVE: 'REPORT_LEGAL_HOLD_ACTIVE',
+  /** 이미 운영진 채널에 통지됨(409). params 없음 */
+  REPORT_ALREADY_NOTIFIED: 'REPORT_ALREADY_NOTIFIED',
+  /** 운영진 통지 채널 env 미설정(409). params 없음 */
+  REPORT_NOTIFY_CHANNEL_NOT_CONFIGURED: 'REPORT_NOTIFY_CHANNEL_NOT_CONFIGURED',
+  /** 즉시 익명화 확인용 접수 번호 불일치(400). params 없음 */
+  REPORT_CONFIRM_MISMATCH: 'REPORT_CONFIRM_MISMATCH',
+  // ── 멤버 XP 수동 조정 (docs/plans/level-member-xp-adjust.md, F-LVL-34) ──
+  /** 조정 대상이 봇 계정(400). params 없음 */
+  LEVEL_XP_ADJUST_TARGET_BOT: 'LEVEL_XP_ADJUST_TARGET_BOT',
+  /** 조정 대상이 탈퇴 멤버이거나 guild_member·user_level 모두 없음(404). params 없음 */
+  LEVEL_XP_ADJUST_TARGET_NOT_FOUND: 'LEVEL_XP_ADJUST_TARGET_NOT_FOUND',
 } as const;
 export type MessageCode = (typeof MESSAGE_CODE)[keyof typeof MESSAGE_CODE];

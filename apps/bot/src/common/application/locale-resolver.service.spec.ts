@@ -72,6 +72,24 @@ describe('LocaleResolverService (bot)', () => {
     });
   });
 
+  describe('pt 로케일 (i18n-pt-br-bot)', () => {
+    it('Discord pt-BR → pt 로 매핑된다 (앞 2자 매핑, 코드 변경 없음)', async () => {
+      apiClient.getUserLocale.mockResolvedValue({ locale: null });
+
+      const result = await service.resolve('user-1', null, 'pt-BR');
+
+      expect(result).toBe('pt');
+    });
+
+    it('저장된 user locale pt → pt 를 그대로 반환하고 interaction.locale 은 무시한다', async () => {
+      apiClient.getUserLocale.mockResolvedValue({ locale: 'pt' });
+
+      const result = await service.resolve('user-1', 'guild-1', 'ko-KR');
+
+      expect(result).toBe('pt');
+    });
+  });
+
   describe('getUserLocale 예외 흡수 (EC-RP-51 — 봇 커맨드 전체가 API 장애로 죽으면 안 됨)', () => {
     it('타임아웃/네트워크 오류 → 예외를 던지지 않고 2순위(interaction.locale)로 폴백한다', async () => {
       apiClient.getUserLocale.mockRejectedValue(new Error('ETIMEDOUT'));
@@ -112,6 +130,39 @@ describe('LocaleResolverService (bot)', () => {
       const result = await service.resolve('user-1', null, 'ko-KR');
 
       expect(result).toBe('ko');
+    });
+  });
+  describe('저장값 검증 — 지원 목록 밖 값은 다음 순위로 낙하 (F-GENERAL-007)', () => {
+    it('저장된 locale 이 지원 목록 밖(철회된 로케일)이면 interaction.locale 매핑으로 낙하한다', async () => {
+      apiClient.getUserLocale.mockResolvedValue({ locale: 'xx' });
+
+      const result = await service.resolve('user-1', 'guild-1', 'ko-KR');
+
+      expect(result).toBe('ko');
+    });
+
+    it('저장값·interaction.locale 모두 지원 목록 밖이면 기본값 en 을 반환한다', async () => {
+      apiClient.getUserLocale.mockResolvedValue({ locale: 'xx' });
+
+      const result = await service.resolve('user-1', 'guild-1', 'ja');
+
+      expect(result).toBe('en');
+    });
+
+    it('빈 문자열 저장값은 지원 값으로 취급하지 않고 낙하한다', async () => {
+      apiClient.getUserLocale.mockResolvedValue({ locale: '' });
+
+      const result = await service.resolve('user-1', 'guild-1', 'ko-KR');
+
+      expect(result).toBe('ko');
+    });
+
+    it('지원되는 저장값(en)은 interaction.locale(ko-KR)보다 우선하고 그대로 반환된다', async () => {
+      apiClient.getUserLocale.mockResolvedValue({ locale: 'en' });
+
+      const result = await service.resolve('user-1', 'guild-1', 'ko-KR');
+
+      expect(result).toBe('en');
     });
   });
 });

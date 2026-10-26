@@ -36,10 +36,16 @@ export type ReferrerGroup = (typeof REFERRER_GROUPS)[number];
 export const LANDING_EVENT_TYPES = ['cta_invite_click', 'cta_features_click'] as const;
 export type LandingEventType = (typeof LANDING_EVENT_TYPES)[number];
 
-/** Bot → API 길드 생애주기 수집 payload — 유저 ID·길드명·멤버수 미포함 (개인 미식별 🔒) */
+/**
+ * Bot → API 길드 생애주기 수집 payload — 유저 ID·길드명·멤버수 미포함 (개인 미식별 🔒).
+ * `permissionsSnapshot` 은 봇 자신의 길드 레벨 권한 비트필드(10진 정수 문자열)다 — 초대한
+ * 관리자의 유저 ID가 아니다(선택 필드, POST-SETUP-FIRST-VALUE, F-USAGE-061). `join` 에서만
+ * 의미가 있고 `leave` 에 실려 오면 무시된다.
+ */
 export interface GuildLifecycleEventDto {
   guildId: string;
   eventType: GuildLifecycleEventType;
+  permissionsSnapshot?: string;
 }
 
 /** Web(api route) → API 랜딩 리퍼러 수집 payload — 방문자 미식별 🔒 (그룹/캠페인 화이트리스트 치환 완료) */
@@ -139,7 +145,7 @@ export const AUTO_ACTION_DOMAINS = [
 ] as const;
 export type AutoActionDomain = (typeof AUTO_ACTION_DOMAINS)[number];
 
-/** 액션 화이트리스트 11종(도메인 간 재사용 있음) — auto_action_daily.action varchar(24) */
+/** 액션 화이트리스트 13종(도메인 간 재사용 있음) — auto_action_daily.action varchar(24) */
 export const AUTO_ACTION_TYPES = [
   'repost',
   'apply',
@@ -152,20 +158,30 @@ export const AUTO_ACTION_TYPES = [
   'role-expired-removed',
   'announced',
   'auto-role-added',
+  // welcome CANVAS→EMBED 강등 계측(2026-09-21) — welcome-sent(총 발송, 하위호환 유지)와
+  // 별도로 CANVAS 시도의 성공/강등을 구분해 분모/분자를 만든다.
+  'welcome-canvas-sent',
+  'welcome-canvas-fallback',
 ] as const;
 export type AutoActionType = (typeof AUTO_ACTION_TYPES)[number];
 
 /**
- * 도메인별 허용 액션 맵 — 12개 유효 조합의 유일 정본(F-USAGE-035 표).
+ * 도메인별 허용 액션 맵 — 14개 유효 조합의 유일 정본(F-USAGE-035 표).
  * 목록 밖 조합은 AutoActionUsageService.record()가 Redis 미접근 + 경고 로그만 남기고 drop 한다
- * (카디널리티 방어선, F-USAGE-044 — 하루 최대 활성 키 수 = 12 × 활성 길드 수).
+ * (카디널리티 방어선, F-USAGE-044 — 하루 최대 활성 키 수 = 14 × 활성 길드 수).
  */
 export const AUTO_ACTION_ALLOWED: Record<AutoActionDomain, readonly AutoActionType[]> = {
   'sticky-message': ['repost'],
   'status-prefix': ['apply', 'reset'],
   'role-panel': ['role-granted', 'role-revoked'],
   'auto-channel': ['channel-created'],
-  newbie: ['welcome-sent', 'role-assigned', 'role-expired-removed'],
+  newbie: [
+    'welcome-sent',
+    'role-assigned',
+    'role-expired-removed',
+    'welcome-canvas-sent',
+    'welcome-canvas-fallback',
+  ],
   level: ['role-granted', 'announced'],
   'inactive-member': ['auto-role-added'],
 };
@@ -226,4 +242,15 @@ export function resolveMultiGuildLoginBucket(managedGuildCount: number): MultiGu
   if (managedGuildCount === 2) return '2';
   if (managedGuildCount <= MULTI_GUILD_LOGIN_BUCKET_MID_MAX) return '3-5';
   return '6+';
+}
+
+// ── 관리 어시스턴트 결과 카드 CTA 클릭 계측 (ADMIN-ASSIST-CTA-METRICS, 리뷰 A7) ──
+
+/** CTA 종류 화이트리스트 2종 — admin_assist_cta_click_daily.ctaType varchar(20) */
+export const ADMIN_ASSIST_CTA_TYPES = ['recommendation', 'suggested_action'] as const;
+export type AdminAssistCtaType = (typeof ADMIN_ASSIST_CTA_TYPES)[number];
+
+/** Web(api route) → API 관리 어시스턴트 CTA 클릭 수집 payload — 길드·유저 완전 미식별 🔒 */
+export interface AdminAssistCtaClickDto {
+  ctaType: AdminAssistCtaType;
 }
