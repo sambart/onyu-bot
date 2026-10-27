@@ -156,7 +156,7 @@ export class BotAutoChannelInteractionHandler {
       return;
     }
 
-    await this.handleNameInputEntry(interaction, parsed, locale);
+    await this.handleNameInputEntry(interaction, parsed, { guildId, locale });
   }
 
   /** off 모드(낡은 안내 메시지 포함) — 현행 button-click/sub-option 흐름, 동작 무변경. */
@@ -242,14 +242,14 @@ export class BotAutoChannelInteractionHandler {
   private async handleNameInputEntry(
     interaction: ButtonInteraction,
     parsed: ParsedAutoCustomId,
-    locale: string,
+    { guildId, locale }: { guildId: string; locale: string },
   ): Promise<void> {
     try {
       const spec = await this.apiClient.autoChannelNameInput({
         buttonId: parsed.buttonId as number,
         subOptionId: parsed.kind === 'sub' ? parsed.subOptionId : undefined,
         locale: isSupportedLocale(locale) ? locale : undefined,
-        guildId: interaction.guildId ?? undefined,
+        guildId,
       });
 
       await interaction.showModal(this.buildNameInputModal(parsed, spec, locale));
@@ -282,7 +282,7 @@ export class BotAutoChannelInteractionHandler {
       return;
     }
 
-    await this.handleNameInputEntry(interaction, parsed, locale);
+    await this.handleNameInputEntry(interaction, parsed, { guildId, locale });
   }
 
   private parseRetryCustomId(customId: string): ParsedAutoCustomId | null {

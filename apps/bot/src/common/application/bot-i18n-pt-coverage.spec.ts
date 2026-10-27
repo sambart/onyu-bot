@@ -23,9 +23,19 @@ const LEGAL_KEY_PREFIXES = ['privacy.', 'terms.'] as const;
 /**
  * 1군(ko/en) 에만 추가되고 pt 번역이 아직 없는 키(2군 수동 작성 금지).
  * 번역 파이프라인 자동 PR 이 pt 를 채우면 해당 키를 여기서 제거한다.
- * (현재 없음 — newbie-mission-auto-reward 5키는 A7 develop 병합 시 번역 완료)
+ * (현재: 연말 결산 8키 — 번역 PR 머지 시 제거)
  */
-const PT_PENDING_TRANSLATION_KEYS: readonly string[] = [];
+const PT_PENDING_TRANSLATION_KEYS: readonly string[] = [
+  // 연말 결산(`/me 보기:결산`) — pt 는 번역 파이프라인이 채운다(en 폴백 동작)
+  'commands.meRecapButtonLabel',
+  'commands.meRecapEmpty',
+  'commands.meRecapEnded',
+  'commands.meRecapError',
+  'commands.meRecapNotStarted',
+  'commands.meRecapSummaryHours',
+  'commands.meRecapSummaryMessages',
+  'commands.meRecapSummaryMinutes',
+];
 
 type Messages = Record<string, string>;
 

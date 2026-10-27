@@ -35,6 +35,7 @@ import type {
   GetLevelRankCardOptions,
   GetMeProfileOptions,
   GetMyBestFriendsOptions,
+  GetRecapCardOptions,
   GetWelcomeCardOptions,
   GuildDirectoryReconcileDto,
   GuildDirectoryReconcileResult,
@@ -60,6 +61,7 @@ import type {
   MemberDisplayNameResponse,
   MemberJoinDto,
   MeProfileResponse,
+  MeRecapBotResponse,
   MessageCountedDto,
   MessageCreatedDto,
   MissionMyResponse,
@@ -241,10 +243,12 @@ export class BotApiClientService {
    * 호출측이 예외 종류를 구분하지 않고 동일 처리한다(D-9).
    */
   async autoChannelNameInput(query: AutoChannelNameInputQuery): Promise<AutoChannelNameInputSpec> {
-    const params = new URLSearchParams({ buttonId: String(query.buttonId) });
+    const params = new URLSearchParams({
+      buttonId: String(query.buttonId),
+      guildId: query.guildId,
+    });
     if (query.subOptionId !== undefined) params.set('subOptionId', String(query.subOptionId));
     if (query.locale) params.set('locale', query.locale);
-    if (query.guildId) params.set('guildId', query.guildId);
     return this.get(`/bot-api/auto-channel/name-input?${params.toString()}`, {
       timeout: AUTO_CHANNEL_NAME_INPUT_TIMEOUT_MS,
     });
@@ -363,6 +367,14 @@ export class BotApiClientService {
   async getMeProfile(options: GetMeProfileOptions): Promise<MeProfileResponse> {
     const config = options.mentType ? { timeout: ME_PROFILE_MENT_TIMEOUT_MS } : undefined;
     return this.post('/bot-api/me/profile', options, config);
+  }
+
+  /**
+   * `/me 보기:결산` 연말 결산 카드(B1) — 개인정보가 액세스 로그에 남지 않도록 POST body 로 전송한다.
+   * API 는 항상 200 을 반환하며 실패는 `ok:false` 로 표현한다.
+   */
+  async getRecapCard(options: GetRecapCardOptions): Promise<MeRecapBotResponse> {
+    return this.post('/bot-api/me/recap', options);
   }
 
   /** [💬 활동 상세] 버튼(F-VOICE-064) — 음성×메시지 순위 분해 조회. */

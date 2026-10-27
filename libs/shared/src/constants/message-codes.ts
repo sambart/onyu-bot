@@ -60,6 +60,10 @@ export const MESSAGE_CODE = {
   SELF_PEER_NOT_ALLOWED: 'SELF_PEER_NOT_ALLOWED',
   /** 듀오 케미 카드 상대가 관계 표시를 거부(F-COPRESENCE-035). 400 — 봇이 code 로 안내 분기, params 없음 */
   CO_PRESENCE_PEER_HIDDEN: 'CO_PRESENCE_PEER_HIDDEN',
+  /** 결산 노출 창 밖 요청(404). params: { phase } — 'not_started' | 'ended' */
+  RECAP_OUT_OF_WINDOW: 'RECAP_OUT_OF_WINDOW',
+  /** 결산 year 쿼리가 지원 연도가 아님(400). params 없음 */
+  INVALID_RECAP_YEAR: 'INVALID_RECAP_YEAR',
 
   // ── class-validator DTO 검증 400 (i18n G1-ⓑ 2차) ──
   /** 검증 실패 일반 코드(실패 2건 이상 또는 문구군 미배정). params: { fields } — 실패 필드 경로 목록 */

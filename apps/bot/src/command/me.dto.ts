@@ -4,6 +4,8 @@ import { Choice, Param, ParamType } from '@discord-nestjs/core';
 export enum MeViewOption {
   Level = 'level',
   Voice = 'voice',
+  /** 연말 결산(F-RECAP, 2026-12-15~2027-01-15 노출 창) */
+  Recap = 'recap',
 }
 
 export class MeCommandDto {
@@ -12,14 +14,17 @@ export class MeCommandDto {
   @Choice({
     Level: { value: MeViewOption.Level, nameLocalizations: { ko: '레벨' } },
     Voice: { value: MeViewOption.Voice, nameLocalizations: { ko: '음성' } },
+    // pt-BR 이름은 두지 않는다(command-localizations 가드) — 값은 'recap' 으로 고정
+    Recap: { value: MeViewOption.Recap, nameLocalizations: { ko: '결산' } },
   })
   @Param({
     name: 'view',
     nameLocalizations: { ko: '보기' },
-    description: 'Card view: level (default) or the legacy voice-time card',
+    description: 'Card view: level (default), the legacy voice-time card, or the year-end recap',
     descriptionLocalizations: {
-      ko: '카드 보기: 레벨(기본) 또는 레거시 음성 시간 카드',
-      'pt-BR': 'Visualização do cartão: nível (padrão) ou o cartão antigo de tempo de voz',
+      ko: '카드 보기: 레벨(기본), 레거시 음성 시간 카드 또는 연말 결산',
+      'pt-BR':
+        'Visualização do cartão: nível (padrão), o cartão antigo de tempo de voz ou o resumo do ano',
     },
     required: false,
     type: ParamType.STRING,

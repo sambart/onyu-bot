@@ -263,3 +263,11 @@ export {
   WEB_VITALS_METRICS,
 } from './usage-analytics';
 export * from './voice-game';
+export type {
+  MeRecapBotResponse,
+  MeRecapCardResponse,
+  MeRecapData,
+  MeRecapResponse,
+  RecapHero,
+  RecapWindowPhase,
+} from './year-end-recap';

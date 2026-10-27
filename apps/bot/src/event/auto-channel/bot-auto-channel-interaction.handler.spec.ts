@@ -207,6 +207,16 @@ describe('BotAutoChannelInteractionHandler', () => {
       expect(interaction.showModal).toHaveBeenCalledOnce();
     });
 
+    it('X15: N3 조회에 interaction 길드 ID 를 항상 싣는다(API 필수 파라미터)', async () => {
+      const interaction = makeButtonInteraction({ customId: 'auto_btn:10:r' });
+
+      await handler.handle(interaction);
+
+      expect(apiClient.autoChannelNameInput).toHaveBeenCalledWith(
+        expect.objectContaining({ buttonId: 10, guildId: 'guild-1' }),
+      );
+    });
+
     it('N3 실패(throw) → ephemeral 오류 1줄 + showModal 0회 + name-submit 0회(D-9)', async () => {
       apiClient.autoChannelNameInput.mockRejectedValue(new Error('timeout'));
       const interaction = makeButtonInteraction({ customId: 'auto_btn:10:o' });

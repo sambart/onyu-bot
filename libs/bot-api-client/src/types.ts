@@ -4,6 +4,7 @@ import type {
   CommandUsedDto,
   GuildLifecycleEventDto,
   LeaderboardDeniedReason,
+  MeRecapBotResponse,
   MessageCode,
   NewbieOnboardingFailureDto,
   SupportedLocale,
@@ -13,6 +14,7 @@ export type {
   AutoActionRecordDto,
   CommandUsedDto,
   GuildLifecycleEventDto,
+  MeRecapBotResponse,
   NewbieOnboardingFailureDto,
 };
 
@@ -256,8 +258,8 @@ export interface AutoChannelNameInputQuery {
   buttonId: number;
   subOptionId?: number;
   locale?: SupportedLocale;
-  /** 버튼이 이 길드 소속인지 API 가 대조한다. 배포 스큐(구 봇 미전송) 대비 optional */
-  guildId?: string;
+  /** 버튼이 이 길드 소속인지 API 가 대조한다(누락 시 400, 불일치 시 404) */
+  guildId: string;
 }
 
 /** GET /bot-api/auto-channel/name-input 응답 — 모달 사양(Discord showModal 전 조회). */
@@ -423,6 +425,15 @@ export interface GetMeProfileOptions {
   locale: CanvasCardLocale;
   /** `/미 멘트` 옵션(F-VOICE-079 R3.5). 미지정 시 멘트 파이프라인 미진입 */
   mentType?: 'analysis';
+}
+
+/** getRecapCard 요청 옵션(B1, 연말 결산) — API `MeRecapRequestDto`와 수기 정합 필수 */
+export interface GetRecapCardOptions {
+  guildId: string;
+  userId: string;
+  displayName: string;
+  avatarUrl: string;
+  locale?: CanvasCardLocale;
 }
 
 // ── Level (Rank / Leaderboard Cards, U9) ──

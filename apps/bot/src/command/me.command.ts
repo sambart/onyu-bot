@@ -9,6 +9,7 @@ import { BotI18nService } from '../common/application/bot-i18n.service';
 import { LocaleResolverService } from '../common/application/locale-resolver.service';
 import { MeCommandDto, MeViewOption } from './me.dto';
 import { buildProfileCardReply, fetchMeProfileCard } from './me-profile-card';
+import { handleRecapView } from './me-recap-card';
 
 @Command({
   name: 'me',
@@ -44,6 +45,19 @@ export class MeCommand {
       await interaction.reply({
         content: this.i18n.t(locale, 'errors.guildOnly'),
         ephemeral: true,
+      });
+      return;
+    }
+
+    // 결산은 별도 라우트(B1)라 profile 경로(viewOption·me-ment 쿼터)와 섞지 않는다.
+    // 창 밖 안내는 defer 없이 ephemeral reply 해야 하므로 deferReply 앞에서 위임한다.
+    if (dto.view === MeViewOption.Recap) {
+      await handleRecapView({
+        interaction,
+        apiClient: this.apiClient,
+        i18n: this.i18n,
+        locale,
+        logger: this.logger,
       });
       return;
     }

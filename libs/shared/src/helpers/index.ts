@@ -7,6 +7,7 @@ export * from './level-no-xp-share';
 export * from './level-xp-multiplier';
 export * from './locale-table';
 export * from './weekly-report-snapshot-mask.util';
+export * from './year-end-recap';
 
 /** 오늘 날짜를 YYYYMMDD 형식 문자열로 반환한다 (로컬 시간 기준) */
 export function todayYYYYMMDD(): string {

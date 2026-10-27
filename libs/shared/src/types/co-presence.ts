@@ -48,7 +48,7 @@ export interface MeTopPeersResponse {
   days: number;
   peers: MeTopPeerItem[];
   /** F-COPRESENCE-035. 본인의 현재 길드 관계 표시 거부 상태 — 토글 초기값 */
-  privacy: { hideRelations: boolean };
+  privacy: { hideRelations: boolean; recapBestFriendOptIn: boolean };
   /** F-COPRESENCE-032. 산출 실패 시 null — 목록(peers)은 정상 반환된다 (EC-CP-61) */
   summary: MeFriendsSummary | null;
 }
@@ -77,13 +77,15 @@ export interface MePairDetailResponse {
 
 /** PATCH /api/users/me/co-presence/privacy 요청 body (E3, F-COPRESENCE-035) — userId 는 JWT 강제 */
 export interface MeCoPresencePrivacyRequest {
-  hideRelations: boolean;
+  hideRelations?: boolean;
+  recapBestFriendOptIn?: boolean;
 }
 
 /** PATCH /api/users/me/co-presence/privacy 응답 (E3, F-COPRESENCE-035) */
 export interface MeCoPresencePrivacyResponse {
   guildId: string;
   hideRelations: boolean;
+  recapBestFriendOptIn: boolean;
   /** ISO 8601 */
   updatedAt: string;
 }

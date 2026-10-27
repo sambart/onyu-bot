@@ -5,7 +5,7 @@
  */
 import type { BotApiClientService, MeProfileResponse } from '@onyu/bot-api-client';
 import type { ChatInputCommandInteraction, GuildMember } from 'discord.js';
-import { beforeEach, describe, expect, it, type Mock, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from 'vitest';
 
 import { BotI18nService } from '../common/application/bot-i18n.service';
 import { LocaleResolverService } from '../common/application/locale-resolver.service';
@@ -39,10 +39,13 @@ function profileResponse(overrides: Partial<MeProfileResponse> = {}): MeProfileR
 
 describe('MeCommand', () => {
   let command: MeCommand;
-  let apiClient: { getMeProfile: Mock };
+  let apiClient: { getMeProfile: Mock; getRecapCard: Mock };
 
   beforeEach(() => {
-    apiClient = { getMeProfile: vi.fn().mockResolvedValue(profileResponse()) };
+    apiClient = {
+      getMeProfile: vi.fn().mockResolvedValue(profileResponse()),
+      getRecapCard: vi.fn(),
+    };
 
     const i18n = new BotI18nService();
     i18n.onModuleInit();
@@ -144,6 +147,48 @@ describe('MeCommand', () => {
       expect(apiClient.getMeProfile).toHaveBeenCalledWith(
         expect.objectContaining({ viewOption: 'voice', mentType: 'analysis' }),
       );
+    });
+  });
+
+  describe('결산 뷰(F-RECAP) 분기', () => {
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it('dto.view=recap 이면 profile 경로(getMeProfile)를 호출하지 않고 getRecapCard 로 위임한다(VP-01-02)', async () => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date('2026-12-20T03:00:00Z'));
+      apiClient.getRecapCard.mockResolvedValue({
+        ok: true,
+        status: 'ready',
+        data: { imageBase64: Buffer.from('png').toString('base64') },
+        summary: {
+          year: 2026,
+          hero: { kind: 'voice', unit: 'hour', value: 12 },
+          messageCount: 3,
+          activityType: 'night-owl',
+          activityTypeLabel: '올빼미',
+        },
+      });
+      const interaction = makeInteraction();
+      const dto = new MeCommandDto();
+      dto.view = MeViewOption.Recap;
+
+      await command.onMe(interaction, dto);
+
+      expect(apiClient.getRecapCard).toHaveBeenCalledTimes(1);
+      expect(apiClient.getMeProfile).not.toHaveBeenCalled();
+    });
+
+    it('level/voice 뷰는 recap 분기로 빠지지 않는다(무회귀)', async () => {
+      const interaction = makeInteraction();
+      const dto = new MeCommandDto();
+      dto.view = MeViewOption.Level;
+
+      await command.onMe(interaction, dto);
+
+      expect(apiClient.getRecapCard).not.toHaveBeenCalled();
+      expect(apiClient.getMeProfile).toHaveBeenCalledTimes(1);
     });
   });
 
