@@ -62,3 +62,22 @@ export function resolveRecapHero(voiceSeconds: number, messageCount: number): Re
 export function isRecapEmpty(voiceSeconds: number, messageCount: number): boolean {
   return resolveRecapHero(voiceSeconds, messageCount) === null;
 }
+
+/**
+ * 결산 도메인의 "지금" 을 계산한다 — QA 시각 오버라이드(P-51)의 단일 규칙.
+ * production 이 아니고 `override`(ISO 8601)가 유효할 때만 그 시각을 돌려주고, 그 외에는 `now` 를 돌려준다.
+ * 환경변수 읽기는 호출 앱이 맡는다(web 은 `NEXT_PUBLIC_*` 정적 접근이 필요해 읽는 방식이 앱마다 다르다).
+ *
+ * @param override 환경변수 원문(없으면 undefined)
+ * @param isProduction production 여부 — true 면 오버라이드를 무시한다
+ * @param now 오버라이드가 없을 때 쓸 현재 시각(테스트 주입용, 기본 new Date())
+ */
+export function resolveRecapNow(
+  override: string | undefined,
+  isProduction: boolean,
+  now: Date = new Date(),
+): Date {
+  if (!override || isProduction) return now;
+  const parsed = new Date(override);
+  return Number.isNaN(parsed.getTime()) ? now : parsed;
+}

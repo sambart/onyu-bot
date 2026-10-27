@@ -1,6 +1,12 @@
 import type { Logger } from '@nestjs/common';
 import type { BotApiClientService, MeRecapBotResponse } from '@onyu/bot-api-client';
-import { getRecapWindowPhase, parseLocale, RECAP_YEAR, type RecapWindowPhase } from '@onyu/shared';
+import {
+  getRecapWindowPhase,
+  parseLocale,
+  RECAP_YEAR,
+  type RecapWindowPhase,
+  resolveRecapNow as resolveRecapNowShared,
+} from '@onyu/shared';
 import {
   ActionRowBuilder,
   AttachmentBuilder,
@@ -32,12 +38,11 @@ export const RECAP_NOW_OVERRIDE_ENV = 'RECAP_NOW_OVERRIDE';
  * 오버라이드 값을 쓴다(P-51 — 프리즈 후 노출이라 사전 스모크 수단 필요).
  */
 export function resolveRecapNow(): Date {
-  const override = process.env[RECAP_NOW_OVERRIDE_ENV];
-  if (!override || process.env['NODE_ENV'] === PRODUCTION_ENV) {
-    return new Date();
-  }
-  const parsed = new Date(override);
-  return Number.isNaN(parsed.getTime()) ? new Date() : parsed;
+  return resolveRecapNowShared(process.env[RECAP_NOW_OVERRIDE_ENV], isProductionEnv());
+}
+
+function isProductionEnv(): boolean {
+  return process.env['NODE_ENV'] === PRODUCTION_ENV;
 }
 
 /** 창 밖 단계(시작 전/종료)에 해당하는 안내 문구 */
