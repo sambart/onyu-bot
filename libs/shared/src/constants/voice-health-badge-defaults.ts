@@ -17,6 +17,10 @@ export const VOICE_HEALTH_BADGE_DEFAULTS = {
   // STREAM-STAR-BADGE(F-SD-020) 추가분
   badgeStreamTopPercent: 10,
   badgeStreamMinSec: 3600,
+  // VIDEO-ALLROUNDER-BADGE(F-SD-023/024) 추가분
+  badgeVideoTopPercent: 10,
+  badgeVideoMinSec: 3600,
+  badgeAllRounderMinCount: 4,
 } as const;
 
 export type VoiceHealthBadgeDefaults = typeof VOICE_HEALTH_BADGE_DEFAULTS;

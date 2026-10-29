@@ -7,6 +7,7 @@ import { ChatInputCommandInteraction, GuildMember } from 'discord.js';
 
 import { BotI18nService } from '../common/application/bot-i18n.service';
 import { LocaleResolverService } from '../common/application/locale-resolver.service';
+import { respondWithErrorNotice } from '../common/util/interaction-response.util';
 import { MeCommandDto, MeViewOption } from './me.dto';
 import { buildProfileCardReply, fetchMeProfileCard } from './me-profile-card';
 import { handleRecapView } from './me-recap-card';
@@ -18,6 +19,7 @@ import { handleRecapView } from './me-recap-card';
   descriptionLocalizations: {
     ko: '내 프로필과 음성 활동을 확인합니다',
     'pt-BR': 'Veja seu perfil e sua atividade de voz',
+    ja: 'プロフィールとボイスアクティビティを確認',
   },
 })
 @Injectable()
@@ -41,30 +43,31 @@ export class MeCommand {
       interaction.locale,
     );
 
-    if (!interaction.guildId) {
-      await interaction.reply({
-        content: this.i18n.t(locale, 'errors.guildOnly'),
-        ephemeral: true,
-      });
-      return;
-    }
-
-    // 결산은 별도 라우트(B1)라 profile 경로(viewOption·me-ment 쿼터)와 섞지 않는다.
-    // 창 밖 안내는 defer 없이 ephemeral reply 해야 하므로 deferReply 앞에서 위임한다.
-    if (dto.view === MeViewOption.Recap) {
-      await handleRecapView({
-        interaction,
-        apiClient: this.apiClient,
-        i18n: this.i18n,
-        locale,
-        logger: this.logger,
-      });
-      return;
-    }
-
-    await interaction.deferReply();
-
+    // 첫 응답(reply/deferReply)까지 try 안에 둔다 — 밖이면 실패 시 사용자에게 "응답 없음"(감사 A12)
     try {
+      if (!interaction.guildId) {
+        await interaction.reply({
+          content: this.i18n.t(locale, 'errors.guildOnly'),
+          ephemeral: true,
+        });
+        return;
+      }
+
+      // 결산은 별도 라우트(B1)라 profile 경로(viewOption·me-ment 쿼터)와 섞지 않는다.
+      // 창 밖 안내는 defer 없이 ephemeral reply 해야 하므로 deferReply 앞에서 위임한다.
+      if (dto.view === MeViewOption.Recap) {
+        await handleRecapView({
+          interaction,
+          apiClient: this.apiClient,
+          i18n: this.i18n,
+          locale,
+          logger: this.logger,
+        });
+        return;
+      }
+
+      await interaction.deferReply();
+
       const displayName =
         (interaction.member as GuildMember)?.displayName ?? interaction.user.displayName;
       const avatarUrl = interaction.user.displayAvatarURL({ extension: 'png', size: 128 });
@@ -96,7 +99,11 @@ export class MeCommand {
       await interaction.editReply(reply);
     } catch (error) {
       this.logger.error('Me command error', error instanceof Error ? error.stack : String(error));
-      await interaction.editReply({ content: this.i18n.t(locale, 'commands.meError') });
+      await respondWithErrorNotice(
+        interaction,
+        this.i18n.t(locale, 'commands.meError'),
+        this.logger,
+      );
     }
   }
 }

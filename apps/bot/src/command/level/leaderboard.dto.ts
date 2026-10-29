@@ -15,6 +15,7 @@ export class LeaderboardCommandDto {
     descriptionLocalizations: {
       ko: '리더보드 페이지 번호(기본값: 1)',
       'pt-BR': 'Número da página do placar (padrão: 1)',
+      ja: 'ランキングのページ番号（デフォルト：1）',
     },
     required: false,
     type: ParamType.INTEGER,

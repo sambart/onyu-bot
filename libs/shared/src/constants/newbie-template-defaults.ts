@@ -104,6 +104,31 @@ export const NEWBIE_TEMPLATE_DEFAULTS = defineLocaleTable<NewbieTemplateDefaults
     mocoScoring:
       '── Scoring ──\n🎮 {scorePerSession} pts/session · ⏱️ {scorePerMinute} pts/min · 🌱 {scorePerUnique} pts/unique\n⏳ Min {minCoPresence}m co-presence',
   },
+  ja: {
+    missionTitle: '🧑‍🌾 新人ミッションチェック',
+    missionHeader: '🧑‍🌾 新人メンバー (合計: {totalCount}名)',
+    missionItem:
+      '{mention} 🌱\n{startDate} ~ {endDate}\n{statusEmoji} {statusText} | プレイ時間: {playtime} | プレイ回数: {playCount}回',
+    missionFooter: '最終更新: {updatedAt}',
+    // J2 육안 판정 결함 수정(2026-09-01, 안 (a) 승인) — Canvas COL_STATUS_W(70px) 폭에서
+    // "In Progress"/"Completed"가 2행/1행으로 잘렸다(레이아웃 무변경 원칙 하 문자열 단축으로 대응).
+    // Embed {status} 템플릿 변수와 공유되는 값이라 두 표면 모두 짧아진다 — 승인된 파급.
+    // ko는 절대 무변경. FAILED/LEFT는 이미 짧아 무변경.
+    statusMapping: {
+      IN_PROGRESS: { emoji: '🟡', text: '進行中' },
+      COMPLETED: { emoji: '✅', text: '完了' },
+      FAILED: { emoji: '❌', text: '失敗' },
+      LEFT: { emoji: '🚪', text: '退場' },
+    },
+    mocoTitle: '🏆 若葉ハント順位',
+    mocoBody:
+      '**TOP {rank} — {hunterName} 🌱**\n**🏆 {score}pt**\n⏱️ {totalMinutes}分 · 🎮 {sessionCount}回 · 🌱 {uniqueNewbieCount}名\n\n{mocoList}',
+    mocoItem: '🌱 **{newbieName}** — {minutes}分 ({sessions}回)',
+    mocoFooter: 'ページ{currentPage}/{totalPages} | {interval}分ごとに自動更新',
+    mocoFooterNoInterval: 'ページ{currentPage}/{totalPages}',
+    mocoScoring:
+      '── ポイント計算 ──\n🎮 {scorePerSession}pt/回 · ⏱️ {scorePerMinute}pt/分 · 🌱 {scorePerUnique}pt/人\n⏳ 最小{minCoPresence}分同時参加',
+  },
   pt: {
     missionTitle: '🧑‍🌾 Missões dos novatos',
     missionHeader: '🧑‍🌾 Novatos (Total: {totalCount})',
@@ -150,6 +175,7 @@ export const MISSION_COMPLETE_ALLOWED_VARS = [
 export const NEWBIE_COMPLETE_TEMPLATE_DEFAULTS = defineLocaleTable<string>({
   ko: '🎉 {mention} 님이 신입 미션을 완료했어요! ({playtime} · {playCount}회)',
   en: '🎉 {mention} completed the newbie mission! ({playtime} · {playCount} plays)',
+  ja: '🎉 {mention}が新人ミッションを完了しました！ ({playtime} · {playCount}回)',
   pt: '🎉 {mention} concluiu a missão de novato! ({playtime} · {playCount} partidas)',
 });
 

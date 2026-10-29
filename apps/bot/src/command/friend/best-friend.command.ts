@@ -16,6 +16,8 @@ import {
 
 import { BotI18nService } from '../../common/application/bot-i18n.service';
 import { LocaleResolverService } from '../../common/application/locale-resolver.service';
+import { respondWithErrorNotice } from '../../common/util/interaction-response.util';
+import { getWebUrl } from '../../common/util/web-url.util';
 import { BestFriendCommandDto } from './best-friend.dto';
 
 // 집계 기간 (일) — 90일 고정.
@@ -24,8 +26,6 @@ import { BestFriendCommandDto } from './best-friend.dto';
 const PERIOD = 90 as const;
 // TOP N — 5명 고정
 const LIMIT = 5;
-// 대시보드 기본 URL (WEB_URL 미설정 시 prod 도메인)
-const DEFAULT_WEB_URL = 'https://onyu.dev';
 
 /**
  * [🔗 채널에 공개하기] 버튼 customId 접두어(F-COPRESENCE-029, 계획 §2-B) —
@@ -40,6 +40,7 @@ const DUO_PUBLISH_CUSTOM_ID_PREFIX = 'friend:duo:publish:';
   descriptionLocalizations: {
     ko: '내 베스트 프렌드 TOP을 카드로 보여줍니다',
     'pt-BR': 'Mostra o cartão TOP dos meus melhores amigos',
+    ja: '自分のベストフレンドTOPをカードで表示',
   },
 })
 @Injectable()
@@ -110,9 +111,6 @@ export class BestFriendCommand {
     guildId: string,
     locale: string,
   ): Promise<void> {
-    // 공개 응답 고정 (ephemeral 없음)
-    await interaction.deferReply();
-
     // guildId·locale은 함수 인자로 catch 시점에도 항상 확정돼 있으므로 try 밖에서 미리 생성한다.
     // catch 경로(C2 결함 수정)에서도 정상 실패 경로와 동일하게 웹 링크 버튼을 노출하기 위함.
     // buildLinkButtonRow 자체는 이론상 던지지 않지만(guildId는 항상 유효한 snowflake, webUrl은
@@ -130,6 +128,9 @@ export class BestFriendCommand {
     }
 
     try {
+      // 공개 응답 고정 (ephemeral 없음). 첫 응답도 try 안에 둔다 — 밖이면 실패 시 "응답 없음"(감사 A12)
+      await interaction.deferReply();
+
       // GuildMember 캐스팅 — discord-nestjs CommandInteraction.member는 APIInteractionGuildMember | GuildMember 유니온
       const displayName =
         (interaction.member as GuildMember)?.displayName ?? interaction.user.displayName;
@@ -167,6 +168,15 @@ export class BestFriendCommand {
         'BestFriend command error',
         error instanceof Error ? error.stack : String(error),
       );
+      // deferReply 자체가 실패했다면 editReply 가 불가하므로 응답 상태에 따라 분기한다
+      if (!interaction.deferred) {
+        await respondWithErrorNotice(
+          interaction,
+          this.i18n.t(locale, 'commands.bestFriendError'),
+          this.logger,
+        );
+        return;
+      }
       await interaction.editReply({
         content: this.i18n.t(locale, 'commands.bestFriendError'),
         components: this.toButtonComponents(linkButtonRow),
@@ -175,8 +185,7 @@ export class BestFriendCommand {
   }
 
   private buildLinkButtonRow(guildId: string, locale: string): ActionRowBuilder<ButtonBuilder> {
-    // WEB_URL은 런타임에 읽는다 — 모듈 import 시점에 평가하면 ConfigModule의 .env 로드 전이라 fallback이 굳을 수 있다
-    const webUrl = process.env['WEB_URL'] ?? DEFAULT_WEB_URL;
+    const webUrl = getWebUrl();
     // days=PERIOD — 카드(90일 고정) ↔ 마이페이지 진입 뷰 기간 정합 (F-COPRESENCE-019 화이트리스트 7|30|90)
     const button = new ButtonBuilder()
       .setLabel(this.i18n.t(locale, 'commands.bestFriendButtonLabel'))
@@ -218,10 +227,11 @@ export class BestFriendCommand {
     locale: string,
     peerUser: User,
   ): Promise<void> {
-    // ephemeral 고정 + [🔗 채널에 공개하기] 버튼으로 본인 선택 공개(D-3·D-5)
-    await interaction.deferReply({ ephemeral: true });
-
     try {
+      // ephemeral 고정 + [🔗 채널에 공개하기] 버튼으로 본인 선택 공개(D-3·D-5).
+      // 첫 응답도 try 안에 둔다 — 밖이면 실패 시 "응답 없음"(감사 A12)
+      await interaction.deferReply({ ephemeral: true });
+
       // GuildMember 캐스팅 — discord-nestjs CommandInteraction.member는 APIInteractionGuildMember | GuildMember 유니온
       const displayName =
         (interaction.member as GuildMember)?.displayName ?? interaction.user.displayName;
@@ -275,7 +285,11 @@ export class BestFriendCommand {
       // 1차 방어(봇/self/비멤버)를 이미 통과한 뒤라 이 catch에 도달하는 원인은 대부분 네트워크·
       // 렌더 실패다. API 2차 방어(EC-CP-48, 탈퇴자 DB 정합 지연 등 드문 경합)로 400이 와도
       // 동일한 일반 오류 문구로 안내한다 — 네트워크 오류를 "비멤버"로 오분류하지 않기 위함.
-      await interaction.editReply({ content: this.i18n.t(locale, 'commands.bestFriendDuoError') });
+      await respondWithErrorNotice(
+        interaction,
+        this.i18n.t(locale, 'commands.bestFriendDuoError'),
+        this.logger,
+      );
     }
   }
 

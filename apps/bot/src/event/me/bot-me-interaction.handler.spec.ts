@@ -273,6 +273,21 @@ describe('BotMeInteractionHandler', () => {
       expect(fields[1].value.split('\n')).toHaveLength(2);
     });
 
+    it('메시지 수는 사용자 로케일의 숫자 포맷으로 표기한다(toLocaleString(locale), 감사 A12 #20)', async () => {
+      // pt-BR 은 pt 로 해석되며 천 단위 구분자가 ko/en 의 ','와 달라 로케일 의존이 드러난다
+      const interaction = makeButtonInteraction({ locale: 'pt-BR' });
+      apiClient.getMeActivityDetail.mockResolvedValue(
+        activityDetailResponse({
+          message: { totalCount: 1234567, rank: 1, totalUsers: 2, upPercent: 1, channels: [] },
+        }),
+      );
+
+      await handler.handle(interaction);
+
+      const fields = embedJson(interaction).fields as Array<{ name: string; value: string }>;
+      expect(fields[1].value.split('\n')[0]).toBe((1234567).toLocaleString('pt'));
+    });
+
     it('채널명이 Discord 상한(100자) 극단 입력이어도 필드 value가 embed 1024자 상한을 넘지 않는다(T-F7)', async () => {
       const interaction = makeButtonInteraction();
       const longChannelName = '가'.repeat(100);

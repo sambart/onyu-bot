@@ -5,6 +5,7 @@ import { type ButtonInteraction, type Interaction, PermissionFlagsBits } from 'd
 
 import { BotI18nService } from '../../common/application/bot-i18n.service';
 import { LocaleResolverService } from '../../common/application/locale-resolver.service';
+import { respondWithErrorNotice } from '../../common/util/interaction-response.util';
 
 /**
  * `/고정메세지삭제` 확인 버튼 customId 접두사(W7, docs/plans/admin-action-guard-fixes.md §8).
@@ -93,9 +94,10 @@ export class BotStickyDeleteConfirmHandler {
     guildId: string,
     locale: string,
   ): Promise<void> {
-    await interaction.deferUpdate();
-
     try {
+      // 첫 응답도 try 안에 둔다 — 밖이면 실패 시 "응답 없음"(감사 A12)
+      await interaction.deferUpdate();
+
       const result = await this.apiClient.deleteStickyMessageByChannel(guildId, channelId);
 
       if (result.deletedCount === 0) {
@@ -114,13 +116,16 @@ export class BotStickyDeleteConfirmHandler {
         components: [],
       });
     } catch (error) {
-      const message =
-        error instanceof Error ? error.message : this.i18n.t(locale, 'errors.unknownError');
+      // error.message(내부 IP·영문 타임아웃 등)는 사용자에게 노출하지 않는다 — 로그에만 남긴다
       this.logger.error('고정메세지 삭제 확인 처리 중 오류:', error);
-      await interaction.editReply({
-        content: this.i18n.t(locale, 'commands.stickyDeleteError', { message }),
-        components: [],
-      });
+      const content = this.i18n.t(locale, 'commands.stickyDeleteError');
+      if (!interaction.deferred) {
+        // deferUpdate 자체가 실패 — editReply 불가이므로 ephemeral reply 로 안내한다
+        await respondWithErrorNotice(interaction, content, this.logger);
+        return;
+      }
+      // 확인/취소 버튼이 남아 재클릭되지 않도록 components 를 비운다
+      await interaction.editReply({ content, components: [] });
     }
   }
 

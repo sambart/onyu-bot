@@ -1,9 +1,10 @@
 import { InjectDiscordClient, On } from '@discord-nestjs/core';
 import { Injectable, Logger } from '@nestjs/common';
-import { BotApiClientService, type NewbieConfigDto } from '@onyu/bot-api-client';
+import { BotApiClientService, getApiErrorStatus, type NewbieConfigDto } from '@onyu/bot-api-client';
 import type { SendableChannels } from 'discord.js';
 import { AttachmentBuilder, Client, EmbedBuilder, type GuildMember } from 'discord.js';
 
+import { lookupConfigWithRetry } from './config-lookup-retry';
 import {
   buildMissionVars,
   MISSION_VAR_NAMES,
@@ -52,9 +53,20 @@ export class BotNewbieMemberAddHandler {
       );
     }
 
-    // 1. API에서 설정 조회 (getNewbieConfig는 내부에서 실패를 흡수하고 null을 반환한다)
-    const config: NewbieConfigDto | null = await this.apiClient.getNewbieConfig(guildId);
-    if (!config) return;
+    // 봇 계정은 온보딩(환영·미션·신입 역할) 대상이 아니다 — PRD newbie 참조. upsert 는 위에서 이미 수행.
+    if (member.user.bot) return;
+
+    // 1. API에서 설정 조회 — 미설정(null)은 조용히 skip, 일시 실패는 짧게 재시도 후 warn + 실패 기록
+    // (감사 A5 / D3 a). SDK 가 요청 실패 로그를 이미 남기므로 여기서는 "온보딩 누락" 사실만 warn 한다.
+    const lookup = await lookupConfigWithRetry<NewbieConfigDto>(() =>
+      this.apiClient.getNewbieConfig(guildId),
+    );
+    if (lookup.status === 'none') return;
+    if (lookup.status === 'failed') {
+      this.handleConfigLookupFailure(member, lookup.error);
+      return;
+    }
+    const config = lookup.config;
 
     // 2. 환영인사 (Bot에서 직접 Discord 메시지 전송) — 자체 try/catch 보유
     if (config.welcomeEnabled && config.welcomeChannelId) {
@@ -85,6 +97,21 @@ export class BotNewbieMemberAddHandler {
     if (config.roleEnabled && config.newbieRoleId) {
       await this.assignRole(member, config.newbieRoleId, guildId);
     }
+  }
+
+  /** config 조회 최종 실패 — 온보딩 누락을 warn 하고 관리 로그용 실패 기록을 fire-and-forget 으로 남긴다. */
+  private handleConfigLookupFailure(member: GuildMember, error: unknown): void {
+    const status = getApiErrorStatus(error);
+    this.logger.warn(
+      `[BOT] newbie config 조회 실패 → 온보딩 누락: guild=${member.guild.id} member=${member.id} status=${status ?? 'none'}`,
+    );
+    void this.apiClient
+      .recordNewbieOnboardingFailure({
+        guildId: member.guild.id,
+        memberId: member.id,
+        kind: 'config_lookup',
+      })
+      .catch(() => undefined);
   }
 
   /**

@@ -231,12 +231,13 @@ function applyExplanation(
   if (explanation.guideSlug === null || !GUIDE_SLUG_PATTERN.test(explanation.guideSlug)) {
     return undefined;
   }
-  // 공개 콘텐츠가 없는 로케일(2군)은 en 가이드로 접는다. pt 는 공개 콘텐츠가 있어 `/pt`(웹 접두 정본
+  // 공개 콘텐츠가 없는 로케일(2군)은 en 가이드로 접는다. pt·ja 는 공개 콘텐츠가 있어 `/pt`·`/ja`(웹 접두 정본
   // `public-locale-paths.ts` 와 같은 값 — 봇은 웹 모듈을 import 할 수 없어 표로 둔다, 비텍스트 경로)
   const localePrefix = pickLocale(toPublicContentLocale(parseLocale(context.locale)), {
     ko: '',
     en: '/en',
     pt: '/pt',
+    ja: '/ja',
   });
   return context.i18n.t(context.locale, 'commands.adminAssistGuideLink', {
     url: `${context.webUrl}${localePrefix}/guides/${explanation.guideSlug}`,

@@ -66,13 +66,13 @@ function makeResult(
 describe('BotRolePanelInteractionHandler', () => {
   let handler: BotRolePanelInteractionHandler;
   let interactionService: { handle: Mock };
-  let localeResolver: { resolve: Mock };
+  let localeResolver: { resolve: Mock; invalidate: Mock };
   let botApiClient: { setUserLocale: Mock };
   let i18n: BotI18nService;
 
   beforeEach(() => {
     interactionService = { handle: vi.fn() };
-    localeResolver = { resolve: vi.fn().mockResolvedValue('en') };
+    localeResolver = { resolve: vi.fn().mockResolvedValue('en'), invalidate: vi.fn() };
     botApiClient = { setUserLocale: vi.fn().mockResolvedValue({ locale: 'ko' }) };
 
     i18n = new BotI18nService();
@@ -137,6 +137,19 @@ describe('BotRolePanelInteractionHandler', () => {
 
       expect(botApiClient.setUserLocale).toHaveBeenCalledTimes(1);
       expect(botApiClient.setUserLocale).toHaveBeenCalledWith(USER_ID, 'ko');
+      // 저장 직후 리졸버 캐시 무효화 — 다음 인터랙션이 TTL 동안 옛 언어를 읽지 않게 한다
+      expect(localeResolver.invalidate).toHaveBeenCalledWith(USER_ID);
+    });
+
+    it('setUserLocale 저장이 실패하면 캐시를 무효화하지 않는다(저장 안 됐으므로 옛 값이 유효)', async () => {
+      interactionService.handle.mockResolvedValue(
+        makeResult({ status: 'GRANTED', localeTag: 'ko' }),
+      );
+      botApiClient.setUserLocale.mockRejectedValue(new Error('API down'));
+
+      await handler.handle(makeInteraction());
+
+      expect(localeResolver.invalidate).not.toHaveBeenCalled();
     });
 
     it.each<RolePanelInteractionResult['status']>([

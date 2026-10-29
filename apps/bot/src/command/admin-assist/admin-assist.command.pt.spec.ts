@@ -27,7 +27,11 @@ function makeInteraction(overrides: Record<string, unknown> = {}): ChatInputComm
     user: { id: USER_ID },
     memberPermissions: { has: vi.fn().mockReturnValue(true) },
     options: { getString: vi.fn().mockReturnValue('Como configuro o canal de boas-vindas?') },
-    deferReply: vi.fn().mockResolvedValue(undefined),
+    // 실제 discord.js 처럼 deferReply 호출 후 deferred=true — 오류 안내 경로가 editReply 를 고른다
+    deferReply: vi.fn(function (this: { deferred: boolean }) {
+      this.deferred = true;
+      return Promise.resolve(undefined);
+    }),
     editReply: vi.fn().mockResolvedValue(undefined),
     reply: vi.fn().mockResolvedValue(undefined),
     ...overrides,

@@ -15,6 +15,7 @@ export * from './report-intake';
 export * from './settings-auto-action';
 export * from './status-prefix-defaults';
 export * from './sticky-pin-defaults';
+export * from './subscription';
 export * from './voice-health-badge-assets';
 export * from './voice-health-badge-defaults';
 export * from './weekly-report-auto-disable';

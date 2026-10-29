@@ -269,4 +269,24 @@ describe('BotStatusPrefixInteractionHandler', () => {
       expect(i18n.t).toHaveBeenCalledWith('ko', 'errors.genericError');
     });
   });
+
+  describe('member 타입 가드 (감사 A12 #16)', () => {
+    it.each([
+      ['apply', 'status_prefix:1'],
+      ['reset', 'status_reset:'],
+    ])(
+      '%s: member 가 GuildMember 가 아니면(raw/null) API 를 호출하지 않고 genericError 로 안내한다',
+      async (_name, customId) => {
+        for (const member of [null, { nick: 'raw' }]) {
+          const interaction = makeInteraction({ customId, member });
+
+          await handler.handle(interaction);
+
+          expect(apiClient.applyStatusPrefix).not.toHaveBeenCalled();
+          expect(apiClient.resetStatusPrefix).not.toHaveBeenCalled();
+          expect(interaction.editReply).toHaveBeenCalledWith({ content: 'errors.genericError' });
+        }
+      },
+    );
+  });
 });

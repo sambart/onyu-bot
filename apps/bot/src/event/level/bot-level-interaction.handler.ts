@@ -117,27 +117,33 @@ export class BotLevelInteractionHandler {
     if (!result.ok) {
       // API 렌더 실패는 HTTP 200 + ok:false로 내려오는 일시 장애(설계 의도) — 채널에 게시된
       // 카드+버튼은 그대로 두고 클릭한 사용자에게만 ephemeral로 안내한다(§요구동작, EC-RANK-03과
-      // 구분되는 경로: isEnabled/data-empty는 확정적 상태라 editToText를 유지한다).
+      // 구분되는 경로: isEnabled/data-empty는 확정적 상태라 notifyEphemeralText를 유지한다).
       await this.notifyEphemeralError(interaction, locale);
       return;
     }
 
     if (!result.isEnabled) {
-      await this.editToText(interaction, this.i18n.t(locale, 'commands.leaderboardDisabled'));
+      await this.notifyEphemeralText(
+        interaction,
+        this.i18n.t(locale, 'commands.leaderboardDisabled'),
+      );
       return;
     }
 
     // U10 — 클릭자가 관리자가 아닌 길드에서 "관리자 전용"으로 설정이 바뀐 경우(또는 처음부터
     // 그 설정인 경우) 서버가 거부한다. 200 정상 응답이며 예외가 아니다.
     if (!result.visible) {
-      await this.editToText(interaction, this.i18n.t(locale, 'commands.leaderboardAdminOnly'));
+      await this.notifyEphemeralText(
+        interaction,
+        this.i18n.t(locale, 'commands.leaderboardAdminOnly'),
+      );
       return;
     }
 
     if (!result.data) {
       const key =
         result.total === 0 ? 'commands.leaderboardEmpty' : 'commands.leaderboardOutOfRange';
-      await this.editToText(interaction, this.i18n.t(locale, key));
+      await this.notifyEphemeralText(interaction, this.i18n.t(locale, key));
       return;
     }
 
@@ -158,9 +164,17 @@ export class BotLevelInteractionHandler {
     });
   }
 
-  /** 빈 상태 전환(EC-RANK-03/UF-LEVEL-029 처리4) — 텍스트 안내로 교체하고 버튼을 제거한다 */
-  private async editToText(interaction: ButtonInteraction, content: string): Promise<void> {
-    await interaction.message.edit({ content, embeds: [], files: [], components: [] });
+  /**
+   * 거부·빈 상태 안내(EC-RANK-03/UF-LEVEL-029 처리4, UF-LEVEL-035) — 클릭자에게만 ephemeral 로
+   * 알린다. 공개 랭킹 원본 메시지(카드+버튼)를 텍스트로 덮어쓰면 한 명의 거부·빈 페이지 클릭이
+   * 채널 전원의 카드를 지우기 때문에 원본은 건드리지 않는다(감사 A12). handle() 에서 이미
+   * `deferUpdate()` 로 ack 했으므로 followUp 을 쓴다.
+   */
+  private async notifyEphemeralText(
+    interaction: ButtonInteraction,
+    content: string,
+  ): Promise<void> {
+    await interaction.followUp({ ephemeral: true, content });
   }
 
   /**

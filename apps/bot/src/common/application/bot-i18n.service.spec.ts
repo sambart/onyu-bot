@@ -34,7 +34,7 @@ describe('BotI18nService', () => {
     const service = createLoadedService();
 
     // 미지원 locale → en 폴백 → 키 원문이 아니어야 함
-    expect(service.t('ja', 'role-panel.granted')).not.toBe('role-panel.granted');
+    expect(service.t('fr', 'role-panel.granted')).not.toBe('role-panel.granted');
   });
 
   it('params를 치환한다', () => {

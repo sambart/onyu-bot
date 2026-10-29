@@ -29,6 +29,18 @@ export const LEVEL_ANNOUNCE_STRINGS = defineLocaleTable<LevelAnnounceStringTable
     defaultLineWithRole: '{user} reached level {level}! 🎁 {role}',
     truncationSuffix: '…and {count} more leveled up',
   },
+  pt: {
+    title: '🎉 Subiu de nível',
+    defaultLine: '{user} alcançou o nível {level}!',
+    defaultLineWithRole: '{user} alcançou o nível {level}! 🎁 {role}',
+    truncationSuffix: '…e mais {count} subiram de nível',
+  },
+  ja: {
+    title: '🎉 レベルアップ',
+    defaultLine: '{user}がレベル{level}に到達しました！',
+    defaultLineWithRole: '{user}がレベル{level}に到達しました！ 🎁 {role}',
+    truncationSuffix: '…他{count}名がレベルアップ',
+  },
 });
 
 /** 길드 언어 미설정 시 공지 언어 폴백 — 기존 한국어 하드코딩 공지와 호환 */

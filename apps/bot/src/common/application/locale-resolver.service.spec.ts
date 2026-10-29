@@ -8,9 +8,13 @@
  * - 길드(서버) locale은 이 리졸버에 미포함(_guildId 미사용, F-GENERAL-004/005 불변 원칙)
  */
 import type { BotApiClientService } from '@onyu/bot-api-client';
-import { beforeEach, describe, expect, it, type Mock, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from 'vitest';
 
-import { LocaleResolverService } from './locale-resolver.service';
+import {
+  LOCALE_CACHE_MAX_ENTRIES,
+  LOCALE_CACHE_TTL_MS,
+  LocaleResolverService,
+} from './locale-resolver.service';
 
 describe('LocaleResolverService (bot)', () => {
   let service: LocaleResolverService;
@@ -47,12 +51,36 @@ describe('LocaleResolverService (bot)', () => {
       expect(result).toBe('en');
     });
 
-    it('interaction.locale이 지원하지 않는 언어(ja)면 기본값 en으로 폴백한다', async () => {
+    it('interaction.locale이 지원하지 않는 언어(fr)면 기본값 en으로 폴백한다', async () => {
+      apiClient.getUserLocale.mockResolvedValue({ locale: null });
+
+      const result = await service.resolve('user-1', 'guild-1', 'fr');
+
+      expect(result).toBe('en');
+    });
+
+    it('ja 는 지원 로케일(2군 1단계)이라 저장값이 없으면 ja 로 해석된다', async () => {
       apiClient.getUserLocale.mockResolvedValue({ locale: null });
 
       const result = await service.resolve('user-1', 'guild-1', 'ja');
 
-      expect(result).toBe('en');
+      expect(result).toBe('ja');
+    });
+
+    it('저장값(ko)은 interaction.locale(ja)보다 우선한다', async () => {
+      apiClient.getUserLocale.mockResolvedValue({ locale: 'ko' });
+
+      const result = await service.resolve('user-1', 'guild-1', 'ja');
+
+      expect(result).toBe('ko');
+    });
+
+    it('저장값 ja 는 그대로 반환된다', async () => {
+      apiClient.getUserLocale.mockResolvedValue({ locale: 'ja' });
+
+      const result = await service.resolve('user-1', 'guild-1', 'ko-KR');
+
+      expect(result).toBe('ja');
     });
 
     it('ko-KR → ko로 매핑된다', async () => {
@@ -144,7 +172,7 @@ describe('LocaleResolverService (bot)', () => {
     it('저장값·interaction.locale 모두 지원 목록 밖이면 기본값 en 을 반환한다', async () => {
       apiClient.getUserLocale.mockResolvedValue({ locale: 'xx' });
 
-      const result = await service.resolve('user-1', 'guild-1', 'ja');
+      const result = await service.resolve('user-1', 'guild-1', 'fr');
 
       expect(result).toBe('en');
     });
@@ -163,6 +191,91 @@ describe('LocaleResolverService (bot)', () => {
       const result = await service.resolve('user-1', 'guild-1', 'ko-KR');
 
       expect(result).toBe('en');
+    });
+  });
+
+  describe('짧은 TTL 인메모리 캐시 (감사 A12 #8)', () => {
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it('TTL 안의 같은 사용자 재조회는 API 를 다시 부르지 않는다', async () => {
+      apiClient.getUserLocale.mockResolvedValue({ locale: 'ko' });
+
+      await service.resolve('user-1', null, 'en-US');
+      const second = await service.resolve('user-1', null, 'en-US');
+
+      expect(second).toBe('ko');
+      expect(apiClient.getUserLocale).toHaveBeenCalledTimes(1);
+    });
+
+    it('"미설정"(locale:null) 조회 성공도 캐시한다 — 부재는 정상 결과다', async () => {
+      apiClient.getUserLocale.mockResolvedValue({ locale: null });
+
+      await service.resolve('user-1', null, 'ko-KR');
+      await service.resolve('user-1', null, 'ko-KR');
+
+      expect(apiClient.getUserLocale).toHaveBeenCalledTimes(1);
+    });
+
+    it('조회 실패는 캐시하지 않는다 — 다음 호출이 재조회해 복구된다(일시 오류 ≠ 부재)', async () => {
+      apiClient.getUserLocale.mockRejectedValueOnce(new Error('ETIMEDOUT'));
+      apiClient.getUserLocale.mockResolvedValueOnce({ locale: 'pt' });
+
+      const first = await service.resolve('user-1', null, 'ko-KR');
+      const second = await service.resolve('user-1', null, 'ko-KR');
+
+      expect(first).toBe('ko');
+      expect(second).toBe('pt');
+      expect(apiClient.getUserLocale).toHaveBeenCalledTimes(2);
+    });
+
+    it('TTL 이 지나면 다시 조회한다', async () => {
+      vi.useFakeTimers();
+      apiClient.getUserLocale.mockResolvedValueOnce({ locale: 'ko' });
+      apiClient.getUserLocale.mockResolvedValueOnce({ locale: 'en' });
+
+      await service.resolve('user-1', null);
+      vi.advanceTimersByTime(LOCALE_CACHE_TTL_MS + 1);
+      const afterTtl = await service.resolve('user-1', null);
+
+      expect(afterTtl).toBe('en');
+      expect(apiClient.getUserLocale).toHaveBeenCalledTimes(2);
+    });
+
+    it('사용자별로 독립 캐시된다', async () => {
+      apiClient.getUserLocale.mockImplementation((userId: string) =>
+        Promise.resolve({ locale: userId === 'user-1' ? 'ko' : 'en' }),
+      );
+
+      expect(await service.resolve('user-1', null)).toBe('ko');
+      expect(await service.resolve('user-2', null)).toBe('en');
+      expect(apiClient.getUserLocale).toHaveBeenCalledTimes(2);
+    });
+
+    it('invalidate 하면 다음 호출이 재조회한다', async () => {
+      apiClient.getUserLocale.mockResolvedValueOnce({ locale: 'ko' });
+      apiClient.getUserLocale.mockResolvedValueOnce({ locale: 'pt' });
+
+      await service.resolve('user-1', null);
+      service.invalidate('user-1');
+      const result = await service.resolve('user-1', null);
+
+      expect(result).toBe('pt');
+    });
+
+    it('캐시 상한을 넘으면 가장 오래된 항목부터 버려 무한 증가하지 않는다', async () => {
+      apiClient.getUserLocale.mockResolvedValue({ locale: 'ko' });
+
+      for (let i = 0; i <= LOCALE_CACHE_MAX_ENTRIES; i += 1) {
+        await service.resolve(`user-${i}`, null);
+      }
+      // 가장 먼저 들어간 user-0 은 버려졌으므로 재조회, 마지막 항목은 캐시 적중
+      const callsBefore = apiClient.getUserLocale.mock.calls.length;
+      await service.resolve(`user-${LOCALE_CACHE_MAX_ENTRIES}`, null);
+      expect(apiClient.getUserLocale.mock.calls.length).toBe(callsBefore);
+      await service.resolve('user-0', null);
+      expect(apiClient.getUserLocale.mock.calls.length).toBe(callsBefore + 1);
     });
   });
 });

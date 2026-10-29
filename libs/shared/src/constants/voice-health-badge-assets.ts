@@ -13,6 +13,8 @@ export const VOICE_HEALTH_BADGE_CODES = [
   'STREAK',
   'CHATTER',
   'STREAM',
+  'VIDEO',
+  'ALL_ROUNDER',
 ] as const;
 
 export type VoiceHealthBadgeCode = (typeof VOICE_HEALTH_BADGE_CODES)[number];

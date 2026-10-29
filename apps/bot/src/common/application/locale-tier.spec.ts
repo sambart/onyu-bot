@@ -37,9 +37,9 @@ describe('tier 상수', () => {
     expect([...TIER1_LOCALES]).toEqual(['ko', 'en']);
   });
 
-  it('폴백 로케일은 1군이고 공개 콘텐츠 로케일은 ko·en·pt 이다(A8)', () => {
+  it('폴백 로케일은 1군이고 공개 콘텐츠 로케일은 ko·en·pt·ja 이다(A8, ja 3단계)', () => {
     expect(TIER1_LOCALES).toContain(TRANSLATION_FALLBACK_LOCALE);
-    expect([...PUBLIC_CONTENT_LOCALES]).toEqual(['ko', 'en', 'pt']);
+    expect([...PUBLIC_CONTENT_LOCALES]).toEqual(['ko', 'en', 'pt', 'ja']);
   });
 
   it('LOCALE_ENDONYMS 는 모든 지원 로케일의 라벨을 가진다', () => {
@@ -64,6 +64,8 @@ describe('isTier1Locale / isSupportedLocale', () => {
     // 가짜 로케일 'xx' 는 실제 2군(pt)이 투입돼도 지원 대상이 아니다
     expect(isSupportedLocale(FAKE_TIER2)).toBe(false);
     expect(isSupportedLocale('pt')).toBe(TIER2_LOCALES.some((l) => l === 'pt'));
+    // ja 는 2026-10-28 2군 1단계(봇) 투입으로 지원 로케일이다
+    expect(isSupportedLocale('ja')).toBe(true);
     expect(isSupportedLocale(null)).toBe(false);
   });
 });
@@ -155,6 +157,7 @@ describe('toPublicContentLocale', () => {
     expect(toPublicContentLocale('ko')).toBe('ko');
     expect(toPublicContentLocale('en')).toBe('en');
     expect(toPublicContentLocale('pt')).toBe('pt');
+    expect(toPublicContentLocale('ja')).toBe('ja');
   });
 
   it('공개 콘텐츠가 없는 로케일(2군)은 en 으로 접는다', () => {

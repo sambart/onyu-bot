@@ -156,6 +156,36 @@ describe('BotVoiceSyncHandler', () => {
     expect(dto.users[0].serverMute).toBe(false);
   });
 
+  it('Stage 채널 체류자도 수집된다(F-VOICE-117 갭, A6) — 일반 음성 채널과 함께 한 번에 동기화된다', async () => {
+    const voiceMember = makeMember({ id: 'user-voice' });
+    const stageMember = makeMember({ id: 'user-stage' });
+    const stageChannel = {
+      ...makeVoiceChannel('ch-stage', [stageMember]),
+      type: ChannelType.GuildStageVoice,
+    };
+    const guild = makeGuild('guild-1', [makeVoiceChannel('ch-1', [voiceMember]), stageChannel]);
+    const handler = makeHandler([guild]);
+
+    await handler.handleReady();
+
+    const dto = apiClient.pushVoiceSync.mock.calls[0][0] as VoiceSyncDto;
+    const byUser = new Map(dto.users.map((u) => [u.userId, u.channelId]));
+    expect(byUser.get('user-voice')).toBe('ch-1');
+    expect(byUser.get('user-stage')).toBe('ch-stage');
+  });
+
+  it('음성·Stage 가 아닌 채널(텍스트 등)의 멤버는 수집되지 않는다', async () => {
+    const textChannel = {
+      ...makeVoiceChannel('ch-text', [makeMember({ id: 'user-text' })]),
+      type: ChannelType.GuildText,
+    };
+    const handler = makeHandler([makeGuild('guild-1', [textChannel])]);
+
+    await handler.handleReady();
+
+    expect(apiClient.pushVoiceSync).not.toHaveBeenCalled();
+  });
+
   it('음성 채널에 유저가 없으면 해당 길드는 pushVoiceSync를 호출하지 않는다', async () => {
     const guild = makeGuild('guild-1', [makeVoiceChannel('ch-1', [])]);
     const handler = makeHandler([guild]);

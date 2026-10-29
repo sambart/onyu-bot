@@ -2,20 +2,18 @@
  * role-panel-toggle-lock 단위 테스트
  *
  * 커버 케이스:
- * - acquireLock: 최초 획득 → true
- * - acquireLock: 동일 키 재획득 → false (LOCKED 시맨틱)
- * - acquireLock: 다른 키는 독립적으로 획득 가능
- * - releaseLock: 해제 후 재획득 가능
- * - releaseLock: 존재하지 않는 키 해제 → 오류 없음
+ * - acquireLock: 최초 획득 → 토큰, 동일 키 재획득 → null (LOCKED 시맨틱), 다른 키 독립
+ * - releaseLock: 해제 후 재획득 가능 / 존재하지 않는 키·중복 해제 → 오류 없음
  * - TTL 안전망: 3초 후 자동 해제 (fake timer)
+ * - 토큰 비교(A8-4): 만료 후 남이 재획득한 락을 옛 소유자의 해제·옛 타이머가 지우지 않는다
  */
 
 import { acquireLock, releaseLock } from './role-panel-toggle-lock';
 
+const TTL_MS = 3000;
+
 describe('role-panel-toggle-lock', () => {
   beforeEach(() => {
-    // 각 테스트 전 모든 락 상태 초기화 (releaseLock으로 정리)
-    // 전역 Set을 직접 초기화할 수 없으므로 각 테스트에서 고유 키 사용
     vi.useFakeTimers();
   });
 
@@ -24,94 +22,113 @@ describe('role-panel-toggle-lock', () => {
   });
 
   describe('acquireLock', () => {
-    it('최초 획득 → true 반환', () => {
-      const key = `test-lock-${Date.now()}-1`;
+    it('최초 획득 → 토큰 반환', () => {
+      const key = 'lock-1';
+      const token = acquireLock(key);
 
-      expect(acquireLock(key)).toBe(true);
+      expect(token).not.toBeNull();
 
-      releaseLock(key);
+      if (token) releaseLock(key, token);
     });
 
-    it('이미 획득된 키 재획득 → false 반환 (SET-NX 시맨틱)', () => {
-      const key = `test-lock-${Date.now()}-2`;
-      acquireLock(key);
+    it('이미 획득된 키 재획득 → null 반환 (SET-NX 시맨틱)', () => {
+      const key = 'lock-2';
+      const token = acquireLock(key);
 
-      const result = acquireLock(key);
+      expect(acquireLock(key)).toBeNull();
 
-      expect(result).toBe(false);
-
-      releaseLock(key);
+      if (token) releaseLock(key, token);
     });
 
     it('서로 다른 키는 독립적으로 획득 가능', () => {
-      const keyA = `test-lock-${Date.now()}-3a`;
-      const keyB = `test-lock-${Date.now()}-3b`;
+      const tokenA = acquireLock('lock-3a');
+      const tokenB = acquireLock('lock-3b');
 
-      acquireLock(keyA);
-      const result = acquireLock(keyB);
+      expect(tokenB).not.toBeNull();
 
-      expect(result).toBe(true);
-
-      releaseLock(keyA);
-      releaseLock(keyB);
+      if (tokenA) releaseLock('lock-3a', tokenA);
+      if (tokenB) releaseLock('lock-3b', tokenB);
     });
 
-    it('해제 후 동일 키 재획득 → true', () => {
-      const key = `test-lock-${Date.now()}-4`;
-      acquireLock(key);
-      releaseLock(key);
+    it('해제 후 동일 키 재획득 → 토큰 반환', () => {
+      const key = 'lock-4';
+      const token = acquireLock(key);
+      if (token) releaseLock(key, token);
 
-      const result = acquireLock(key);
+      const again = acquireLock(key);
 
-      expect(result).toBe(true);
+      expect(again).not.toBeNull();
 
-      releaseLock(key);
+      if (again) releaseLock(key, again);
     });
   });
 
   describe('releaseLock', () => {
-    it('획득한 락을 해제하면 이후 재획득 가능', () => {
-      const key = `test-lock-${Date.now()}-5`;
-      acquireLock(key);
-
-      releaseLock(key);
-
-      expect(acquireLock(key)).toBe(true);
-      releaseLock(key);
-    });
-
     it('존재하지 않는 키 해제 시 오류 없음', () => {
-      const key = `nonexistent-key-${Date.now()}`;
-
-      expect(() => releaseLock(key)).not.toThrow();
+      expect(() => releaseLock('nonexistent-key', Symbol('x'))).not.toThrow();
     });
 
     it('이미 해제된 키 중복 해제 → 오류 없음', () => {
-      const key = `test-lock-${Date.now()}-6`;
-      acquireLock(key);
-      releaseLock(key);
+      const key = 'lock-6';
+      const token = acquireLock(key);
+      if (!token) throw new Error('락 획득 실패');
+      releaseLock(key, token);
 
-      expect(() => releaseLock(key)).not.toThrow();
+      expect(() => releaseLock(key, token)).not.toThrow();
     });
   });
 
   describe('TTL 안전망 (3초 자동 해제)', () => {
     it('3000ms 후 TTL 안전망 — 락이 자동 해제됨', () => {
-      const key = `test-lock-ttl-${Date.now()}`;
+      const key = 'lock-ttl';
       acquireLock(key);
 
-      // 2999ms 경과 — 아직 해제 안 됨
-      vi.advanceTimersByTime(2999);
-      expect(acquireLock(key)).toBe(false);
+      vi.advanceTimersByTime(TTL_MS - 1);
+      expect(acquireLock(key)).toBeNull();
 
-      // 2번 시도한 acquireLock을 정리
-      // (false 반환이라 Set에 추가 안 됨)
-
-      // 3000ms 경과 — TTL로 자동 해제
       vi.advanceTimersByTime(1);
-      expect(acquireLock(key)).toBe(true);
+      const again = acquireLock(key);
+      expect(again).not.toBeNull();
 
-      releaseLock(key);
+      if (again) releaseLock(key, again);
+    });
+  });
+
+  describe('A8-4: 락 토큰 비교 해제', () => {
+    it('만료 후 남이 재획득한 락을 옛 소유자가 해제해도 새 락은 유지된다', () => {
+      const key = 'lock-stale-release';
+      const staleToken = acquireLock(key);
+      if (!staleToken) throw new Error('락 획득 실패');
+
+      // 처리가 TTL 보다 길어져 락이 만료되고 다른 요청이 재획득
+      vi.advanceTimersByTime(TTL_MS);
+      const newToken = acquireLock(key);
+      expect(newToken).not.toBeNull();
+
+      // 옛 소유자의 finally 해제 — 남의 락을 지우면 안 된다
+      releaseLock(key, staleToken);
+
+      expect(acquireLock(key)).toBeNull();
+
+      if (newToken) releaseLock(key, newToken);
+    });
+
+    it('옛 락의 TTL 타이머가 새로 획득한 락을 지우지 않는다', () => {
+      const key = 'lock-stale-timer';
+      const first = acquireLock(key);
+      if (!first) throw new Error('락 획득 실패');
+
+      // 1s 경과 후 정상 해제 → 새 락 획득(옛 타이머가 아직 살아있던 시점)
+      vi.advanceTimersByTime(1000);
+      releaseLock(key, first);
+      const second = acquireLock(key);
+      expect(second).not.toBeNull();
+
+      // 옛 타이머 만료 시점(원래 락 획득 + 3s) — 새 락은 아직 2s 남아 있어야 한다
+      vi.advanceTimersByTime(TTL_MS - 1000);
+      expect(acquireLock(key)).toBeNull();
+
+      if (second) releaseLock(key, second);
     });
   });
 
@@ -122,36 +139,23 @@ describe('role-panel-toggle-lock', () => {
       const first = acquireLock(lockKey);
       const second = acquireLock(lockKey);
 
-      expect(first).toBe(true);
-      expect(second).toBe(false);
+      expect(first).not.toBeNull();
+      expect(second).toBeNull();
 
-      releaseLock(lockKey);
+      if (first) releaseLock(lockKey, first);
     });
 
-    it('다른 사용자(userId 다름)의 TOGGLE은 서로 차단하지 않음', () => {
-      const keyUser1 = 'guild-1:user-1:buttonId-10';
-      const keyUser2 = 'guild-1:user-2:buttonId-10';
+    it('다른 사용자·다른 버튼의 TOGGLE은 서로 차단하지 않음', () => {
+      const user1 = acquireLock('guild-1:user-1:buttonId-10');
+      const user2 = acquireLock('guild-1:user-2:buttonId-10');
+      const btn11 = acquireLock('guild-1:user-1:buttonId-11');
 
-      acquireLock(keyUser1);
-      const result = acquireLock(keyUser2);
+      expect(user2).not.toBeNull();
+      expect(btn11).not.toBeNull();
 
-      expect(result).toBe(true);
-
-      releaseLock(keyUser1);
-      releaseLock(keyUser2);
-    });
-
-    it('다른 버튼(buttonId 다름)의 TOGGLE은 서로 차단하지 않음', () => {
-      const keyBtn10 = 'guild-1:user-1:buttonId-10';
-      const keyBtn11 = 'guild-1:user-1:buttonId-11';
-
-      acquireLock(keyBtn10);
-      const result = acquireLock(keyBtn11);
-
-      expect(result).toBe(true);
-
-      releaseLock(keyBtn10);
-      releaseLock(keyBtn11);
+      if (user1) releaseLock('guild-1:user-1:buttonId-10', user1);
+      if (user2) releaseLock('guild-1:user-2:buttonId-10', user2);
+      if (btn11) releaseLock('guild-1:user-1:buttonId-11', btn11);
     });
   });
 });

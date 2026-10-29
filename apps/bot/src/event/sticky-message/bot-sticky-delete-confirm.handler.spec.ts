@@ -29,7 +29,11 @@ function makeButtonInteraction(overrides: Record<string, unknown> = {}): ButtonI
     guildId: GUILD_ID,
     locale: 'ko',
     memberPermissions: makeMemberPermissions(true),
-    deferUpdate: vi.fn().mockResolvedValue(undefined),
+    // 실제 discord.js 처럼 deferUpdate 호출 후 deferred=true — 오류 안내 경로가 editReply 를 고른다
+    deferUpdate: vi.fn(function (this: { deferred: boolean }) {
+      this.deferred = true;
+      return Promise.resolve(undefined);
+    }),
     editReply: vi.fn().mockResolvedValue(undefined),
     update: vi.fn().mockResolvedValue(undefined),
     reply: vi.fn().mockResolvedValue(undefined),
@@ -153,5 +157,19 @@ describe('BotStickyDeleteConfirmHandler', () => {
       components: unknown[];
     };
     expect(call.components).toEqual([]);
+    // error.message('boom')는 사용자에게 노출하지 않는다 — 고정 문구만(감사 A12 #7)
+    expect(call.content).not.toContain('boom');
+    expect(call.content).not.toMatch(/\{[a-zA-Z]+\}/);
+  });
+
+  it('deferUpdate 자체가 실패하면 editReply 대신 ephemeral reply 로 안내한다(첫 응답 try 편입)', async () => {
+    const interaction = makeButtonInteraction({
+      deferUpdate: vi.fn().mockRejectedValue(new Error('Unknown interaction')),
+    });
+
+    await handler.handle(interaction);
+
+    expect(interaction.editReply).not.toHaveBeenCalled();
+    expect(interaction.reply).toHaveBeenCalledWith(expect.objectContaining({ ephemeral: true }));
   });
 });

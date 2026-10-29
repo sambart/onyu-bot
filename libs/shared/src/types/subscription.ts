@@ -57,11 +57,56 @@ export const PREMIUM_FEATURE_CATALOG: Record<
  * 스텁 단계의 미해금 사유. `'not_launched'` 만 실제로 발생한다.
  * `PremiumAdminConversion.reason: string | null` 의 후속 개선형 — 문자열 대신 닫힌 유니온으로 좁힌다.
  */
-export type PremiumUnavailableReason = 'not_launched' | 'not_subscribed';
+export type PremiumUnavailableReason = 'not_launched' | 'not_subscribed' | 'unavailable';
 
 /** `resolvePremiumEntitlement()` 반환 타입. */
 export interface PremiumEntitlementState {
   isEntitled: boolean;
   requiredTier: 'pro' | 'plus';
   reason: PremiumUnavailableReason | null;
+}
+
+/** 부여 출처. DB `entitlement.source` 컬럼 값과 1:1. */
+export type EntitlementSource = 'paddle' | 'coupon' | 'comp_test' | 'grandfather';
+
+/** DB `entitlement.status` 컬럼 값(행 상태). 판정 결과 `EntitlementStatus` 와 다른 개념이라 타입명을 분리한다. */
+export type EntitlementRowStatus = 'active' | 'revoked';
+
+/** 판정 결과 상태. `grace` 는 만료 후 유예 기간, `expired` 는 유효 행 없음 포함. */
+export type EntitlementStatus = 'active' | 'grace' | 'expired';
+
+/** `GET .../entitlements` 응답 — 주체 단위 판정 스냅샷. 날짜는 ISO 문자열. */
+export interface EntitlementSnapshot {
+  scope: PlanScope;
+  tier: PlanTier;
+  status: EntitlementStatus;
+  endsAt: string | null;
+  graceUntil: string | null;
+  /** 해당 scope 의 카탈로그 키만 채운다(서버 판정 결과 — 클라이언트 독자 규칙 금지). */
+  features: Partial<Record<PremiumFeatureKey, PremiumEntitlementState>>;
+  evaluatedAt: string;
+}
+
+/** 플랜·주기 조합. Pro 는 길드 단위 월/연, Plus 는 개인 단위 N개월. */
+export type PlanCycle =
+  | { plan: 'pro'; cycle: 'month' | 'year' }
+  | { plan: 'plus'; cycle: 1 | 3 | 6 | 12 };
+
+/** Paddle Price 식별 키 = 플랜 주기 + 통화. */
+export type PlanPriceKey = PlanCycle & { currency: 'KRW' | 'USD' };
+
+/** 조회 기간 제한을 적용하는 표면. 표면별로 판정 주체(길드/개인)가 다르다. */
+export type LookbackSurface = 'guild-dashboard' | 'my';
+
+/** 표면·판정 상태별 조회 윈도우(일). */
+export interface LookbackWindow {
+  maxLookbackDays: number;
+  defaultDays: number;
+}
+
+/** 조회 기간이 잘렸을 때 응답에 싣는 메타. */
+export interface LookbackClampMeta {
+  clamped: boolean;
+  appliedFrom: string;
+  maxLookbackDays: number;
 }

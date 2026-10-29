@@ -54,7 +54,11 @@ function makeInteraction(overrides: Record<string, unknown> = {}): ChatInputComm
     user: { id: USER_ID, displayName: 'Alice', displayAvatarURL: () => 'https://cdn/avatar.png' },
     member: { displayName: 'Alice' } as unknown as GuildMember,
     options: makeOptions(null),
-    deferReply: vi.fn().mockResolvedValue(undefined),
+    // 실제 discord.js 처럼 deferReply 호출 후 deferred=true — 오류 안내 경로가 editReply 를 고른다
+    deferReply: vi.fn(function (this: { deferred: boolean }) {
+      this.deferred = true;
+      return Promise.resolve(undefined);
+    }),
     editReply: vi.fn().mockResolvedValue(undefined),
     reply: vi.fn().mockResolvedValue(undefined),
     ...overrides,

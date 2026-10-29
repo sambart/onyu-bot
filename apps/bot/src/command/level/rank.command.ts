@@ -7,6 +7,7 @@ import { AttachmentBuilder, ChatInputCommandInteraction, GuildMember, type User 
 
 import { BotI18nService } from '../../common/application/bot-i18n.service';
 import { LocaleResolverService } from '../../common/application/locale-resolver.service';
+import { respondWithErrorNotice } from '../../common/util/interaction-response.util';
 import { buildProfileCardReply, fetchMeProfileCard } from '../me-profile-card';
 import { isGuildAdmin } from './guild-admin';
 import { RankCommandDto } from './rank.dto';
@@ -30,6 +31,7 @@ interface RankTarget {
   descriptionLocalizations: {
     ko: '내 또는 다른 멤버의 레벨 랭크 카드를 보여줍니다',
     'pt-BR': 'Mostra o cartão de nível seu ou de outro membro',
+    ja: '自分または他のメンバーのレベルランクカードを表示',
   },
 })
 @Injectable()
@@ -89,10 +91,10 @@ export class RankCommand {
       }
     }
 
-    // 공개 응답(비-ephemeral) 고정
-    await interaction.deferReply();
-
     try {
+      // 공개 응답(비-ephemeral) 고정. 첫 응답도 try 안에 둔다 — 밖이면 실패 시 "응답 없음"(감사 A12)
+      await interaction.deferReply();
+
       const target = this.resolveTarget(interaction, targetUser, isSelf);
 
       // U9-b(F-LVL-25) — 본인 조회는 /me 프로필 카드로 렌더한다(D2/D3). 폴백 없음(D3 근거).
@@ -133,7 +135,11 @@ export class RankCommand {
       await interaction.editReply({ files: [attachment] });
     } catch (error) {
       this.logger.error('Rank command error', error instanceof Error ? error.stack : String(error));
-      await interaction.editReply({ content: this.i18n.t(locale, 'commands.rankError') });
+      await respondWithErrorNotice(
+        interaction,
+        this.i18n.t(locale, 'commands.rankError'),
+        this.logger,
+      );
     }
   }
 

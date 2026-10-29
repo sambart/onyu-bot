@@ -175,7 +175,7 @@ describe('BotLevelInteractionHandler', () => {
     );
   });
 
-  it('visible=false(관리자 전용 설정)로 전환되면 leaderboardAdminOnly 안내로 edit하고 버튼을 제거한다', async () => {
+  it('visible=false(관리자 전용 설정)이면 공개 원본은 건드리지 않고 클릭자에게만 ephemeral 로 안내한다(UF-LEVEL-035)', async () => {
     const interaction = makeButtonInteraction();
     apiClient.getLevelLeaderboardCard.mockResolvedValue(
       leaderboardCardResponse({
@@ -187,11 +187,10 @@ describe('BotLevelInteractionHandler', () => {
 
     await handler.handle(interaction);
 
-    expect(interaction.message.edit).toHaveBeenCalledWith({
+    expect(interaction.message.edit).not.toHaveBeenCalled();
+    expect(interaction.followUp).toHaveBeenCalledWith({
+      ephemeral: true,
       content: '이 서버는 리더보드를 관리자만 볼 수 있도록 설정했습니다.',
-      embeds: [],
-      files: [],
-      components: [],
     });
   });
 
@@ -251,9 +250,9 @@ describe('BotLevelInteractionHandler', () => {
     expect(nextButton.disabled).toBe(false);
   });
 
-  // ─── 빈 상태 전환 — 텍스트로 교체 + 버튼 제거 ─────────────────────────────────
+  // ─── 빈 상태 — 공개 원본 보존 + 클릭자에게만 ephemeral 안내 ──────────────────
 
-  it('isEnabled=false로 전환되면 텍스트 안내로 edit하고 버튼을 제거한다(components: [])', async () => {
+  it('isEnabled=false로 전환되면 공개 원본은 보존하고 클릭자에게만 ephemeral 로 안내한다', async () => {
     const interaction = makeButtonInteraction();
     apiClient.getLevelLeaderboardCard.mockResolvedValue(
       leaderboardCardResponse({ isEnabled: false, data: null }),
@@ -261,15 +260,14 @@ describe('BotLevelInteractionHandler', () => {
 
     await handler.handle(interaction);
 
-    expect(interaction.message.edit).toHaveBeenCalledWith({
+    expect(interaction.message.edit).not.toHaveBeenCalled();
+    expect(interaction.followUp).toHaveBeenCalledWith({
+      ephemeral: true,
       content: '이 서버는 레벨 시스템이 꺼져 있습니다.',
-      embeds: [],
-      files: [],
-      components: [],
     });
   });
 
-  it('범위 초과로 전환되면(total>0, data:null) leaderboardOutOfRange 안내로 edit하고 버튼을 제거한다', async () => {
+  it('범위 초과로 전환되면(total>0, data:null) 공개 원본은 보존하고 leaderboardOutOfRange 를 ephemeral 로 안내한다', async () => {
     const interaction = makeButtonInteraction();
     apiClient.getLevelLeaderboardCard.mockResolvedValue(
       leaderboardCardResponse({ data: null, total: 25 }),
@@ -277,11 +275,10 @@ describe('BotLevelInteractionHandler', () => {
 
     await handler.handle(interaction);
 
-    expect(interaction.message.edit).toHaveBeenCalledWith({
+    expect(interaction.message.edit).not.toHaveBeenCalled();
+    expect(interaction.followUp).toHaveBeenCalledWith({
+      ephemeral: true,
       content: '해당 페이지에는 결과가 없습니다.',
-      embeds: [],
-      files: [],
-      components: [],
     });
   });
 

@@ -24,6 +24,8 @@ export class BotCoPresenceScheduler implements OnApplicationBootstrap, OnApplica
   private intervalId: ReturnType<typeof setInterval> | null = null;
   private isShuttingDown = false;
   private isTickRunning = false;
+  /** 진행 중인 tick 의 Promise — 종료 시 flush 전에 완료를 기다리기 위해 보관한다(A6). */
+  private runningTick: Promise<void> | null = null;
 
   constructor(
     @InjectDiscordClient() private readonly client: Client,
@@ -32,7 +34,7 @@ export class BotCoPresenceScheduler implements OnApplicationBootstrap, OnApplica
   ) {}
 
   onApplicationBootstrap(): void {
-    this.intervalId = setInterval(() => void this.tick(), INTERVAL_MS);
+    this.intervalId = setInterval(() => void this.runTick(), INTERVAL_MS);
     this.logger.log('[CO-PRESENCE] Scheduler started (interval=60s)');
   }
 
@@ -44,6 +46,12 @@ export class BotCoPresenceScheduler implements OnApplicationBootstrap, OnApplica
       this.intervalId = null;
     }
 
+    // 진행 중인 tick 이 flush 보다 늦게 도착하면 방금 종료된 세션이 스냅샷으로 되살아난다(약 1분 뒤에야
+    // 자연 정리). tick 은 내부에서 모든 예외를 흡수하므로 await 가 throw 하지 않는다.
+    if (this.runningTick !== null) {
+      await this.runningTick;
+    }
+
     // 종료 시 API에 flush 요청하여 모든 활성 세션 종료
     try {
       await this.apiClient.pushCoPresenceFlush();
@@ -52,6 +60,18 @@ export class BotCoPresenceScheduler implements OnApplicationBootstrap, OnApplica
       const message = err instanceof Error ? err.stack : String(err);
       this.logger.error('[CO-PRESENCE] Flush failed on shutdown', message);
     }
+  }
+
+  /** tick 을 실행하고 그 Promise 를 보관한다 — 완료 시 해제한다. */
+  private runTick(): Promise<void> {
+    // 이미 진행 중이면 tick() 이 skip 로그만 남기고 즉시 반환한다 — 보관 중인 실행 Promise 를 덮어쓰지 않는다.
+    if (this.runningTick !== null) return this.tick();
+
+    const task = this.tick().finally(() => {
+      if (this.runningTick === task) this.runningTick = null;
+    });
+    this.runningTick = task;
+    return task;
   }
 
   private async tick(): Promise<void> {

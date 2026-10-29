@@ -583,11 +583,11 @@ describe('BotNewbieInteractionHandler', () => {
   });
 
   // ──────────────────────────────────────────────────────
-  // 로케일 폴백 — 미지원 로케일(ja) → en
+  // 로케일 폴백 — 미지원 로케일(fr) → en
   // ──────────────────────────────────────────────────────
-  describe('locale — 미지원 로케일(ja) 폴백', () => {
-    it('ja 로케일이면 en으로 폴백하여 영어 메시지를 반환한다', async () => {
-      const interaction = makeButtonInteraction({ locale: 'ja' });
+  describe('locale — 미지원 로케일(fr) 폴백', () => {
+    it('fr 로케일이면 en으로 폴백하여 영어 메시지를 반환한다', async () => {
+      const interaction = makeButtonInteraction({ locale: 'fr' });
       const response: MissionMyResponse = { ok: true, hasMission: false };
       apiClient.getMyMissionData.mockResolvedValue(response);
 

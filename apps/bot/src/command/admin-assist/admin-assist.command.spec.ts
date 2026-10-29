@@ -5,7 +5,7 @@
  *
  * 핵심 회귀 가드:
  * - B1(guildId 확인)이 B2(권한 확인)보다 먼저다 — DM 에서 memberPermissions 가 null 이라
- *   권한 체크를 먼저 하면 오분류된다(UC-08 §4.1, sticky-register 와 순서가 갈리는 이유).
+ *   권한 체크를 먼저 하면 오분류된다(UC-08 §4.1, (삭제된) /sticky-register 와 순서가 갈리는 이유).
  * - B1·B2 실패 시 SDK 호출 0(쿼터 미소모).
  * - 🔒 §9-3 — HTTP 200(SDK ok:true) 이어도 resultStatus='llm_error' 면 빈 Embed 가 아니라
  *   오류 Embed 를 내려야 한다(embed 빌더 위임 — 여기서는 위임 자체만 검증).
@@ -36,7 +36,11 @@ function makeInteraction(overrides: Record<string, unknown> = {}): ChatInputComm
     user: { id: USER_ID },
     memberPermissions: { has: vi.fn().mockReturnValue(true) },
     options: makeOptions(),
-    deferReply: vi.fn().mockResolvedValue(undefined),
+    // 실제 discord.js 처럼 deferReply 호출 후 deferred=true — 오류 안내 경로가 editReply 를 고른다
+    deferReply: vi.fn(function (this: { deferred: boolean }) {
+      this.deferred = true;
+      return Promise.resolve(undefined);
+    }),
     editReply: vi.fn().mockResolvedValue(undefined),
     reply: vi.fn().mockResolvedValue(undefined),
     ...overrides,

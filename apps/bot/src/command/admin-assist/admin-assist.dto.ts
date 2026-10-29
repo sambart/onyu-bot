@@ -16,6 +16,7 @@ export class AdminAssistCommandDto {
     descriptionLocalizations: {
       ko: '무엇을 설정하거나 알고 싶으신가요?',
       'pt-BR': 'O que você quer saber ou configurar?',
+      ja: '設定したいことや知りたいことを入力',
     },
     required: true,
     type: ParamType.STRING,

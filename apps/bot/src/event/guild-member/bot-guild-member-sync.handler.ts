@@ -60,6 +60,8 @@ export class BotGuildMemberSyncHandler {
    */
   async syncGuild(guild: Guild): Promise<number> {
     let memberList: GuildMember[];
+    // fetch 도중 입장한 멤버를 reconcile 이 오비활성화하지 않도록 fetch 시작 시각을 API 에 전달한다.
+    const snapshotAt = new Date().toISOString();
 
     try {
       const members = await guild.members.fetch({ withPresences: false });
@@ -93,7 +95,7 @@ export class BotGuildMemberSyncHandler {
       return 0;
     }
 
-    await this.reconcile(guild.id, memberList);
+    await this.reconcile(guild.id, memberList, snapshotAt);
 
     return memberList.length;
   }
@@ -102,11 +104,16 @@ export class BotGuildMemberSyncHandler {
    * 전량 확보·전송이 확인된 멤버 목록으로 reconcile을 호출한다.
    * 실패해도 sync 자체의 성공 여부에는 영향을 주지 않는다(보정은 best-effort).
    */
-  private async reconcile(guildId: string, memberList: GuildMember[]): Promise<void> {
+  private async reconcile(
+    guildId: string,
+    memberList: GuildMember[],
+    snapshotAt: string,
+  ): Promise<void> {
     try {
       const result = await this.apiClient.reconcileGuildMembers({
         guildId,
         activeUserIds: memberList.map((m) => m.id),
+        snapshotAt,
       });
 
       if (result.skipped) {

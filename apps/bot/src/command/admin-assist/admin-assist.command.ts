@@ -7,11 +7,10 @@ import { ChatInputCommandInteraction, PermissionFlagsBits } from 'discord.js';
 
 import { BotI18nService } from '../../common/application/bot-i18n.service';
 import { LocaleResolverService } from '../../common/application/locale-resolver.service';
+import { respondWithErrorNotice } from '../../common/util/interaction-response.util';
+import { getWebUrl } from '../../common/util/web-url.util';
 import { AdminAssistCommandDto } from './admin-assist.dto';
 import { buildAdminAssistEmbed } from './admin-assist-embed.builder';
-
-/** WEB_URL 미설정 시 prod 도메인 (help.command.ts:10 관례) */
-const DEFAULT_WEB_URL = 'https://onyu.dev';
 
 /**
  * `/관리도우미`(`/admin-assist`, F-ADMIN-ASSIST-078) — 본 도메인 최초의 봇 슬래시 커맨드
@@ -31,6 +30,7 @@ const DEFAULT_WEB_URL = 'https://onyu.dev';
   descriptionLocalizations: {
     ko: '서버 설정·활동 분석에 대해 물어봅니다 (관리자 전용)',
     'pt-BR': 'Pergunte sobre configurações e análise de atividade do servidor (só admins)',
+    ja: 'サーバー設定やアクティビティ分析について質問（管理者限定）',
   },
   defaultMemberPermissions: PermissionFlagsBits.ManageGuild,
 })
@@ -58,7 +58,7 @@ export class AdminAssistCommand {
     );
 
     // 🔒 B1 — guildId 확인을 먼저 둔다(UC-08 §4.1). DM 에서는 memberPermissions 가 null 이라
-    // 권한 체크를 먼저 하면 "권한 없음"으로 오분류된다(sticky-register 선례와 순서가 갈리는
+    // 권한 체크를 먼저 하면 "권한 없음"으로 오분류된다((삭제된) /sticky-register 선례와 순서가 갈리는
     // 이유). API 호출 0 — 쿼터 미소모.
     const guildId = interaction.guildId;
     if (!guildId) {
@@ -79,11 +79,12 @@ export class AdminAssistCommand {
       return;
     }
 
-    await interaction.deferReply({ ephemeral: true });
-
-    const queryText = interaction.options.getString('query', true);
-
     try {
+      // 첫 응답도 try 안에 둔다 — 밖이면 실패 시 "응답 없음"(감사 A12)
+      await interaction.deferReply({ ephemeral: true });
+
+      const queryText = interaction.options.getString('query', true);
+
       const result = await this.apiClient.getAdminAssistRecommendation({
         guildId,
         // 🔒 언제나 실행자 — 옵션으로 지목된 타인 id 를 넣지 않는다(F5 조인 키 불변식,
@@ -107,11 +108,10 @@ export class AdminAssistCommand {
 
       // ⚠️ §9-3 — HTTP 200 ≠ 결과 성공. resultStatus 를 먼저 보는 분기는 embed 빌더가
       // 전담한다(llm_error 도 200 으로 내려오므로 여기서 catch 로 걸러지지 않는다).
-      const webUrl = process.env['WEB_URL'] ?? DEFAULT_WEB_URL;
       const embed = buildAdminAssistEmbed(result.data, {
         locale,
         i18n: this.i18n,
-        webUrl,
+        webUrl: getWebUrl(),
         guildId,
       });
       await interaction.editReply({ embeds: [embed] });
@@ -120,7 +120,11 @@ export class AdminAssistCommand {
         'AdminAssist command error',
         error instanceof Error ? error.stack : String(error),
       );
-      await interaction.editReply({ content: this.i18n.t(locale, 'commands.adminAssistError') });
+      await respondWithErrorNotice(
+        interaction,
+        this.i18n.t(locale, 'commands.adminAssistError'),
+        this.logger,
+      );
     }
   }
 }

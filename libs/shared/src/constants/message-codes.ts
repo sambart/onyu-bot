@@ -64,6 +64,24 @@ export const MESSAGE_CODE = {
   RECAP_OUT_OF_WINDOW: 'RECAP_OUT_OF_WINDOW',
   /** 결산 year 쿼리가 지원 연도가 아님(400). params 없음 */
   INVALID_RECAP_YEAR: 'INVALID_RECAP_YEAR',
+  /** 서버 결산 게시: 노출 창 밖(409). params: { reason: 'outside_window' } */
+  RECAP_POST_OUTSIDE_WINDOW: 'RECAP_POST_OUTSIDE_WINDOW',
+  /** 서버 결산 게시: 스냅샷 없음·생성 불가(409). params: { reason: 'no_snapshot' } */
+  RECAP_POST_NO_SNAPSHOT: 'RECAP_POST_NO_SNAPSHOT',
+  /** 서버 결산 게시: 기록 없음 E3(409). params: { reason: 'no_data' } */
+  RECAP_POST_NO_DATA: 'RECAP_POST_NO_DATA',
+  /** 서버 결산 게시: 수동 게시 한도 소진(429). params: { reason: 'post_limit_reached' } */
+  RECAP_POST_LIMIT_REACHED: 'RECAP_POST_LIMIT_REACHED',
+  /** 서버 결산 게시: 같은 길드 게시 진행 중(409). params: { reason: 'in_progress' } */
+  RECAP_POST_IN_PROGRESS: 'RECAP_POST_IN_PROGRESS',
+  /** 서버 결산 게시: 봇이 채널을 볼 수 없음(409). params: { reason: 'channel_unreachable' } */
+  RECAP_POST_CHANNEL_UNREACHABLE: 'RECAP_POST_CHANNEL_UNREACHABLE',
+  /** 서버 결산 게시: 전송 권한 부족(409). params: { reason: 'missing_permissions' } */
+  RECAP_POST_MISSING_PERMISSIONS: 'RECAP_POST_MISSING_PERMISSIONS',
+  /** 서버 결산 게시: 응답을 받은 기타 Discord 오류(502). params: { reason: 'discord_send_failed' } */
+  RECAP_POST_SEND_FAILED: 'RECAP_POST_SEND_FAILED',
+  /** 서버 결산 게시: 결과 불명 타임아웃(504). params: { reason: 'timeout_unknown' } */
+  RECAP_POST_OUTCOME_UNKNOWN: 'RECAP_POST_OUTCOME_UNKNOWN',
 
   // ── class-validator DTO 검증 400 (i18n G1-ⓑ 2차) ──
   /** 검증 실패 일반 코드(실패 2건 이상 또는 문구군 미배정). params: { fields } — 실패 필드 경로 목록 */
@@ -217,5 +235,17 @@ export const MESSAGE_CODE = {
   LEVEL_XP_ADJUST_TARGET_BOT: 'LEVEL_XP_ADJUST_TARGET_BOT',
   /** 조정 대상이 탈퇴 멤버이거나 guild_member·user_level 모두 없음(404). params 없음 */
   LEVEL_XP_ADJUST_TARGET_NOT_FOUND: 'LEVEL_XP_ADJUST_TARGET_NOT_FOUND',
+  // ── subscription 프리미엄 기능 게이트 (docs/plans/u6-subscription-core.md) ──
+  /** 유료 기능 미해금(403). params: { feature, requiredTier } */
+  PREMIUM_REQUIRED: 'PREMIUM_REQUIRED',
+  /** entitlement 판정 불가 — DB 오류 등 fail-closed(503). params 없음 */
+  ENTITLEMENT_UNAVAILABLE: 'ENTITLEMENT_UNAVAILABLE',
+  // ── 비활동 회원 조치 대상 검증 (감사 2026-10-27 A4·H2, 결정 D1 (a), F-INACTIVE-010) ──
+  /** 요청 대상 전원이 현재 비활동 분류 결과 집합 밖(400). params 없음 */
+  INACTIVE_ACTION_NO_INACTIVE_TARGET: 'INACTIVE_ACTION_NO_INACTIVE_TARGET',
+  /** 강제퇴장 대상 전원이 요청자 이상 위계이거나 서버 소유자(400). params 없음 */
+  INACTIVE_ACTION_HIERARCHY_DENIED: 'INACTIVE_ACTION_HIERARCHY_DENIED',
+  /** Discord 조회 일시 실패로 위계를 판정할 수 없음(503). 조치는 실행되지 않았다. params 없음 */
+  INACTIVE_ACTION_HIERARCHY_UNVERIFIABLE: 'INACTIVE_ACTION_HIERARCHY_UNVERIFIABLE',
 } as const;
 export type MessageCode = (typeof MESSAGE_CODE)[keyof typeof MESSAGE_CODE];

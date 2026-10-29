@@ -6,6 +6,7 @@ import type {
 import { ActionRowBuilder, AttachmentBuilder, ButtonBuilder, ButtonStyle } from 'discord.js';
 
 import type { BotI18nService } from '../common/application/bot-i18n.service';
+import { getWebUrl } from '../common/util/web-url.util';
 
 /**
  * `/me`(`/미`) 프로필 카드의 조회(fetchMeProfileCard) + 응답 조립(buildProfileCardReply) +
@@ -16,9 +17,6 @@ import type { BotI18nService } from '../common/application/bot-i18n.service';
  * `result.ok`를 검사하지 않는 동작을 그대로 유지해야 하므로(plan D3 🔒 주석), ok 가드는
  * 이 함수를 호출하는 쪽(`RankCommand` 본인 경로)에서만 추가한다.
  */
-
-// 대시보드 기본 URL (WEB_URL 미설정 시 prod 도메인) — me.command.ts에서 이관
-const DEFAULT_WEB_URL = 'https://onyu.dev';
 
 // 버튼 customId — bot-me-interaction.handler.ts와 공유(F-VOICE-064/065)
 const CUSTOM_ID_ACTIVITY_DETAIL = 'me:activity_detail';
@@ -48,8 +46,7 @@ export function buildProfileButtonRow(
 ): ActionRowBuilder<ButtonBuilder> {
   const { i18n, locale, guildId, hasData } = params;
 
-  // WEB_URL은 런타임에 읽는다 — 모듈 import 시점에 평가하면 ConfigModule의 .env 로드 전이라 fallback이 굳을 수 있다
-  const webUrl = process.env['WEB_URL'] ?? DEFAULT_WEB_URL;
+  const webUrl = getWebUrl();
   const linkButton = new ButtonBuilder()
     .setLabel(i18n.t(locale, 'commands.meButtonLabel'))
     .setStyle(ButtonStyle.Link)

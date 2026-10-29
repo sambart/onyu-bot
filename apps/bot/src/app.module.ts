@@ -8,6 +8,7 @@ import { type IncomingMessage } from 'http';
 import { LoggerModule } from 'nestjs-pino';
 
 import { BotCommandModule } from './command/bot-command.module';
+import { resolveBotApiOptions } from './config/bot-api.config';
 import { DiscordConfig } from './config/discord.config';
 import { BotEventModule } from './event/bot-event.module';
 import { BotMetricsModule } from './monitoring/bot-metrics.module';
@@ -48,10 +49,7 @@ const AUTO_LOGGING_IGNORED_PATHS: readonly string[] = [
     EventEmitterModule.forRoot(),
     ScheduleModule.forRoot(),
     DiscordModule.forRootAsync(DiscordConfig),
-    BotApiClientModule.forRoot({
-      baseUrl: process.env.API_BASE_URL ?? 'http://localhost:3000',
-      apiKey: process.env.BOT_API_KEY ?? '',
-    }),
+    BotApiClientModule.forRoot(resolveBotApiOptions(process.env)),
     BotEventModule,
     BotCommandModule,
     BotSchedulerModule,

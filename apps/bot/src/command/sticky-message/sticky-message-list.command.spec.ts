@@ -31,7 +31,11 @@ function makeInteraction(overrides: Record<string, unknown> = {}): CommandIntera
     locale: 'ko',
     user: { id: USER_ID },
     memberPermissions: { has: vi.fn().mockReturnValue(true) },
-    deferReply: vi.fn().mockResolvedValue(undefined),
+    // 실제 discord.js 처럼 deferReply 호출 후 deferred=true — 오류 안내 경로가 editReply 를 고른다
+    deferReply: vi.fn(function (this: { deferred: boolean }) {
+      this.deferred = true;
+      return Promise.resolve(undefined);
+    }),
     editReply: vi.fn().mockResolvedValue(undefined),
     reply: vi.fn().mockResolvedValue(undefined),
     ...overrides,
@@ -39,7 +43,8 @@ function makeInteraction(overrides: Record<string, unknown> = {}): CommandIntera
 }
 
 function getEditReplyStringContent(interaction: CommandInteraction): string {
-  return (interaction.editReply as Mock).mock.calls[0][0] as string;
+  const arg = (interaction.editReply as Mock).mock.calls[0][0] as string | { content: string };
+  return typeof arg === 'string' ? arg : arg.content;
 }
 
 function getEditReplyEmbedJson(interaction: CommandInteraction): Record<string, unknown> {
@@ -164,29 +169,32 @@ describe('StickyMessageListCommand', () => {
 
   // ─── catch — Error 인스턴스 ────────────────────────────────────────────────
 
-  it('API 호출이 Error로 reject되면 error.message가 {message}에 보간된 stickyListError 로 editReply 한다', async () => {
-    apiClient.getStickyMessageConfigs.mockRejectedValue(new Error('network fail'));
+  it('API 호출이 Error로 reject되면 고정 stickyListError 문구만 보내고 error.message 는 노출하지 않는다(감사 A12 #7)', async () => {
+    apiClient.getStickyMessageConfigs.mockRejectedValue(
+      new Error('connect ETIMEDOUT 10.0.3.7:3000'),
+    );
     const interaction = makeInteraction();
 
     await command.onList(interaction);
 
     const content = getEditReplyStringContent(interaction);
-    expect(content).toBe(i18n.t('ko', 'commands.stickyListError', { message: 'network fail' }));
+    expect(content).toBe(i18n.t('ko', 'commands.stickyListError'));
+    expect(content).not.toContain('ETIMEDOUT');
+    expect(content).not.toContain('10.0.3.7');
     expect(content).not.toMatch(UNSUBSTITUTED_PLACEHOLDER);
   });
 
-  // ─── catch — 비-Error throw → unknownError 간접 합성 ──────────────────────────
+  // ─── catch — 비-Error throw 도 동일한 고정 문구 ───────────────────────────────
 
-  it('API 호출이 Error가 아닌 값으로 reject되면 errors.unknownError가 {message}에 간접 합성된다', async () => {
+  it('API 호출이 Error가 아닌 값으로 reject되어도 동일한 고정 문구를 보낸다', async () => {
     apiClient.getStickyMessageConfigs.mockRejectedValue('raw-string-rejection');
     const interaction = makeInteraction();
 
     await command.onList(interaction);
 
     const content = getEditReplyStringContent(interaction);
-    const expectedMessage = i18n.t('ko', 'errors.unknownError');
-    expect(content).toBe(i18n.t('ko', 'commands.stickyListError', { message: expectedMessage }));
-    expect(content).not.toMatch(UNSUBSTITUTED_PLACEHOLDER);
+    expect(content).toBe(i18n.t('ko', 'commands.stickyListError'));
+    expect(content).not.toContain('raw-string-rejection');
   });
 
   // ─── en 로케일 — Embed 조립 반복(§6-1 케이스 6) ──────────────────────────────

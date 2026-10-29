@@ -1,4 +1,5 @@
 import {
+  RECAP_AUTO_POST_END_MMDD,
   RECAP_WINDOW_END_MMDD,
   RECAP_WINDOW_START_MMDD,
   RECAP_YEAR,
@@ -30,6 +31,25 @@ export function getRecapWindowPhase(now: Date, year: number = RECAP_YEAR): Recap
   if (today < start) return 'not_started';
   if (today > end) return 'ended';
   return 'open';
+}
+
+/**
+ * 서버 결산 자동 게시 기간 여부 — KST `year`-12-15 ~ `year`-12-31 (달력 일자, 양끝 포함).
+ * 노출 창(익년 01-15까지)과 달리 종료가 같은 해 12-31 이다. 스케줄러·상태 계산 공용.
+ * 일자 문자열 비교라 경계(12-15 00:00, 12-31 23:59:59.999)에서 오차가 없다.
+ *
+ * @param now 판정 기준 시각
+ * @param year 결산 연도(생략 시 RECAP_YEAR)
+ * @returns 자동 게시 기간 안이면 true
+ */
+export function isRecapAutoPostPeriod(now: Date, year: number = RECAP_YEAR): boolean {
+  const today = new Date(now.getTime() + KST_OFFSET_MS)
+    .toISOString()
+    .slice(0, 10)
+    .replace(/-/g, '');
+  return (
+    today >= `${year}${RECAP_WINDOW_START_MMDD}` && today <= `${year}${RECAP_AUTO_POST_END_MMDD}`
+  );
 }
 
 /**

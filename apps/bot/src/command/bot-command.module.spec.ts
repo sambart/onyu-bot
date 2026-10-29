@@ -27,20 +27,18 @@ import { MeCommand } from './me.command';
 import { ProfileCommand } from './profile.command';
 import { StickyMessageDeleteCommand } from './sticky-message/sticky-message-delete.command';
 import { StickyMessageListCommand } from './sticky-message/sticky-message-list.command';
-import { StickyMessageRegisterCommand } from './sticky-message/sticky-message-register.command';
 import { VersionCommand } from './version.command';
 
 describe('BotCommandModule', () => {
   describe('providers', () => {
-    it('F-ADMIN-ASSIST-078(/admin-assist·/관리도우미) 추가 후 정확히 11개의 커맨드만 등록되어 있다', () => {
+    it('F-ADMIN-ASSIST-078(/admin-assist·/관리도우미) 추가·/sticky-register 일몰 후 정확히 10개의 커맨드만 등록되어 있다', () => {
       const providers = Reflect.getMetadata('providers', BotCommandModule) as unknown[];
 
-      expect(providers).toHaveLength(11);
+      expect(providers).toHaveLength(10);
       expect(providers).toEqual(
         expect.arrayContaining([
           VersionCommand,
           HelpCommand,
-          StickyMessageRegisterCommand,
           StickyMessageDeleteCommand,
           StickyMessageListCommand,
           MeCommand,

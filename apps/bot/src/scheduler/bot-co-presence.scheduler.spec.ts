@@ -337,4 +337,63 @@ describe('BotCoPresenceScheduler', () => {
       expect(apiClient.pushCoPresenceSnapshots).not.toHaveBeenCalled();
     });
   });
+
+  describe('종료 시 진행 중 tick 대기 (A6)', () => {
+    it('T-BOT-SHUTDOWN-01: 진행 중인 tick 이 끝난 뒤에야 flush 를 요청한다(순서 역전 시 세션 재개방)', async () => {
+      vi.useFakeTimers();
+      const order: string[] = [];
+      let resolveTick!: () => void;
+      apiClient.pushCoPresenceSnapshots.mockImplementation(
+        () =>
+          new Promise<void>((resolve) => {
+            resolveTick = () => {
+              order.push('tick-done');
+              resolve();
+            };
+          }),
+      );
+      apiClient.pushCoPresenceFlush.mockImplementation(async () => {
+        order.push('flush');
+      });
+
+      const client = { guilds: { cache: new Map<string, Guild>() } } as unknown as Client;
+      scheduler = new BotCoPresenceScheduler(client, apiClient as never, heartbeat as never);
+      scheduler.onApplicationBootstrap();
+      await vi.advanceTimersByTimeAsync(60_000); // tick 진입 — API 응답 대기 중
+
+      const shutdown = scheduler.onApplicationShutdown();
+      await vi.advanceTimersByTimeAsync(0);
+      // tick 이 아직 끝나지 않았으므로 flush 는 대기해야 한다
+      expect(apiClient.pushCoPresenceFlush).not.toHaveBeenCalled();
+
+      resolveTick();
+      await shutdown;
+
+      expect(order).toEqual(['tick-done', 'flush']);
+    });
+
+    it('T-BOT-SHUTDOWN-02: 진행 중인 tick 이 없으면 즉시 flush 한다', async () => {
+      vi.useFakeTimers();
+      const client = { guilds: { cache: new Map<string, Guild>() } } as unknown as Client;
+      scheduler = new BotCoPresenceScheduler(client, apiClient as never, heartbeat as never);
+      scheduler.onApplicationBootstrap();
+
+      await scheduler.onApplicationShutdown();
+
+      expect(apiClient.pushCoPresenceFlush).toHaveBeenCalledOnce();
+    });
+
+    it('T-BOT-SHUTDOWN-03: tick 이 예외로 끝나도 flush 는 수행된다', async () => {
+      vi.useFakeTimers();
+      apiClient.pushCoPresenceSnapshots.mockRejectedValue(new Error('api down'));
+      const client = { guilds: { cache: new Map<string, Guild>() } } as unknown as Client;
+      scheduler = new BotCoPresenceScheduler(client, apiClient as never, heartbeat as never);
+      scheduler.onApplicationBootstrap();
+      await vi.advanceTimersByTimeAsync(60_000);
+
+      await scheduler.onApplicationShutdown();
+
+      expect(apiClient.pushCoPresenceFlush).toHaveBeenCalledOnce();
+    });
+  });
 });

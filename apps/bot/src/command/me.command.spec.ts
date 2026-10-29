@@ -21,7 +21,11 @@ function makeInteraction(overrides: Record<string, unknown> = {}): ChatInputComm
     locale: 'ko',
     user: { id: USER_ID, displayName: 'Alice', displayAvatarURL: () => 'https://cdn/avatar.png' },
     member: { displayName: 'Alice' } as unknown as GuildMember,
-    deferReply: vi.fn().mockResolvedValue(undefined),
+    // 실제 discord.js 처럼 deferReply 호출 후 deferred=true — 오류 안내 경로가 editReply 를 고른다
+    deferReply: vi.fn(function (this: { deferred: boolean }) {
+      this.deferred = true;
+      return Promise.resolve(undefined);
+    }),
     editReply: vi.fn().mockResolvedValue(undefined),
     reply: vi.fn().mockResolvedValue(undefined),
     ...overrides,
@@ -209,6 +213,20 @@ describe('MeCommand', () => {
 
     expect(interaction.editReply).toHaveBeenCalledWith({
       content: '프로필 조회 중 오류가 발생했습니다.',
+    });
+  });
+
+  it('deferReply 자체가 실패해도 예외를 전파하지 않고 ephemeral reply 로 안내한다(첫 응답 try 편입, 감사 A12)', async () => {
+    const interaction = makeInteraction({
+      deferReply: vi.fn().mockRejectedValue(new Error('Unknown interaction')),
+    });
+
+    await expect(command.onMe(interaction, new MeCommandDto())).resolves.toBeUndefined();
+
+    expect(interaction.editReply).not.toHaveBeenCalled();
+    expect(interaction.reply).toHaveBeenCalledWith({
+      content: '프로필 조회 중 오류가 발생했습니다.',
+      ephemeral: true,
     });
   });
 

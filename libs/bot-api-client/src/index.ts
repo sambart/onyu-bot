@@ -1,3 +1,4 @@
+export { getApiErrorStatus, isNotFoundApiError, isTransientApiError } from './api-error';
 export type { BotApiClientModuleOptions } from './bot-api-client.module';
 export { BotApiClientModule } from './bot-api-client.module';
 export { BotApiClientService, isDuoPeerHiddenError } from './bot-api-client.service';

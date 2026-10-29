@@ -16,6 +16,7 @@ export class BestFriendCommandDto {
     descriptionLocalizations: {
       ko: '이 사용자와의 케미를 확인합니다',
       'pt-BR': 'Veja a sintonia da sua dupla com este usuário',
+      ja: 'このユーザーとのデュオ相性を確認',
     },
     required: false,
     type: ParamType.USER,

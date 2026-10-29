@@ -30,6 +30,7 @@ const CHANNEL_ROW_INDEX_START = 1;
 const DURATION_TEXT = defineLocaleTable<{ withHours: string; minutesOnly: string }>({
   ko: { withHours: '{hours}시간 {minutes}분', minutesOnly: '{minutes}분' },
   en: { withHours: '{hours}h {minutes}m', minutesOnly: '{minutes}m' },
+  ja: { withHours: '{hours}時間{minutes}分', minutesOnly: '{minutes}分' },
   pt: { withHours: '{hours}h {minutes}min', minutesOnly: '{minutes}min' },
 });
 
@@ -102,12 +103,11 @@ export class BotMeInteractionHandler {
         value: this.formatSection({
           locale,
           section: result.data.message,
-          formatValue: (m) => `${m.totalCount.toLocaleString()}`,
+          // 사용자 로케일 기준 천 단위 구분 — 인자 없는 toLocaleString 은 봇 프로세스 로케일(서버 환경)을 따른다
+          formatValue: (m) => m.totalCount.toLocaleString(locale),
           formatExtraLines: (m) =>
-            this.formatChannelLines(
-              locale,
-              m.channels,
-              (c) => `${c.messageCount.toLocaleString()}`,
+            this.formatChannelLines(locale, m.channels, (c) =>
+              c.messageCount.toLocaleString(locale),
             ),
         }),
       },

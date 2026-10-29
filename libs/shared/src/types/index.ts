@@ -114,7 +114,11 @@ export type {
   AdminLogKind,
   AdminLogPayloadMap,
   AdminLogQuotaScope,
+  AdminLogRoleFailureCounts,
+  AdminLogRoleFailureReason,
+  InactiveRoleHierarchyTarget,
   NewbieOnboardingFailureDto,
+  NewbieOnboardingFailureKind,
 } from './admin-log';
 export type { AccessTokenPayload, AuthTokenPair } from './auth';
 export type { MeCardThemeCategory, MeCardThemeKey } from './card-theme';
@@ -212,6 +216,15 @@ export type {
 } from './settings-audit';
 export { SETTINGS_AUDIT_ACTOR_SENTINEL } from './settings-audit';
 export type {
+  EntitlementRowStatus,
+  EntitlementSnapshot,
+  EntitlementSource,
+  EntitlementStatus,
+  LookbackClampMeta,
+  LookbackSurface,
+  LookbackWindow,
+  PlanCycle,
+  PlanPriceKey,
   PlanScope,
   PlanTier,
   PremiumEntitlementState,
@@ -264,6 +277,15 @@ export {
 } from './usage-analytics';
 export * from './voice-game';
 export type {
+  GuildRecapAutoPostRequest,
+  GuildRecapAutoPostResponse,
+  GuildRecapAutoPostState,
+  GuildRecapAutoPostStatus,
+  GuildRecapCardResponse,
+  GuildRecapPostFailReason,
+  GuildRecapPostRequest,
+  GuildRecapPostResponse,
+  GuildRecapStatusResponse,
   MeRecapBotResponse,
   MeRecapCardResponse,
   MeRecapData,

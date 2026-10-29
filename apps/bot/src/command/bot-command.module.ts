@@ -11,7 +11,6 @@ import { MeCommand } from './me.command';
 import { ProfileCommand } from './profile.command';
 import { StickyMessageDeleteCommand } from './sticky-message/sticky-message-delete.command';
 import { StickyMessageListCommand } from './sticky-message/sticky-message-list.command';
-import { StickyMessageRegisterCommand } from './sticky-message/sticky-message-register.command';
 import { VersionCommand } from './version.command';
 
 /**
@@ -23,7 +22,6 @@ import { VersionCommand } from './version.command';
   providers: [
     VersionCommand,
     HelpCommand,
-    StickyMessageRegisterCommand,
     StickyMessageDeleteCommand,
     StickyMessageListCommand,
     // Me

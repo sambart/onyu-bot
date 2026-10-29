@@ -24,7 +24,11 @@ function makeInteraction(overrides: Record<string, unknown> = {}): ChatInputComm
     locale: 'ko',
     user: { id: USER_ID },
     options: makeOptions(),
-    deferReply: vi.fn().mockResolvedValue(undefined),
+    // 실제 discord.js 처럼 deferReply 호출 후 deferred=true — 오류 안내 경로가 editReply 를 고른다
+    deferReply: vi.fn(function (this: { deferred: boolean }) {
+      this.deferred = true;
+      return Promise.resolve(undefined);
+    }),
     editReply: vi.fn().mockResolvedValue(undefined),
     reply: vi.fn().mockResolvedValue(undefined),
     ...overrides,
@@ -233,6 +237,22 @@ describe('LeaderboardCommand', () => {
 
     expect(interaction.editReply).toHaveBeenCalledWith({
       content: '서버 랭킹을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.',
+    });
+  });
+
+  it('deferReply 자체가 실패하면 unhandled 로 터지지 않고 ephemeral reply 로 안내한다(첫 응답 try 편입)', async () => {
+    const interaction = makeInteraction({
+      deferReply: vi.fn().mockRejectedValue(new Error('Unknown interaction')),
+    });
+
+    await expect(
+      command.onLeaderboard(interaction, new LeaderboardCommandDto()),
+    ).resolves.toBeUndefined();
+
+    expect(interaction.editReply).not.toHaveBeenCalled();
+    expect(interaction.reply).toHaveBeenCalledWith({
+      content: '서버 랭킹을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.',
+      ephemeral: true,
     });
   });
 });

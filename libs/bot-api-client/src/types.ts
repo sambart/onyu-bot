@@ -675,6 +675,11 @@ export interface GuildMemberUserUpdateDto {
 export interface GuildMemberReconcileDto {
   guildId: string;
   activeUserIds: string[];
+  /**
+   * 멤버 fetch 시작 시각(ISO 8601). 이 시각 이후 갱신된 행(fetch 도중 입장자)은 API 가
+   * 비활성화하지 않는다. optional — 미전송 시 종전 동작(구버전 호환).
+   */
+  snapshotAt?: string;
 }
 
 /** POST /bot-api/guild-member/reconcile 응답. `skipped=true`이면 안전 가드에 의해 비활성화가 수행되지 않았다. */

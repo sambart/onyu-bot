@@ -258,7 +258,7 @@ describe('buildAdminAssistEmbed — 설명·상태 점검 필드 구성', () => 
     const linkValueOf = (embed: ReturnType<typeof build>) =>
       embed.fields?.find((f) => f.name === '🔗')?.value ?? '';
 
-    it('ko — /guides/{slug}, en — /en/guides/{slug}, 그 외 locale 도 /en 접두', () => {
+    it('ko — /guides/{slug}, en — /en/guides/{slug}, pt — /pt, ja — /ja 접두', () => {
       const i18n = new BotI18nService();
       i18n.onModuleInit();
       const response = makeResponse({
@@ -269,8 +269,11 @@ describe('buildAdminAssistEmbed — 설명·상태 점검 필드 구성', () => 
       expect(linkValueOf(build(response, { ...context, i18n, locale: 'en' }))).toContain(
         `📖 Guide: ${WEB_URL}/en/guides/voice-tracking`,
       );
+      expect(linkValueOf(build(response, { ...context, i18n, locale: 'pt' }))).toContain(
+        `${WEB_URL}/pt/guides/voice-tracking`,
+      );
       expect(linkValueOf(build(response, { ...context, i18n, locale: 'ja' }))).toContain(
-        `${WEB_URL}/en/guides/voice-tracking`,
+        `${WEB_URL}/ja/guides/voice-tracking`,
       );
     });
 

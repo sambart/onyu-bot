@@ -7,6 +7,7 @@ import { AttachmentBuilder, ChatInputCommandInteraction } from 'discord.js';
 
 import { BotI18nService } from '../../common/application/bot-i18n.service';
 import { LocaleResolverService } from '../../common/application/locale-resolver.service';
+import { respondWithErrorNotice } from '../../common/util/interaction-response.util';
 import { isGuildAdmin } from './guild-admin';
 import { LeaderboardCommandDto } from './leaderboard.dto';
 import { buildPageButtonRow } from './leaderboard-buttons';
@@ -23,6 +24,7 @@ const DEFAULT_PAGE = 1;
   descriptionLocalizations: {
     ko: '서버 레벨 리더보드를 보여줍니다',
     'pt-BR': 'Mostra o placar de níveis do servidor',
+    ja: 'サーバーのレベルランキングを表示',
   },
 })
 @Injectable()
@@ -58,10 +60,10 @@ export class LeaderboardCommand {
     // F2 — base 이름(page)으로 조회한다.
     const page = interaction.options.getInteger('page') ?? DEFAULT_PAGE;
 
-    // 공개 응답(비-ephemeral) 고정
-    await interaction.deferReply();
-
     try {
+      // 공개 응답(비-ephemeral) 고정. 첫 응답도 try 안에 둔다 — 밖이면 실패 시 "응답 없음"(감사 A12)
+      await interaction.deferReply();
+
       const result = await this.apiClient.getLevelLeaderboardCard({
         guildId,
         page,
@@ -118,7 +120,11 @@ export class LeaderboardCommand {
         'Leaderboard command error',
         error instanceof Error ? error.stack : String(error),
       );
-      await interaction.editReply({ content: this.i18n.t(locale, 'commands.leaderboardError') });
+      await respondWithErrorNotice(
+        interaction,
+        this.i18n.t(locale, 'commands.leaderboardError'),
+        this.logger,
+      );
     }
   }
 }

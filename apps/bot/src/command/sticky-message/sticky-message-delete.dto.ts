@@ -10,6 +10,7 @@ export class StickyMessageDeleteDto {
     descriptionLocalizations: {
       ko: '고정메세지를 삭제할 채널',
       'pt-BR': 'Canal de onde excluir as mensagens fixas',
+      ja: '固定メッセージを削除するチャンネル',
     },
     required: true,
     type: ParamType.STRING,

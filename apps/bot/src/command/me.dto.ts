@@ -25,6 +25,7 @@ export class MeCommandDto {
       ko: '카드 보기: 레벨(기본), 레거시 음성 시간 카드 또는 연말 결산',
       'pt-BR':
         'Visualização do cartão: nível (padrão), o cartão antigo de tempo de voz ou o resumo do ano',
+      ja: 'カードの種類：レベル（デフォルト）、旧ボイス時間カード、年末の振り返り',
     },
     required: false,
     type: ParamType.STRING,

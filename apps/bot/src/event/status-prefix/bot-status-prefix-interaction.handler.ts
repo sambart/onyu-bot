@@ -12,6 +12,7 @@ import {
 import { BotI18nService } from '../../common/application/bot-i18n.service';
 import { LocaleResolverService } from '../../common/application/locale-resolver.service';
 import { resolveResultMessage } from '../../common/application/message-code-map';
+import { isGuildMember } from '../../common/util/guild-member.util';
 
 const CUSTOM_ID_PREFIX = {
   APPLY: 'status_prefix:',
@@ -85,7 +86,15 @@ export class BotStatusPrefixInteractionHandler {
 
     const guildId = interaction.guildId ?? '';
     const memberId = interaction.user.id;
-    const member = interaction.member as GuildMember;
+    const member = interaction.member;
+    if (!isGuildMember(member)) {
+      // 캐시 미스(raw API 멤버)·null — 닉네임 조작 불가이므로 API 호출 전에 중단한다
+      this.logger.warn(
+        `[STATUS_PREFIX] member not resolvable: guild=${guildId} member=${memberId}`,
+      );
+      await interaction.editReply({ content: this.i18n.t(locale, 'errors.genericError') });
+      return;
+    }
 
     const result = await this.apiClient.applyStatusPrefix({
       guildId,
@@ -121,7 +130,14 @@ export class BotStatusPrefixInteractionHandler {
   private async handleReset(interaction: ButtonInteraction, locale: string): Promise<void> {
     const guildId = interaction.guildId ?? '';
     const memberId = interaction.user.id;
-    const member = interaction.member as GuildMember;
+    const member = interaction.member;
+    if (!isGuildMember(member)) {
+      this.logger.warn(
+        `[STATUS_PREFIX] member not resolvable: guild=${guildId} member=${memberId}`,
+      );
+      await interaction.editReply({ content: this.i18n.t(locale, 'errors.genericError') });
+      return;
+    }
 
     const result = await this.apiClient.resetStatusPrefix({ guildId, memberId });
 

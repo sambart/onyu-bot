@@ -2,9 +2,19 @@ import { InjectDiscordClient, Once } from '@discord-nestjs/core';
 import { Injectable, Logger, OnApplicationShutdown } from '@nestjs/common';
 import { BotApiClientService, type VoiceSyncUser } from '@onyu/bot-api-client';
 import { isObfuscatedChannel } from '@onyu/shared';
-import { ActivityType, ChannelType, Client, type Guild, type VoiceChannel } from 'discord.js';
+import {
+  ActivityType,
+  ChannelType,
+  Client,
+  type Guild,
+  type StageChannel,
+  type VoiceChannel,
+} from 'discord.js';
 
 import { waitForApi } from '../../common/util/wait-for-api';
+
+/** 주기 sync 수집 대상 채널 — 일반 음성 + Stage(A6) */
+type SyncableVoiceChannel = VoiceChannel | StageChannel;
 
 /**
  * F-VOICE-117(D1-a, Q4 확정) — 주기 sync 간격(ms). API 재시작 시 존재하던 세션이 전부
@@ -133,10 +143,16 @@ export class BotVoiceSyncHandler implements OnApplicationShutdown {
   private collectGuildVoiceUsers(guild: Guild): VoiceSyncUser[] {
     const users: VoiceSyncUser[] = [];
 
-    const voiceChannels = guild.channels.cache.filter((c) => c.type === ChannelType.GuildVoice);
+    // A6 — Stage 채널 체류자도 수집한다. GuildVoice 만 수집하면 Stage 체류자는 재시작/게이트웨이
+    // 재연결 후 세션이 복구되지 않는다(F-VOICE-117 갭). voiceState 이벤트 경로는 이미 Stage 를 처리한다.
+    const voiceChannels = guild.channels.cache.filter(
+      (c) => c.type === ChannelType.GuildVoice || c.type === ChannelType.GuildStageVoice,
+    );
 
     for (const channel of voiceChannels.values()) {
-      if (channel.type !== ChannelType.GuildVoice) continue;
+      if (channel.type !== ChannelType.GuildVoice && channel.type !== ChannelType.GuildStageVoice) {
+        continue;
+      }
 
       const nonBotMembers = channel.members.filter((m) => !m.user.bot);
 
@@ -172,7 +188,7 @@ export class BotVoiceSyncHandler implements OnApplicationShutdown {
    * non-nullable `string` 이라(계약 변경 비범위) 은닉 시 `null` 대신 빈 문자열을 돌려준다 —
    * API 수신부가 어차피 `?? ''` 로 받으므로 값은 동등하게 수렴한다.
    */
-  private resolveChannelName(channel: VoiceChannel): string {
+  private resolveChannelName(channel: SyncableVoiceChannel): string {
     if (!isObfuscatedChannel(channel.flags?.bitfield, channel.name)) return channel.name;
     // 같은 채널이 멤버 루프 안에서 여러 번 판정돼도 Set은 채널 id 1개로만 수렴한다.
     this.obfuscatedChannelIds.add(channel.id);
@@ -186,7 +202,7 @@ export class BotVoiceSyncHandler implements OnApplicationShutdown {
    * 채널과 카테고리는 각각 독립적으로 은닉될 수 있어(엣지 ⓐ), 채널 자체의 은닉
    * 판정 결과를 재사용하지 않고 `channel.parent` 를 별도로 판정한다.
    */
-  private resolveCategoryName(channel: VoiceChannel): string | null {
+  private resolveCategoryName(channel: SyncableVoiceChannel): string | null {
     const parent = channel.parent;
     if (!parent) return null;
     if (!isObfuscatedChannel(parent.flags?.bitfield, parent.name)) return parent.name;

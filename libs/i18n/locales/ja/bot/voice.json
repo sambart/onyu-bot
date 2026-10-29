@@ -1,0 +1,14 @@
+{
+  "autoChannelDefaultName": "{username}の{label}",
+  "autoChannelDefaultInstantName": "{username}の部屋",
+  "autoChannelNameModalTitle": "部屋の名前を入力",
+  "autoChannelNameInputLabel": "部屋の名前",
+  "autoChannelNameInputPlaceholder": "形式: {preview} · {min}〜{max}文字",
+  "autoChannelNameRetryButton": "やり直す",
+  "autoChannelNameInputUnavailable": "現在、部屋の名前を入力できません。しばらくしてからもう一度お試しください。",
+  "autoChannelNameInvalidMode": "このボタンの設定が古い状態です。管理者にお問い合わせのうえ、案内メッセージを再発行してもらってください。",
+  "autoChannelNameRequired": "部屋を作成するには、部屋の名前を入力する必要があります。",
+  "autoChannelNameTooShort": "部屋の名前は{minLength}文字以上で入力してください。",
+  "autoChannelNameTooLong": "部屋の名前は{maxLength}文字以内で入力してください。",
+  "autoChannelNameForbiddenWord": "「{word}」は使用できません。"
+}

@@ -1,8 +1,9 @@
 /**
- * 슬래시 커맨드 현지화 회귀 가드 (i18n-pt-br-bot 계획 Q2, 2026-10-23).
+ * 슬래시 커맨드 현지화 회귀 가드 (i18n-pt-br-bot 계획 Q2, 2026-10-23 · i18n-ja-bot 계획 Q6, 2026-10-28).
  *
- * 정책(F-GENERAL-007 요구 5): 커맨드·옵션·choice **이름**은 `pt-BR` 로 현지화하지 않는다
- * (기본 en 이름 유지 — 기계 번역 라벨 노출 금지). **설명**만 `pt-BR` 을 가진다.
+ * 정책(F-GENERAL-007 요구 5): 커맨드·옵션·choice **이름**은 2군 로케일(`pt-BR`·`ja`)로 현지화하지 않는다
+ * (기본 en 이름 유지 — 기계 번역 라벨 노출 금지). **설명**만 2군 로케일을 가진다.
+ * ja 는 readiness Q6 에 따라 pt 선례와 같이 설명만 현지화한다.
  *
  * 메타데이터는 `me.dto.spec.ts` 와 같이 라이브러리가 public export 하는 `ReflectMetadataProvider`
  * 로 읽는다. 옵션은 DTO 클래스의 프로퍼티 단위로 정의돼 있어 (DTO, 프로퍼티) 목록을 명시한다 —
@@ -29,10 +30,10 @@ import { ProfileCommand } from './profile.command';
 import { StickyMessageDeleteCommand } from './sticky-message/sticky-message-delete.command';
 import { StickyMessageDeleteDto } from './sticky-message/sticky-message-delete.dto';
 import { StickyMessageListCommand } from './sticky-message/sticky-message-list.command';
-import { StickyMessageRegisterCommand } from './sticky-message/sticky-message-register.command';
 import { VersionCommand } from './version.command';
 
-const PT_BR = 'pt-BR';
+/** Discord 로케일 코드. 2군 로케일이 늘면 여기에 추가한다. */
+const LOCALIZED_LOCALES = ['pt-BR', 'ja'] as const;
 const MIN_DESCRIPTION_LENGTH = 1;
 const MAX_DESCRIPTION_LENGTH = 100;
 
@@ -52,7 +53,6 @@ const metadataProvider = new ReflectMetadataProvider();
 const COMMANDS: Type[] = [
   VersionCommand,
   HelpCommand,
-  StickyMessageRegisterCommand,
   StickyMessageDeleteCommand,
   StickyMessageListCommand,
   MeCommand,
@@ -84,64 +84,70 @@ function readOption(dto: Type, property: string): Localizable {
   return metadataProvider.getParamDecoratorMetadata(dto, property) as Localizable;
 }
 
-function expectNoPtBrName(meta: Localizable): void {
-  expect(meta.nameLocalizations?.[PT_BR]).toBeUndefined();
+function expectNoLocalizedName(meta: Localizable, locale: string): void {
+  expect(meta.nameLocalizations?.[locale]).toBeUndefined();
 }
 
-function expectPtBrDescription(meta: Localizable): void {
-  const text = meta.descriptionLocalizations?.[PT_BR];
+function expectLocalizedDescription(meta: Localizable, locale: string): void {
+  const text = meta.descriptionLocalizations?.[locale];
 
   expect(text).toBeDefined();
   expect(text?.length).toBeGreaterThanOrEqual(MIN_DESCRIPTION_LENGTH);
   expect(text?.length).toBeLessThanOrEqual(MAX_DESCRIPTION_LENGTH);
 }
 
-describe('슬래시 커맨드 현지화 — 이름은 pt-BR 미현지화, 설명만 pt-BR (Q2)', () => {
-  describe.each(COMMANDS.map((command) => [command.name, command] as const))(
-    '커맨드 %s',
-    (_name, command) => {
-      it(`nameLocalizations 에 ${PT_BR} 이 없다`, () => {
-        expectNoPtBrName(readCommand(command));
+describe.each(LOCALIZED_LOCALES)(
+  '슬래시 커맨드 현지화 [%s] — 이름 미현지화, 설명만 현지화',
+  (locale) => {
+    describe.each(COMMANDS.map((command) => [command.name, command] as const))(
+      '커맨드 %s',
+      (_name, command) => {
+        it(`nameLocalizations 에 ${locale} 이 없다`, () => {
+          expectNoLocalizedName(readCommand(command), locale);
+        });
+
+        it(`descriptionLocalizations 에 ${locale} 이 있고 1~100자다`, () => {
+          expectLocalizedDescription(readCommand(command), locale);
+        });
+      },
+    );
+
+    describe.each(
+      OPTIONS.map((option) => [`${option.dto.name}.${option.property}`, option] as const),
+    )('옵션 %s', (_name, option) => {
+      it(`nameLocalizations 에 ${locale} 이 없다`, () => {
+        expectNoLocalizedName(readOption(option.dto, option.property), locale);
       });
 
-      it(`descriptionLocalizations 에 ${PT_BR} 이 있고 1~100자다`, () => {
-        expectPtBrDescription(readCommand(command));
+      it(`descriptionLocalizations 에 ${locale} 이 있고 1~100자다`, () => {
+        expectLocalizedDescription(readOption(option.dto, option.property), locale);
       });
-    },
-  );
-
-  describe.each(
-    OPTIONS.map((option) => [`${option.dto.name}.${option.property}`, option] as const),
-  )('옵션 %s', (_name, option) => {
-    it(`nameLocalizations 에 ${PT_BR} 이 없다`, () => {
-      expectNoPtBrName(readOption(option.dto, option.property));
     });
 
-    it(`descriptionLocalizations 에 ${PT_BR} 이 있고 1~100자다`, () => {
-      expectPtBrDescription(readOption(option.dto, option.property));
+    describe.each(
+      OPTIONS_WITH_CHOICES.map(
+        (option) => [`${option.dto.name}.${option.property}`, option] as const,
+      ),
+    )('choice %s', (_name, option) => {
+      it(`모든 choice 의 nameLocalizations 에 ${locale} 이 없다`, () => {
+        // getChoiceDecoratorMetadata 반환 타입이 느슨해(unknown 계열) choice 엔트리 형태로 좁힌다 — @Choice 데코레이터가 이 형태로 저장한다.
+        const choices = metadataProvider.getChoiceDecoratorMetadata(
+          option.dto,
+          option.property,
+        ) as Record<string, ChoiceEntry>;
+
+        expect(Object.keys(choices).length).toBeGreaterThan(0);
+        for (const choice of Object.values(choices)) {
+          expect(choice.nameLocalizations?.[locale]).toBeUndefined();
+        }
+      });
     });
-  });
+  },
+);
 
-  describe.each(
-    OPTIONS_WITH_CHOICES.map(
-      (option) => [`${option.dto.name}.${option.property}`, option] as const,
-    ),
-  )('choice %s', (_name, option) => {
-    it(`모든 choice 의 nameLocalizations 에 ${PT_BR} 이 없다`, () => {
-      const choices = metadataProvider.getChoiceDecoratorMetadata(
-        option.dto,
-        option.property,
-      ) as Record<string, ChoiceEntry>;
-
-      expect(Object.keys(choices).length).toBeGreaterThan(0);
-      for (const choice of Object.values(choices)) {
-        expect(choice.nameLocalizations?.[PT_BR]).toBeUndefined();
-      }
-    });
-  });
-
-  it('검증 대상 커맨드가 등록 커맨드 11종, 옵션이 6곳이다 (신규 추가 시 목록 갱신 강제)', () => {
-    expect(COMMANDS).toHaveLength(11);
+describe('슬래시 커맨드 현지화 — 검증 범위', () => {
+  it('검증 대상 커맨드가 등록 커맨드 10종, 옵션이 6곳이다 (신규 추가 시 목록 갱신 강제)', () => {
+    expect(COMMANDS).toHaveLength(10);
     expect(OPTIONS).toHaveLength(6);
   });
 });

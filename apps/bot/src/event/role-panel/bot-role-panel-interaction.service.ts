@@ -177,7 +177,8 @@ export class RolePanelInteractionService {
     const { guildId, userId, buttonId } = ctx;
     const lockKey = `${guildId}:${userId}:${buttonId}`;
 
-    if (!acquireLock(lockKey)) {
+    const lockToken = acquireLock(lockKey);
+    if (lockToken === null) {
       return { status: 'LOCKED' };
     }
 
@@ -206,7 +207,7 @@ export class RolePanelInteractionService {
       );
       return { status: 'GRANTED' };
     } finally {
-      releaseLock(lockKey);
+      releaseLock(lockKey, lockToken);
     }
   }
 
@@ -241,7 +242,8 @@ export class RolePanelInteractionService {
     const revokeIds = [...universe].filter((id) => !grantIds.includes(id));
 
     const lockKey = `${guildId}:${userId}:${groupKey}`;
-    if (!acquireLock(lockKey)) {
+    const lockToken = acquireLock(lockKey);
+    if (lockToken === null) {
       return { status: 'LOCKED' };
     }
 
@@ -265,7 +267,7 @@ export class RolePanelInteractionService {
       );
       return { status: toRemove.length > 0 ? 'SWAPPED' : 'GRANTED' };
     } finally {
-      releaseLock(lockKey);
+      releaseLock(lockKey, lockToken);
     }
   }
 

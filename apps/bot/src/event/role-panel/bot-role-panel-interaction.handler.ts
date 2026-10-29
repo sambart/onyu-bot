@@ -99,20 +99,27 @@ export class BotRolePanelInteractionHandler {
       if (result.localeTag && LOCALE_SAVE_ELIGIBLE_STATUSES.includes(result.status)) {
         try {
           await this.botApiClient.setUserLocale(userId, result.localeTag);
+          // 저장 직후 리졸버 캐시를 비워 다음 인터랙션이 옛 언어를 TTL 동안 읽지 않게 한다
+          this.localeResolver.invalidate(userId);
         } catch (error) {
-          this.logger.warn(
-            `[ROLE_PANEL] setUserLocale failed: user=${userId} locale=${result.localeTag}`,
-            error,
-          );
+          this.logger.warn({
+            event: '[ROLE_PANEL] setUserLocale failed',
+            userId,
+            locale: result.localeTag,
+            message: error instanceof Error ? error.message : String(error),
+          });
         }
       }
 
       await interaction.editReply({ content: this.resolveMessage(responseLocale, result.status) });
     } catch (error) {
-      this.logger.error(
-        `[ROLE_PANEL] Interaction failed: customId=${customId}`,
-        error instanceof Error ? error.stack : error,
-      );
+      // 위치 인자로 넘긴 stack 은 nestjs-pino 가 context 로 오인해 소실되므로 구조화 객체로 남긴다
+      this.logger.error({
+        event: '[ROLE_PANEL] Interaction failed',
+        customId,
+        message: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+      });
 
       try {
         const content = this.i18n.t(resolvedLocale, `${NS}.genericError`);

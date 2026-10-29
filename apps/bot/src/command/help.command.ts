@@ -5,9 +5,7 @@ import { CommandInteraction, EmbedBuilder, PermissionFlagsBits } from 'discord.j
 
 import { BotI18nService } from '../common/application/bot-i18n.service';
 import { LocaleResolverService } from '../common/application/locale-resolver.service';
-
-/** WEB_URL 미설정 시 prod 도메인 (me.command.ts:20 관례) */
-const DEFAULT_WEB_URL = 'https://onyu.dev';
+import { getWebUrl } from '../common/util/web-url.util';
 
 /**
  * `/help`(`/도움말`) 슬래시 커맨드 — Onyu 주요 기능 요약 + 대시보드 링크 안내(F-GENERAL-006).
@@ -21,6 +19,7 @@ const DEFAULT_WEB_URL = 'https://onyu.dev';
   descriptionLocalizations: {
     ko: 'Onyu의 주요 기능과 도움말을 확인합니다',
     'pt-BR': 'Mostra um guia rápido dos recursos do Onyu',
+    ja: 'Onyuの主な機能とヘルプを表示',
   },
 })
 @Injectable()
@@ -41,8 +40,7 @@ export class HelpCommand {
     );
 
     try {
-      // WEB_URL은 런타임에 읽는다 — 모듈 import 시점에 평가하면 ConfigModule의 .env 로드 전이라 fallback이 굳을 수 있다(me.command.ts:117 관례)
-      const webUrl = process.env['WEB_URL'] ?? DEFAULT_WEB_URL;
+      const webUrl = getWebUrl();
 
       const lines = [
         this.i18n.t(locale, 'commands.helpIntro'),

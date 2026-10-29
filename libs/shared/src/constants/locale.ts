@@ -9,14 +9,17 @@
 
 /** 완전 패리티를 강제하는 1군 로케일. */
 export const TIER1_LOCALES = ['ko', 'en'] as const;
-/** en 폴백을 허용하는 2군 로케일. pt(브라질 포르투갈어)는 A6 에서 봇 표면부터 투입한다. */
-export const TIER2_LOCALES = ['pt'] as const;
+/**
+ * en 폴백을 허용하는 2군 로케일. pt(브라질 포르투갈어)는 A6 에서 봇 표면부터 투입한다.
+ * ja(일본어)는 2026-10-28 1단계(봇)로 투입했다 — 웹은 2단계(`i18n-ja-web.md`, 2026-10), 공개 콘텐츠는 3단계(`i18n-ja-seo.md`)에서 노출했다.
+ */
+export const TIER2_LOCALES = ['pt', 'ja'] as const;
 
 /** 봇·웹이 지원하는 로케일 (DB user_setting.locale / guild_setting.locale varchar(5)) */
 export const SUPPORTED_LOCALES = [...TIER1_LOCALES, ...TIER2_LOCALES] as const;
 export type Tier1Locale = (typeof TIER1_LOCALES)[number]; // 'ko' | 'en'
-export type Tier2Locale = (typeof TIER2_LOCALES)[number]; // 'pt'
-export type SupportedLocale = Tier1Locale | Tier2Locale; // 'ko' | 'en' | 'pt'
+export type Tier2Locale = (typeof TIER2_LOCALES)[number]; // 'pt' | 'ja'
+export type SupportedLocale = Tier1Locale | Tier2Locale; // 'ko' | 'en' | 'pt' | 'ja'
 export const DEFAULT_LOCALE: SupportedLocale = 'en';
 
 /**
@@ -26,13 +29,13 @@ export const DEFAULT_LOCALE: SupportedLocale = 'en';
 export const TRANSLATION_FALLBACK_LOCALE: Tier1Locale = 'en';
 
 /**
- * 공개 콘텐츠(가이드·FAQ·랜딩) 경로가 존재할 수 있는 로케일. A8(2026-10)부터 2군 pt 포함.
+ * 공개 콘텐츠(가이드·FAQ·랜딩) 경로가 존재할 수 있는 로케일. A8(2026-10)에 2군 pt, ja 는 3단계(2026-10, `i18n-ja-seo.md`)에 합류.
  * 실제 라우트 노출은 항목별 콘텐츠 가용성으로 결정된다(apps/web/app/_public-content/content-access.ts).
  *
  * `[...TIER1_LOCALES, ...TIER2_LOCALES]` 로 파생하지 않는다 — 다음 2군 언어는 봇(1단계)부터 들어오고
  * 3단계 전까지 공개 콘텐츠가 없으므로, `WEB_EXPOSED_LOCALES` 와 같은 "단계 분리 장치" 역할을 이 상수가 계속 한다.
  */
-export const PUBLIC_CONTENT_LOCALES = ['ko', 'en', 'pt'] as const;
+export const PUBLIC_CONTENT_LOCALES = ['ko', 'en', 'pt', 'ja'] as const;
 export type PublicContentLocale = (typeof PUBLIC_CONTENT_LOCALES)[number];
 
 /**
@@ -42,7 +45,7 @@ export type PublicContentLocale = (typeof PUBLIC_CONTENT_LOCALES)[number];
  */
 const LOCALE_ENDONYM_ENTRIES: { readonly [L in Tier1Locale]: string } & {
   readonly [L in Tier2Locale]?: string;
-} = { ko: '한국어', en: 'English', pt: 'Português' };
+} = { ko: '한국어', en: 'English', pt: 'Português', ja: '日本語' };
 
 export const LOCALE_ENDONYMS: Readonly<Record<SupportedLocale, string>> = Object.fromEntries(
   SUPPORTED_LOCALES.map((locale) => [
@@ -54,7 +57,7 @@ export const LOCALE_ENDONYMS: Readonly<Record<SupportedLocale, string>> = Object
 /**
  * 임의 값이 지원 로케일인지 판정하는 타입 가드.
  * `SUPPORTED_LOCALES` 가 `as const`(readonly 튜플)라 `includes` 가 string 인자를 못 받는다 —
- * `readonly string[]` 로 좁힘만 해제하는 기존 관용구(middleware.ts:73, locale-resolver.service.ts)를 함수로 승격한다.
+ * `readonly string[]` 로 좁힘만 해제하는 기존 관용구(proxy.ts:73, locale-resolver.service.ts)를 함수로 승격한다.
  */
 export function isSupportedLocale(value: unknown): value is SupportedLocale {
   return typeof value === 'string' && (SUPPORTED_LOCALES as readonly string[]).includes(value);
@@ -66,8 +69,15 @@ export function isSupportedLocale(value: unknown): value is SupportedLocale {
  * 2군은 웹 번역 배선(`libs/i18n/locales/{l}/web/` + `TIER2_PARTIAL_MESSAGES`)이 있어야만 넣는다 —
  * 다음 2군 언어가 봇부터 들어올 때는 이 집합에서 빼 두는 방식으로 웹 노출을 단계 분리한다.
  * 봇·api 는 SUPPORTED_LOCALES 전체를 쓴다.
+ *
+ * `TIER2_LOCALES` 로 파생하지 않는다 — 2군 중 웹 배선이 끝난 로케일만 둔다.
+ * ja 는 2단계(`i18n-ja-web.md`, 2026-10)에서 합류했다.
  */
-export const WEB_EXPOSED_LOCALES = [...TIER1_LOCALES, ...TIER2_LOCALES] as const;
+export const WEB_EXPOSED_LOCALES = [
+  ...TIER1_LOCALES,
+  'pt',
+  'ja',
+] as const satisfies readonly SupportedLocale[];
 export type WebExposedLocale = (typeof WEB_EXPOSED_LOCALES)[number];
 
 /** 임의 값이 웹에 노출되는 로케일인지 판정하는 타입 가드. */

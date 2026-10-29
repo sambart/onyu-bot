@@ -1,3 +1,5 @@
+import type { SupportedLocale } from '../constants/locale';
+
 export type RecapWindowPhase = 'not_started' | 'open' | 'ended';
 
 export interface RecapHero {
@@ -54,3 +56,113 @@ export interface MeRecapBotResponse {
     activityTypeLabel: string | null;
   } | null;
 }
+
+/** 서버 결산 게시 이력 실패·건너뜀 사유 코드(`params.reason` 과 같은 이름) */
+export type GuildRecapPostFailReason =
+  | 'channel_unreachable'
+  | 'missing_permissions'
+  | 'discord_send_failed'
+  | 'ownership_unverifiable'
+  | 'foreign_channel'
+  | 'gone_channel'
+  | 'timeout_unknown'
+  | 'stale_pending';
+
+/** 자동 게시 상태 표시값(11종) */
+export type GuildRecapAutoPostState =
+  | 'off'
+  | 'not_eligible'
+  | 'scheduled'
+  | 'in_progress'
+  | 'retrying'
+  | 'sent'
+  | 'failed'
+  | 'unknown'
+  | 'skipped'
+  | 'superseded'
+  | 'not_posted';
+
+export interface GuildRecapAutoPostStatus {
+  enabled: boolean;
+  weeklyReport: {
+    isEnabled: boolean;
+    channelId: string | null;
+    hour: number;
+    timezone: string;
+    locale: SupportedLocale;
+  } | null;
+  state: GuildRecapAutoPostState;
+  attempt: number;
+  maxAttempts: number;
+  failReason: GuildRecapPostFailReason | null;
+  nextAttemptAfter: string | null; // ISO
+  channelId: string | null;
+  messageId: string | null;
+  postedAt: string | null; // ISO
+}
+
+/** S1 응답 — 창 밖이면 `data`·`manual` 이 null */
+export interface GuildRecapStatusResponse {
+  year: number;
+  phase: RecapWindowPhase;
+  data: {
+    status: 'ready' | 'empty' | 'unavailable';
+    countedFrom: string | null;
+    countedTo: string | null;
+    isFinal: boolean;
+    generatedAt: string | null;
+  } | null;
+  manual: {
+    limit: number;
+    used: number;
+    remaining: number;
+    canPost: boolean;
+    blockedReason: 'no_data' | 'no_snapshot' | 'limit_reached' | null;
+  } | null;
+  autoPost: GuildRecapAutoPostStatus;
+  channelPosts: Array<{
+    channelId: string;
+    posts: Array<{
+      triggerType: 'auto' | 'manual';
+      messageId: string;
+      postedAt: string;
+      usedFallback: boolean;
+    }>;
+  }>;
+}
+
+/** S2 응답 */
+export type GuildRecapCardResponse =
+  | {
+      status: 'ready';
+      imageBase64: string;
+      locale: SupportedLocale;
+      altText: string;
+      countedFrom: string;
+      countedTo: string;
+      generatedAt: string;
+    }
+  | { status: 'empty'; reason: 'no_data' | 'no_snapshot'; imageBase64: null };
+
+/** S3 요청 */
+export interface GuildRecapPostRequest {
+  channelId: string;
+  locale: SupportedLocale;
+}
+
+/** S3 응답 */
+export interface GuildRecapPostResponse {
+  success: true;
+  messageId: string;
+  channelId: string;
+  usedFallback: boolean;
+  manual: { used: number; remaining: number };
+}
+
+/** S4 요청 */
+export interface GuildRecapAutoPostRequest {
+  enabled: boolean;
+}
+
+/** S4 응답 */
+export type GuildRecapAutoPostResponse = GuildRecapAutoPostStatus;

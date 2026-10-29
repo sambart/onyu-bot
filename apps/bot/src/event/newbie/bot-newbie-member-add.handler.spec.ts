@@ -1476,4 +1476,133 @@ describe('BotNewbieMemberAddHandler', () => {
       expect(apiClient.recordNewbieOnboardingFailure).toHaveBeenCalledTimes(1);
     });
   });
+  // ──────────────────────────────────────────────────────
+  // 감사 A5 / D3(a) — config 조회 실패 구분·재시도·실패 기록 + 봇 계정 필터
+  // ──────────────────────────────────────────────────────
+  describe('A5 — config 조회 실패 처리(D3 a)', () => {
+    function makeHttpError(status?: number): Error {
+      return Object.assign(new Error('request failed'), {
+        isAxiosError: true,
+        response: status === undefined ? undefined : { status },
+      });
+    }
+
+    async function runWithTimers(member: GuildMember): Promise<void> {
+      const done = handler.handleGuildMemberAdd(member);
+      await vi.runAllTimersAsync();
+      await done;
+    }
+
+    beforeEach(() => {
+      vi.useFakeTimers();
+      vi.spyOn(Math, 'random').mockReturnValue(0.5);
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it('5xx 가 계속되면 최대 3회(재시도 2회) 조회 후 config_lookup 실패를 기록하고 warn 한다', async () => {
+      apiClient.getNewbieConfig.mockRejectedValue(makeHttpError(503));
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const warnSpy = vi.spyOn((handler as any).logger, 'warn').mockImplementation(() => undefined);
+      const member = makeMember();
+
+      await runWithTimers(member);
+
+      expect(apiClient.getNewbieConfig).toHaveBeenCalledTimes(3);
+      expect(apiClient.recordNewbieOnboardingFailure).toHaveBeenCalledTimes(1);
+      expect(apiClient.recordNewbieOnboardingFailure).toHaveBeenCalledWith({
+        guildId: 'guild-1',
+        memberId: 'member-1',
+        kind: 'config_lookup',
+      });
+      expect(warnSpy).toHaveBeenCalledTimes(1);
+      expect(apiClient.sendMemberJoin).not.toHaveBeenCalled();
+      expect(member.roles.add).not.toHaveBeenCalled();
+    });
+
+    it('네트워크 오류(응답 없음)도 일시 실패로 재시도한다', async () => {
+      apiClient.getNewbieConfig.mockRejectedValue(makeHttpError());
+      await runWithTimers(makeMember());
+
+      expect(apiClient.getNewbieConfig).toHaveBeenCalledTimes(3);
+      expect(apiClient.recordNewbieOnboardingFailure).toHaveBeenCalledTimes(1);
+    });
+
+    it('재시도 중 성공하면 실패 기록 없이 온보딩을 계속한다', async () => {
+      apiClient.getNewbieConfig
+        .mockRejectedValueOnce(makeHttpError(502))
+        .mockResolvedValueOnce(makeConfig({ roleEnabled: true, newbieRoleId: 'role-1' }));
+      const member = makeMember();
+
+      await runWithTimers(member);
+
+      expect(apiClient.getNewbieConfig).toHaveBeenCalledTimes(2);
+      expect(apiClient.recordNewbieOnboardingFailure).not.toHaveBeenCalled();
+      expect(member.roles.add).toHaveBeenCalledWith('role-1');
+    });
+
+    it('404(미설정)는 재시도·기록 없이 조용히 skip 한다', async () => {
+      apiClient.getNewbieConfig.mockRejectedValue(makeHttpError(404));
+
+      await runWithTimers(makeMember());
+
+      expect(apiClient.getNewbieConfig).toHaveBeenCalledTimes(1);
+      expect(apiClient.recordNewbieOnboardingFailure).not.toHaveBeenCalled();
+    });
+
+    it('config 가 null(미설정 응답)이면 재시도·기록 없이 skip 한다', async () => {
+      apiClient.getNewbieConfig.mockResolvedValue(null);
+
+      await runWithTimers(makeMember());
+
+      expect(apiClient.getNewbieConfig).toHaveBeenCalledTimes(1);
+      expect(apiClient.recordNewbieOnboardingFailure).not.toHaveBeenCalled();
+    });
+
+    it('401 같은 비일시 4xx 는 재시도 없이 즉시 실패 기록한다', async () => {
+      apiClient.getNewbieConfig.mockRejectedValue(makeHttpError(401));
+
+      await runWithTimers(makeMember());
+
+      expect(apiClient.getNewbieConfig).toHaveBeenCalledTimes(1);
+      expect(apiClient.recordNewbieOnboardingFailure).toHaveBeenCalledTimes(1);
+    });
+
+    it('recordNewbieOnboardingFailure 가 reject 해도 핸들러는 예외 없이 끝난다', async () => {
+      apiClient.getNewbieConfig.mockRejectedValue(makeHttpError(500));
+      apiClient.recordNewbieOnboardingFailure.mockRejectedValue(new Error('api down'));
+
+      const member = makeMember();
+      const done = handler.handleGuildMemberAdd(member);
+      await vi.runAllTimersAsync();
+      await expect(done).resolves.toBeUndefined();
+    });
+  });
+
+  describe('A5 — 봇 계정은 온보딩 대상이 아니다', () => {
+    it('member.user.bot 이면 config 조회·환영·미션·역할 부여를 하지 않는다', async () => {
+      apiClient.getNewbieConfig.mockResolvedValue(
+        makeConfig({ roleEnabled: true, newbieRoleId: 'role-1', missionEnabled: true }),
+      );
+      const member = makeMember({ user: { username: 'some-bot', bot: true } });
+
+      await handler.handleGuildMemberAdd(member);
+
+      expect(apiClient.getNewbieConfig).not.toHaveBeenCalled();
+      expect(apiClient.sendMemberJoin).not.toHaveBeenCalled();
+      expect(member.roles.add).not.toHaveBeenCalled();
+    });
+
+    it('봇 계정이어도 guild-member upsert(isBot=true)는 수행한다', async () => {
+      const member = makeMember({ user: { username: 'some-bot', bot: true } });
+
+      await handler.handleGuildMemberAdd(member);
+
+      expect(apiClient.upsertGuildMember).toHaveBeenCalledWith(
+        expect.objectContaining({ isBot: true }),
+      );
+    });
+  });
 });

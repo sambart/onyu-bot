@@ -117,7 +117,26 @@ describe('BotGuildMemberSyncHandler', () => {
       expect(apiClient.reconcileGuildMembers).toHaveBeenCalledWith({
         guildId: 'guild-1',
         activeUserIds: ['user-1', 'user-2'],
+        snapshotAt: expect.any(String),
       });
+    });
+
+    it('A8-1 — snapshotAt 은 멤버 fetch 시작 시각(fetch 종료 시각이 아님)의 ISO 문자열이다', async () => {
+      vi.useFakeTimers({ toFake: ['Date'] });
+      vi.setSystemTime(new Date('2026-10-28T00:00:00.000Z'));
+      // fetch 가 오래 걸린 상황: fetch 종료 시점의 시계는 시작보다 늦다
+      const fetchImpl = vi.fn().mockImplementation(async () => {
+        vi.setSystemTime(new Date('2026-10-28T00:05:00.000Z'));
+        return new Collection([['user-1', makeGuildMember({ id: 'user-1' })]]);
+      });
+      const guild = makeGuild([], fetchImpl);
+
+      await handler.syncGuild(guild);
+
+      expect(apiClient.reconcileGuildMembers).toHaveBeenCalledWith(
+        expect.objectContaining({ snapshotAt: '2026-10-28T00:00:00.000Z' }),
+      );
+      vi.useRealTimers();
     });
 
     it('reconcile 결과가 skipped=true이면 경고 로그를 남기지만 syncGuild는 정상 완료된다', async () => {

@@ -5,6 +5,7 @@ import { Colors, CommandInteraction, EmbedBuilder, PermissionFlagsBits } from 'd
 
 import { BotI18nService } from '../../common/application/bot-i18n.service';
 import { LocaleResolverService } from '../../common/application/locale-resolver.service';
+import { respondWithErrorNotice } from '../../common/util/interaction-response.util';
 
 @Command({
   name: 'sticky-list',
@@ -13,6 +14,7 @@ import { LocaleResolverService } from '../../common/application/locale-resolver.
   descriptionLocalizations: {
     ko: '이 서버의 고정메세지 목록을 확인합니다',
     'pt-BR': 'Veja a lista de mensagens fixas deste servidor',
+    ja: 'このサーバーの固定メッセージ一覧を確認',
   },
   defaultMemberPermissions: PermissionFlagsBits.ManageGuild,
 })
@@ -51,9 +53,10 @@ export class StickyMessageListCommand {
       return;
     }
 
-    await interaction.deferReply({ ephemeral: true });
-
     try {
+      // 첫 응답도 try 안에 둔다 — 밖이면 실패 시 "응답 없음"(감사 A12)
+      await interaction.deferReply({ ephemeral: true });
+
       const result = await this.apiClient.getStickyMessageConfigs(guildId);
       const configs = result.data ?? [];
 
@@ -89,10 +92,13 @@ export class StickyMessageListCommand {
 
       await interaction.editReply({ embeds: [embed] });
     } catch (error) {
-      const message =
-        error instanceof Error ? error.message : this.i18n.t(locale, 'errors.unknownError');
+      // error.message(내부 IP·영문 타임아웃 등)는 사용자에게 노출하지 않는다 — 로그에만 남긴다
       this.logger.error('고정메세지 목록 조회 중 오류:', error);
-      await interaction.editReply(this.i18n.t(locale, 'commands.stickyListError', { message }));
+      await respondWithErrorNotice(
+        interaction,
+        this.i18n.t(locale, 'commands.stickyListError'),
+        this.logger,
+      );
     }
   }
 }

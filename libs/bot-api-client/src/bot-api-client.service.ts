@@ -10,6 +10,8 @@ import type { AxiosRequestConfig } from 'axios';
 import { isAxiosError } from 'axios';
 import { firstValueFrom } from 'rxjs';
 
+import { isNotFoundApiError } from './api-error';
+import { buildBotApiFailureReport } from './request-failure-log';
 import type {
   AdminAssistRecommendationResult,
   AutoActionRecordDto,
@@ -102,6 +104,12 @@ const AUTO_CHANNEL_NAME_INPUT_TIMEOUT_MS = 1_500;
  */
 const USER_LOCALE_TIMEOUT_MS = 1_000;
 
+/**
+ * newbie config 조회 per-request 타임아웃. 입장 이벤트 경로의 재시도(최대 3회 시도)가 전역 10s 로
+ * 누적돼 수십 초 지연되지 않도록 짧게 끊는다. 실패는 호출부가 재시도·실패 기록으로 흡수한다.
+ */
+const NEWBIE_CONFIG_TIMEOUT_MS = 3_000;
+
 /** admin-assist 쿼터 소진 응답(§5E-6) HTTP 상태 코드 — `bot-newbie-interaction.handler.ts` 관례 */
 const HTTP_STATUS_TOO_MANY_REQUESTS = 429;
 
@@ -175,14 +183,22 @@ export class BotApiClientService {
     return this.get(`/bot-api/newbie/mission-my?guildId=${guildId}&memberId=${memberId}`);
   }
 
+  /**
+   * 길드 newbie 설정을 조회한다.
+   * - 미설정(응답 data null 또는 404) → `null` (장애가 아니다)
+   * - 5xx·타임아웃·네트워크·401 등 그 외 실패 → throw (호출부가 일시 실패를 재시도·기록한다 — 감사 A5/D3)
+   * 실패 로그는 공통 `logReqFailure` 가 이미 남기므로 여기서 중복 로깅하지 않는다.
+   */
   async getNewbieConfig(guildId: string): Promise<NewbieConfigDto | null> {
     try {
       const response = await this.get<BotApiResponse<NewbieConfigDto>>(
         `/bot-api/newbie/config?guildId=${guildId}`,
+        { timeout: NEWBIE_CONFIG_TIMEOUT_MS },
       );
       return response.data ?? null;
-    } catch {
-      return null;
+    } catch (err) {
+      if (isNotFoundApiError(err)) return null;
+      throw err;
     }
   }
 
@@ -601,12 +617,17 @@ export class BotApiClientService {
 
   // ── Internal ──
 
+  private logReqFailure(method: string, path: string, err: unknown): void {
+    const { level, payload } = buildBotApiFailureReport(method, path, err);
+    this.logger[level](payload);
+  }
+
   private async post<T>(path: string, body: unknown, config?: AxiosRequestConfig): Promise<T> {
     try {
       const response = await firstValueFrom(this.http.post<T>(path, body, config));
       return response.data;
     } catch (err) {
-      this.logger.error(`[BOT-API] POST ${path} failed`, err);
+      this.logReqFailure('POST', path, err);
       throw err;
     }
   }
@@ -616,7 +637,7 @@ export class BotApiClientService {
       const response = await firstValueFrom(this.http.get<T>(path, config));
       return response.data;
     } catch (err) {
-      this.logger.error(`[BOT-API] GET ${path} failed`, err);
+      this.logReqFailure('GET', path, err);
       throw err;
     }
   }
@@ -626,7 +647,7 @@ export class BotApiClientService {
       const response = await firstValueFrom(this.http.delete<T>(path));
       return response.data;
     } catch (err) {
-      this.logger.error(`[BOT-API] DELETE ${path} failed`, err);
+      this.logReqFailure('DELETE', path, err);
       throw err;
     }
   }
@@ -636,7 +657,7 @@ export class BotApiClientService {
       const response = await firstValueFrom(this.http.put<T>(path, body, config));
       return response.data;
     } catch (err) {
-      this.logger.error(`[BOT-API] PUT ${path} failed`, err);
+      this.logReqFailure('PUT', path, err);
       throw err;
     }
   }

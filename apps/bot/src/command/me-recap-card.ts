@@ -16,6 +16,7 @@ import {
 } from 'discord.js';
 
 import type { BotI18nService } from '../common/application/bot-i18n.service';
+import { getWebUrl } from '../common/util/web-url.util';
 
 /**
  * `/me 보기:결산`(연말 결산 카드) 처리 함수군 — `MeCommand` 가 `deferReply` 앞에서 위임한다.
@@ -23,8 +24,6 @@ import type { BotI18nService } from '../common/application/bot-i18n.service';
  * 프로필 경로를 호출하지 않는다.
  */
 
-// 대시보드 기본 URL (WEB_URL 미설정 시 prod 도메인) — me-profile-card.ts 와 동일 폴백
-const DEFAULT_WEB_URL = 'https://onyu.dev';
 const RECAP_ATTACHMENT_NAME = 'recap.png';
 const RECAP_PAGE_PATH = '/my/recap';
 const PRODUCTION_ENV = 'production';
@@ -61,8 +60,7 @@ export function buildRecapButtonRow(
   locale: string,
   guildId: string,
 ): ActionRowBuilder<ButtonBuilder> {
-  // WEB_URL 은 런타임에 읽는다 — 모듈 import 시점에 평가하면 .env 로드 전 폴백이 굳을 수 있다
-  const webUrl = process.env['WEB_URL'] ?? DEFAULT_WEB_URL;
+  const webUrl = getWebUrl();
   const linkButton = new ButtonBuilder()
     .setLabel(i18n.t(locale, 'commands.meRecapButtonLabel'))
     .setStyle(ButtonStyle.Link)

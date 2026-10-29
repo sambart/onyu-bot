@@ -23,6 +23,7 @@ function resolveBotVersion(): string {
   descriptionLocalizations: {
     ko: '봇의 버전 정보를 표시합니다.',
     'pt-BR': 'Mostra a versão do bot',
+    ja: 'ボットのバージョン情報を表示',
   },
 })
 export class VersionCommand {
