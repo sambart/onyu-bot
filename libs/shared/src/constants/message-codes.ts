@@ -240,6 +240,11 @@ export const MESSAGE_CODE = {
   PREMIUM_REQUIRED: 'PREMIUM_REQUIRED',
   /** entitlement 판정 불가 — DB 오류 등 fail-closed(503). params 없음 */
   ENTITLEMENT_UNAVAILABLE: 'ENTITLEMENT_UNAVAILABLE',
+  // ── subscription Paddle Checkout (docs/plans/u7-paddle-integration.md §3-C #3) ──
+  /** Checkout 발급 불가 — 플래그 off 이거나 테스터 허용 목록 밖(403). PREMIUM_REQUIRED 와 구분. params 없음 */
+  CHECKOUT_NOT_AVAILABLE: 'CHECKOUT_NOT_AVAILABLE',
+  /** 같은 주체에 paddle 출처 active·grace 구독이 이미 있어 intent 발급 거부(409). params 없음 */
+  CHECKOUT_ALREADY_SUBSCRIBED: 'CHECKOUT_ALREADY_SUBSCRIBED',
   // ── 비활동 회원 조치 대상 검증 (감사 2026-10-27 A4·H2, 결정 D1 (a), F-INACTIVE-010) ──
   /** 요청 대상 전원이 현재 비활동 분류 결과 집합 밖(400). params 없음 */
   INACTIVE_ACTION_NO_INACTIVE_TARGET: 'INACTIVE_ACTION_NO_INACTIVE_TARGET',

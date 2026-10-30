@@ -110,3 +110,40 @@ export interface LookbackClampMeta {
   appliedFrom: string;
   maxLookbackDays: number;
 }
+
+// ── U7 Paddle 연동 (추가형 — 위 기존 심볼 불변) ──
+
+/** Paddle.js·API env 값(`PADDLE_ENVIRONMENT`). DB 에는 `PaddleJournalEnvironment` 로 변환해 기록한다. */
+export type PaddleEnvironment = 'sandbox' | 'production';
+
+/** DB `paddle_webhook_event.environment`·`paddle_transaction_fee.environment` 값. `production` → `live`. */
+export type PaddleJournalEnvironment = 'sandbox' | 'live';
+
+/** DB `paddle_webhook_event.status` 컬럼 값. */
+export type PaddleEventStatus = 'received' | 'processed' | 'skipped_stale' | 'deferred' | 'failed';
+
+/** Pro(길드) Checkout intent 발급 요청 body. */
+export interface GuildCheckoutIntentRequest {
+  cycle: 'month' | 'year';
+  currency: 'KRW' | 'USD';
+}
+
+/** Plus(개인) Checkout intent 발급 요청 body. */
+export interface UserCheckoutIntentRequest {
+  cycle: 1 | 3 | 6 | 12;
+  currency: 'KRW' | 'USD';
+}
+
+/** Checkout intent 발급 응답. `intent` 는 서명된 불투명 토큰, `expiresAt` 은 ISO 문자열. */
+export interface CheckoutIntentResponse {
+  intent: string;
+  priceId: string;
+  expiresAt: string;
+}
+
+/** `GET /api/users/me/subscription/checkout-config` 응답 — 숨김 진입점 렌더 여부와 Paddle.js 초기화 값. */
+export interface CheckoutConfigResponse {
+  isAvailable: boolean;
+  environment?: PaddleEnvironment;
+  clientToken?: string;
+}

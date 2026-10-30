@@ -217,13 +217,19 @@ export type {
 } from './settings-audit';
 export { SETTINGS_AUDIT_ACTOR_SENTINEL } from './settings-audit';
 export type {
+  CheckoutConfigResponse,
+  CheckoutIntentResponse,
   EntitlementRowStatus,
   EntitlementSnapshot,
   EntitlementSource,
   EntitlementStatus,
+  GuildCheckoutIntentRequest,
   LookbackClampMeta,
   LookbackSurface,
   LookbackWindow,
+  PaddleEnvironment,
+  PaddleEventStatus,
+  PaddleJournalEnvironment,
   PlanCycle,
   PlanPriceKey,
   PlanScope,
@@ -231,6 +237,7 @@ export type {
   PremiumEntitlementState,
   PremiumFeatureKey,
   PremiumUnavailableReason,
+  UserCheckoutIntentRequest,
 } from './subscription';
 export { PREMIUM_FEATURE_CATALOG } from './subscription';
 export type {

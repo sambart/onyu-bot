@@ -1,6 +1,7 @@
 export * from './admin-assist';
 export * from './benchmark';
 export * from './brand-colors';
+export * from './card-render';
 export * from './channel-obfuscation';
 export * from './health-score-band';
 export * from './inactive-member-defaults';
