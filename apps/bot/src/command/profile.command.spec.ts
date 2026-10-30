@@ -66,10 +66,14 @@ describe('ProfileCommand', () => {
 
   describe('T3 — onMe() 배선이 MeCommand와 동일하다', () => {
     let command: ProfileCommand;
-    let apiClient: { getMeProfile: Mock };
+    let apiClient: { getMeProfile: Mock; getBadgeCollectionCard: Mock };
 
     beforeEach(() => {
       apiClient = {
+        getBadgeCollectionCard: vi.fn().mockResolvedValue({
+          ok: true,
+          data: { imageBase64: Buffer.from('png').toString('base64') },
+        }),
         getMeProfile: vi.fn().mockResolvedValue({
           ok: true,
           days: 15,
@@ -115,6 +119,17 @@ describe('ProfileCommand', () => {
       expect(apiClient.getMeProfile).toHaveBeenCalledWith(
         expect.objectContaining({ viewOption: 'voice' }),
       );
+    });
+
+    it("dto.view='badges' 지정 시 별칭도 getBadgeCollectionCard 로 위임하고 getMeProfile 은 호출하지 않는다(T-C9)", async () => {
+      const interaction = makeInteraction();
+      const dto = new MeCommandDto();
+      dto.view = MeViewOption.Badges;
+
+      await command.onMe(interaction, dto);
+
+      expect(apiClient.getBadgeCollectionCard).toHaveBeenCalledTimes(1);
+      expect(apiClient.getMeProfile).not.toHaveBeenCalled();
     });
 
     it('응답이 /me와 동일하다 — 공개(비-ephemeral) deferReply + 첨부명 profile.png + 버튼 3종(customId 포함)', async () => {

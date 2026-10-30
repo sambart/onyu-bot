@@ -43,12 +43,16 @@ function profileResponse(overrides: Partial<MeProfileResponse> = {}): MeProfileR
 
 describe('MeCommand', () => {
   let command: MeCommand;
-  let apiClient: { getMeProfile: Mock; getRecapCard: Mock };
+  let apiClient: { getMeProfile: Mock; getRecapCard: Mock; getBadgeCollectionCard: Mock };
 
   beforeEach(() => {
     apiClient = {
       getMeProfile: vi.fn().mockResolvedValue(profileResponse()),
       getRecapCard: vi.fn(),
+      getBadgeCollectionCard: vi.fn().mockResolvedValue({
+        ok: true,
+        data: { imageBase64: Buffer.from('png').toString('base64') },
+      }),
     };
 
     const i18n = new BotI18nService();
@@ -192,6 +196,38 @@ describe('MeCommand', () => {
       await command.onMe(interaction, dto);
 
       expect(apiClient.getRecapCard).not.toHaveBeenCalled();
+      expect(apiClient.getMeProfile).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('뱃지 뷰(F-VOICE-075 R8) 분기', () => {
+    it('dto.view=badges 이면 getBadgeCollectionCard 1회 · getMeProfile 0회 · deferReply 1회(T-C4)', async () => {
+      const interaction = makeInteraction();
+      const dto = new MeCommandDto();
+      dto.view = MeViewOption.Badges;
+
+      await command.onMe(interaction, dto);
+
+      expect(apiClient.getBadgeCollectionCard).toHaveBeenCalledTimes(1);
+      expect(apiClient.getMeProfile).not.toHaveBeenCalled();
+      expect(interaction.deferReply).toHaveBeenCalledTimes(1);
+    });
+
+    it('길드 밖(DM)이면 errors.guildOnly ephemeral 이고 API 를 호출하지 않는다(T-C5)', async () => {
+      const interaction = makeInteraction({ guildId: null });
+      const dto = new MeCommandDto();
+      dto.view = MeViewOption.Badges;
+
+      await command.onMe(interaction, dto);
+
+      expect(apiClient.getBadgeCollectionCard).not.toHaveBeenCalled();
+      expect(interaction.reply).toHaveBeenCalledWith(expect.objectContaining({ ephemeral: true }));
+    });
+
+    it('level/voice/미지정 뷰는 뱃지 분기로 빠지지 않는다(T-C6)', async () => {
+      await command.onMe(makeInteraction(), new MeCommandDto());
+
+      expect(apiClient.getBadgeCollectionCard).not.toHaveBeenCalled();
       expect(apiClient.getMeProfile).toHaveBeenCalledTimes(1);
     });
   });

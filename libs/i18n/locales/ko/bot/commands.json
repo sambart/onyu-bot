@@ -1,6 +1,7 @@
 {
   "meNoActivity": "최근 {days}일간 음성 채널 활동 기록이 없습니다.",
   "meError": "프로필 조회 중 오류가 발생했습니다.",
+  "meBadgesError": "뱃지를 불러오지 못했어요. 잠시 후 다시 시도해 주세요.",
   "meButtonLabel": "마이페이지에서 더 보기",
   "meRecapNotStarted": "2026 결산은 12월 15일에 열려요.",
   "meRecapEnded": "2026 결산은 종료됐어요.",

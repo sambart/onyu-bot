@@ -1,6 +1,7 @@
 {
   "meNoActivity": "No voice channel activity recorded in the last {days} days.",
   "meError": "An error occurred while fetching your profile.",
+  "meBadgesError": "Could not load your badges. Please try again in a moment.",
   "meButtonLabel": "See more on My Page",
   "meRecapNotStarted": "The 2026 recap opens on December 15.",
   "meRecapEnded": "The 2026 recap has ended.",

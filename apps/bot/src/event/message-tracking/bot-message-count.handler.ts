@@ -3,8 +3,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { BotApiClientService } from '@onyu/bot-api-client';
 import type { Message } from 'discord.js';
 
-/** 재시도 지연(ms) — 스티키 핸들러(BotStickyMessageHandler) 패턴과 동일 */
-const RETRY_DELAY_MS = 1000;
+import { forwardWithTransientRetry } from '../message-forward-retry.util';
 
 /**
  * 독립 메시지 카운트 이벤트 핸들러 (F-MSG-001).
@@ -43,18 +42,14 @@ export class BotMessageCountHandler {
       userName: message.member?.displayName ?? message.author.displayName,
     };
 
-    try {
-      await this.apiClient.sendMessageCounted(payload);
-    } catch {
-      // 1회 재시도 (1초 후, 스티키 핸들러 패턴과 동일)
-      setTimeout(() => {
-        this.apiClient.sendMessageCounted(payload).catch((retryErr: unknown) => {
-          this.logger.error(
-            `[BOT] messageCounted forwarding failed after retry: guild=${guildId} channel=${message.channelId}`,
-            retryErr instanceof Error ? retryErr.stack : retryErr,
-          );
-        });
-      }, RETRY_DELAY_MS);
-    }
+    await forwardWithTransientRetry(
+      () => this.apiClient.sendMessageCounted(payload),
+      (error: unknown) => {
+        this.logger.error(
+          `[BOT] messageCounted forwarding failed: guild=${guildId} channel=${message.channelId}`,
+          error instanceof Error ? error.stack : error,
+        );
+      },
+    );
   }
 }

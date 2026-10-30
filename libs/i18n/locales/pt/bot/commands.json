@@ -1,6 +1,7 @@
 {
   "meNoActivity": "Nenhuma atividade em canal de voz registrada nos últimos {days} dias.",
   "meError": "Ocorreu um erro ao buscar seu perfil.",
+  "meBadgesError": "Não foi possível carregar seus emblemas. Tente novamente em instantes.",
   "meButtonLabel": "Ver mais na Minha Página",
   "meButtonLeaderboard": "🏆 Placar do servidor",
   "meButtonActivityDetail": "💬 Detalhes da atividade",

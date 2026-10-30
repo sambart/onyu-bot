@@ -85,13 +85,13 @@ describe('pt 봇 JSON 완결성', () => {
     ).toEqual([]);
   });
 
-  it('번역 대상 129키가 모두 번역돼 있다(en 146키 − 관리도우미 17키 − 번역 대기 0키)', () => {
+  it('번역 대상 130키가 모두 번역돼 있다(en 147키 − 관리도우미 17키 − 번역 대기 0키)', () => {
     const translatedCount = BOT_NAMESPACES.reduce(
       (sum, ns) => sum + Object.keys(load('pt', ns) ?? {}).length,
       0,
     );
 
-    expect(translatedCount).toBe(129);
+    expect(translatedCount).toBe(130);
   });
 
   it('pt 에 en 에 없는 과잉 키가 없다', () => {

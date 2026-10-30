@@ -32,6 +32,7 @@ import type {
   DuoChemistryCardResponse,
   DuoEligibilityResponse,
   GetAdminAssistRecommendationOptions,
+  GetBadgeCollectionCardOptions,
   GetDuoChemistryOptions,
   GetLevelLeaderboardCardOptions,
   GetLevelRankCardOptions,
@@ -56,11 +57,10 @@ import type {
   GuildRoleSyncResult,
   GuildRoleUpsertDto,
   GuildVoiceUserCount,
-  KickMemberDto,
   LevelLeaderboardCardResponse,
   LevelRankCardResponse,
   MeActivityDetailResponse,
-  MemberDisplayNameResponse,
+  MeBadgesBotResponse,
   MemberJoinDto,
   MeProfileResponse,
   MeRecapBotResponse,
@@ -73,7 +73,6 @@ import type {
   NewbieConfigDto,
   NewbieOnboardingFailureDto,
   RoleAssignedDto,
-  RoleModifyDto,
   SettingsChannelDeletedDto,
   StatusPrefixApplyDto,
   StatusPrefixApplyResult,
@@ -393,6 +392,16 @@ export class BotApiClientService {
     return this.post('/bot-api/me/recap', options);
   }
 
+  /**
+   * `/me 보기:뱃지` 뱃지 컬렉션 카드 — 개인정보가 액세스 로그에 남지 않도록 POST body 로 전송한다.
+   * API 는 항상 200 을 반환하며 실패는 `ok:false` 로 표현한다.
+   */
+  async getBadgeCollectionCard(
+    options: GetBadgeCollectionCardOptions,
+  ): Promise<MeBadgesBotResponse> {
+    return this.post('/bot-api/me/badges', options);
+  }
+
   /** [💬 활동 상세] 버튼(F-VOICE-064) — 음성×메시지 순위 분해 조회. */
   async getMeActivityDetail(guildId: string, userId: string): Promise<MeActivityDetailResponse> {
     const params = new URLSearchParams({ guildId, userId });
@@ -433,33 +442,6 @@ export class BotApiClientService {
     options: GetLevelLeaderboardCardOptions,
   ): Promise<LevelLeaderboardCardResponse> {
     return this.post('/bot-api/level/leaderboard-card', options);
-  }
-
-  // ── Guild ──
-
-  async getMemberDisplayName(
-    guildId: string,
-    memberId: string,
-  ): Promise<MemberDisplayNameResponse> {
-    return this.get(`/bot-api/guilds/${guildId}/members/${memberId}/display-name`);
-  }
-
-  async addRole(dto: RoleModifyDto): Promise<BotApiResponse> {
-    return this.post(`/bot-api/guilds/${dto.guildId}/members/${dto.memberId}/roles/add`, {
-      roleId: dto.roleId,
-    });
-  }
-
-  async removeRole(dto: RoleModifyDto): Promise<BotApiResponse> {
-    return this.post(`/bot-api/guilds/${dto.guildId}/members/${dto.memberId}/roles/remove`, {
-      roleId: dto.roleId,
-    });
-  }
-
-  async kickMember(dto: KickMemberDto): Promise<BotApiResponse> {
-    return this.post(`/bot-api/guilds/${dto.guildId}/members/${dto.memberId}/kick`, {
-      reason: dto.reason,
-    });
   }
 
   // ── Guild Member ──

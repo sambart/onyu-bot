@@ -27,16 +27,16 @@ interface RawChoiceEntry {
 describe('MeCommandDto — view 옵션 @Choice 로컬라이제이션', () => {
   const metadataProvider = new ReflectMetadataProvider();
 
-  it('choice 표시명(key)이 영어(Level/Voice/Recap)다', () => {
+  it('choice 표시명(key)이 영어(Level/Voice/Recap/Badges)다', () => {
     const choices = metadataProvider.getChoiceDecoratorMetadata(MeCommandDto, 'view') as Record<
       string,
       RawChoiceEntry
     >;
 
-    expect(Object.keys(choices)).toEqual(['Level', 'Voice', 'Recap']);
+    expect(Object.keys(choices)).toEqual(['Level', 'Voice', 'Recap', 'Badges']);
   });
 
-  it('각 choice 에 ko nameLocalizations 가 레벨/음성/결산으로 설정되어 있다', () => {
+  it('각 choice 에 ko nameLocalizations 가 레벨/음성/결산/뱃지로 설정되어 있다', () => {
     const choices = metadataProvider.getChoiceDecoratorMetadata(MeCommandDto, 'view') as Record<
       string,
       RawChoiceEntry
@@ -45,6 +45,7 @@ describe('MeCommandDto — view 옵션 @Choice 로컬라이제이션', () => {
     expect(choices['Level']?.nameLocalizations?.ko).toBe('레벨');
     expect(choices['Voice']?.nameLocalizations?.ko).toBe('음성');
     expect(choices['Recap']?.nameLocalizations?.ko).toBe('결산');
+    expect(choices['Badges']?.nameLocalizations?.ko).toBe('뱃지');
   });
 
   it('각 choice 의 value 가 MeViewOption enum 값과 일치한다', () => {
@@ -57,5 +58,7 @@ describe('MeCommandDto — view 옵션 @Choice 로컬라이제이션', () => {
     expect(choices['Voice']?.value).toBe(MeViewOption.Voice);
     expect(choices['Recap']?.value).toBe(MeViewOption.Recap);
     expect(MeViewOption.Recap).toBe('recap');
+    expect(choices['Badges']?.value).toBe(MeViewOption.Badges);
+    expect(MeViewOption.Badges).toBe('badges');
   });
 });

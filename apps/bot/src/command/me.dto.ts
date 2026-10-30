@@ -6,6 +6,8 @@ export enum MeViewOption {
   Voice = 'voice',
   /** 연말 결산(F-RECAP, 2026-12-15~2027-01-15 노출 창) */
   Recap = 'recap',
+  /** 뱃지 컬렉션(10종 전량 — 카드는 상위 K개 요약, F-VOICE-075 R8) */
+  Badges = 'badges',
 }
 
 export class MeCommandDto {
@@ -16,16 +18,18 @@ export class MeCommandDto {
     Voice: { value: MeViewOption.Voice, nameLocalizations: { ko: '음성' } },
     // pt-BR 이름은 두지 않는다(command-localizations 가드) — 값은 'recap' 으로 고정
     Recap: { value: MeViewOption.Recap, nameLocalizations: { ko: '결산' } },
+    // pt-BR·ja 이름은 두지 않는다(command-localizations 가드) — 값은 'badges' 로 고정
+    Badges: { value: MeViewOption.Badges, nameLocalizations: { ko: '뱃지' } },
   })
   @Param({
     name: 'view',
     nameLocalizations: { ko: '보기' },
-    description: 'Card view: level (default), the legacy voice-time card, or the year-end recap',
+    description:
+      'Card view: level (default), legacy voice-time card, year-end recap, or badge collection',
     descriptionLocalizations: {
-      ko: '카드 보기: 레벨(기본), 레거시 음성 시간 카드 또는 연말 결산',
-      'pt-BR':
-        'Visualização do cartão: nível (padrão), o cartão antigo de tempo de voz ou o resumo do ano',
-      ja: 'カードの種類：レベル（デフォルト）、旧ボイス時間カード、年末の振り返り',
+      ko: '카드 보기: 레벨(기본), 레거시 음성 시간 카드, 연말 결산 또는 뱃지 컬렉션',
+      'pt-BR': 'Cartão: nível (padrão), voz (antigo), resumo do ano ou coleção de emblemas',
+      ja: 'カードの種類：レベル（デフォルト）、旧ボイス時間カード、年末の振り返り、バッジコレクション',
     },
     required: false,
     type: ParamType.STRING,

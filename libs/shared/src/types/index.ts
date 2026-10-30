@@ -153,6 +153,7 @@ export type {
 } from './co-presence';
 export type { DiscordFailureEnvelope } from './discord-failure';
 export * from './level';
+export type { MeBadgesBotResponse } from './me-badges';
 export type {
   ActivityDailyOverview,
   MessageDailyRecord,

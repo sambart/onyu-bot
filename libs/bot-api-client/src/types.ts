@@ -4,6 +4,7 @@ import type {
   CommandUsedDto,
   GuildLifecycleEventDto,
   LeaderboardDeniedReason,
+  MeBadgesBotResponse,
   MeRecapBotResponse,
   MessageCode,
   NewbieOnboardingFailureDto,
@@ -14,6 +15,7 @@ export type {
   AutoActionRecordDto,
   CommandUsedDto,
   GuildLifecycleEventDto,
+  MeBadgesBotResponse,
   MeRecapBotResponse,
   NewbieOnboardingFailureDto,
 };
@@ -133,25 +135,6 @@ export interface GetWelcomeCardOptions {
 export interface RoleAssignedDto {
   guildId: string;
   memberId: string;
-}
-
-// ── Guild ──
-
-export interface MemberDisplayNameResponse {
-  userId: string;
-  displayName: string;
-}
-
-export interface RoleModifyDto {
-  guildId: string;
-  memberId: string;
-  roleId: string;
-}
-
-export interface KickMemberDto {
-  guildId: string;
-  memberId: string;
-  reason?: string;
 }
 
 // ── Status Prefix ──
@@ -429,6 +412,15 @@ export interface GetMeProfileOptions {
 
 /** getRecapCard 요청 옵션(B1, 연말 결산) — API `MeRecapRequestDto`와 수기 정합 필수 */
 export interface GetRecapCardOptions {
+  guildId: string;
+  userId: string;
+  displayName: string;
+  avatarUrl: string;
+  locale?: CanvasCardLocale;
+}
+
+/** getBadgeCollectionCard 요청 옵션(`/me 보기:뱃지`) — API `MeBadgesRequestDto`와 수기 정합 필수 */
+export interface GetBadgeCollectionCardOptions {
   guildId: string;
   userId: string;
   displayName: string;

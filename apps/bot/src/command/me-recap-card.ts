@@ -137,7 +137,7 @@ interface HandleRecapViewParams {
 }
 
 /** defer 로 남은 "생각 중" 응답을 지우고 ephemeral 후속 안내를 보낸다(deleteReply 실패는 warn) */
-async function replaceWithEphemeralNotice(
+export async function replaceWithEphemeralNotice(
   interaction: ChatInputCommandInteraction,
   logger: Logger,
   content: string,
@@ -146,7 +146,7 @@ async function replaceWithEphemeralNotice(
     await interaction.deleteReply();
   } catch (error) {
     logger.warn(
-      `Recap deleteReply failed: ${error instanceof Error ? error.message : String(error)}`,
+      `Ephemeral notice deleteReply failed: ${error instanceof Error ? error.message : String(error)}`,
     );
   }
   await interaction.followUp({ content, ephemeral: true });

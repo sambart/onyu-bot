@@ -1,10 +1,25 @@
 import type { BotApiClientService } from '@onyu/bot-api-client';
+import { AxiosError } from 'axios';
 import type { Message } from 'discord.js';
 import type { Mocked } from 'vitest';
 
+import {
+  MESSAGE_FORWARD_RETRY_BASE_DELAY_MS,
+  MESSAGE_FORWARD_RETRY_JITTER_MS,
+} from '../message-forward-retry.util';
 import { BotMessageCountHandler } from './bot-message-count.handler';
 
-const RETRY_DELAY_MS = 1000;
+const MAX_RETRY_DELAY_MS = MESSAGE_FORWARD_RETRY_BASE_DELAY_MS + MESSAGE_FORWARD_RETRY_JITTER_MS;
+
+/** status 미지정 = 응답 없는 네트워크 오류 */
+function makeAxiosError(status: number | undefined): AxiosError {
+  const error = new AxiosError('request failed');
+  if (status !== undefined) {
+    // 테스트 전용 — 응답 객체 중 isTransientApiError 가 읽는 status 만 채운다
+    error.response = { status } as AxiosError['response'];
+  }
+  return error;
+}
 
 /** discord.js Message의 conditional 제네릭 타입을 우회하기 위한 테스트 전용 셰이프 */
 interface FakeMessage {
@@ -153,27 +168,37 @@ describe('BotMessageCountHandler', () => {
     expect(payload.channelId).toBe('thread-1');
   });
 
-  it('전송 실패 시 1초 후 1회 재시도한다', async () => {
+  it('일시 실패(네트워크 오류) 시 지연 후 1회 재시도한다', async () => {
     apiClient.sendMessageCounted
-      .mockRejectedValueOnce(new Error('network error'))
+      .mockRejectedValueOnce(makeAxiosError(undefined))
       .mockResolvedValueOnce(undefined);
     const message = makeMessage();
 
     await handler.handleMessageCreate(message);
     expect(apiClient.sendMessageCounted).toHaveBeenCalledTimes(1);
 
-    await vi.advanceTimersByTimeAsync(RETRY_DELAY_MS);
+    await vi.advanceTimersByTimeAsync(MAX_RETRY_DELAY_MS);
 
     expect(apiClient.sendMessageCounted).toHaveBeenCalledTimes(2);
   });
 
   it('재시도까지 실패하면 더 이상 재시도하지 않고 drop한다', async () => {
-    apiClient.sendMessageCounted.mockRejectedValue(new Error('network error'));
+    apiClient.sendMessageCounted.mockRejectedValue(makeAxiosError(503));
     const message = makeMessage();
 
     await handler.handleMessageCreate(message);
-    await vi.advanceTimersByTimeAsync(RETRY_DELAY_MS);
+    await vi.advanceTimersByTimeAsync(MAX_RETRY_DELAY_MS * 3);
 
     expect(apiClient.sendMessageCounted).toHaveBeenCalledTimes(2);
+  });
+
+  it('4xx 는 재시도하지 않는다', async () => {
+    apiClient.sendMessageCounted.mockRejectedValue(makeAxiosError(400));
+    const message = makeMessage();
+
+    await handler.handleMessageCreate(message);
+    await vi.advanceTimersByTimeAsync(MAX_RETRY_DELAY_MS * 3);
+
+    expect(apiClient.sendMessageCounted).toHaveBeenCalledTimes(1);
   });
 });

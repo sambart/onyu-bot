@@ -9,6 +9,7 @@ import { BotI18nService } from '../common/application/bot-i18n.service';
 import { LocaleResolverService } from '../common/application/locale-resolver.service';
 import { respondWithErrorNotice } from '../common/util/interaction-response.util';
 import { MeCommandDto, MeViewOption } from './me.dto';
+import { handleBadgesView } from './me-badges-card';
 import { buildProfileCardReply, fetchMeProfileCard } from './me-profile-card';
 import { handleRecapView } from './me-recap-card';
 
@@ -57,6 +58,19 @@ export class MeCommand {
       // 창 밖 안내는 defer 없이 ephemeral reply 해야 하므로 deferReply 앞에서 위임한다.
       if (dto.view === MeViewOption.Recap) {
         await handleRecapView({
+          interaction,
+          apiClient: this.apiClient,
+          i18n: this.i18n,
+          locale,
+          logger: this.logger,
+        });
+        return;
+      }
+
+      // 뱃지 컬렉션도 별도 라우트다. profile 경로로 흘리면 viewOption 매핑에서 undefined 가 되어
+      // 레이아웃 A 카드 + 멘트 쿼터 소모로 조용히 새므로 deferReply 앞에서 위임한다.
+      if (dto.view === MeViewOption.Badges) {
+        await handleBadgesView({
           interaction,
           apiClient: this.apiClient,
           i18n: this.i18n,
