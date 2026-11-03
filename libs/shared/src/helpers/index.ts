@@ -1,3 +1,4 @@
+export * from './activity-export';
 export * from './auto-channel-name';
 export * from './channel-obfuscation';
 export * from './interpolate';

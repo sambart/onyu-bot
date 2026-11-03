@@ -39,7 +39,9 @@ export type PremiumFeatureKey =
   /** ai-persona-teaser D4 — 개인 AI 페르소나(말투) 적용. 세트·배치가 확정돼(✅1·✅2) 예외 등재됐다 */
   | 'personal.ai.persona'
   /** monthly-report-teaser D3 — 개인 AI 월간 리포트(D-lite 잠금 티저). 배치·기간이 확정돼 예외 등재됐다 */
-  | 'personal.ai.monthlyReport';
+  | 'personal.ai.monthlyReport'
+  /** U8-B1 · F-SUB-032 — Pro 길드 활동 집계 CSV 내보내기(길드 스코프, 첫 길드 단위 혜택 게이트) */
+  | 'guild.export.csv';
 
 /** `PremiumFeatureKey` → { scope, requiredTier } 단일 출처. 잠금 배지가 "Plus/Pro" 중 무엇을 표시할지 이 값으로 결정한다. */
 export const PREMIUM_FEATURE_CATALOG: Record<
@@ -51,6 +53,7 @@ export const PREMIUM_FEATURE_CATALOG: Record<
   'personal.card.theme': { scope: 'user', requiredTier: 'plus' },
   'personal.ai.persona': { scope: 'user', requiredTier: 'plus' },
   'personal.ai.monthlyReport': { scope: 'user', requiredTier: 'plus' },
+  'guild.export.csv': { scope: 'guild', requiredTier: 'pro' },
 };
 
 /**
@@ -85,6 +88,12 @@ export interface EntitlementSnapshot {
   /** 해당 scope 의 카탈로그 키만 채운다(서버 판정 결과 — 클라이언트 독자 규칙 금지). */
   features: Partial<Record<PremiumFeatureKey, PremiumEntitlementState>>;
   evaluatedAt: string;
+  /**
+   * U8-A 해지 예약 표시(표시 전용 — 판정에 쓰지 않는다). 서버는 항상 채우지만 롤아웃 구간의 구 API 응답을
+   * 받는 소비자를 위해 optional 로 둔다. `null` = 해당 없음(유효 행 없음·비-paddle 출처), `false` = 자동 갱신 중.
+   * `status !== 'expired' && cancelAtPeriodEnd != null` 이면 선택된 유효 행이 paddle 출처다(웹 판별 규칙).
+   */
+  cancelAtPeriodEnd?: boolean | null;
 }
 
 /** 플랜·주기 조합. Pro 는 길드 단위 월/연, Plus 는 개인 단위 N개월. */
@@ -139,11 +148,52 @@ export interface CheckoutIntentResponse {
   intent: string;
   priceId: string;
   expiresAt: string;
+  /** U8-A: Plus 12개월 런칭가 기간·해당 통화 할인이 설정된 경우에만 서버가 붙인다. 없으면 상시가. */
+  discountId?: string;
+}
+
+/**
+ * 플랜별 결제 표면 열림 여부. 로그인 응답(`checkout-config`)에서는 "이 사용자에게 보여도 되는가",
+ * 무인증 `pricing-config.open` 에서는 "유효 모드가 public 인가" 를 뜻한다. 길드 관리 권한은 판정하지 않는다.
+ */
+export interface CheckoutPlanAvailability {
+  pro: boolean;
+  plus: boolean;
 }
 
 /** `GET /api/users/me/subscription/checkout-config` 응답 — 숨김 진입점 렌더 여부와 Paddle.js 초기화 값. */
 export interface CheckoutConfigResponse {
+  /** `plans.pro || plans.plus`. 하위호환 필드. */
   isAvailable: boolean;
   environment?: PaddleEnvironment;
   clientToken?: string;
+  /** U8-A: 서버는 항상 채운다. 롤아웃 구간의 구 API 응답 대비로 optional(웹은 `plans ? plans[scope] : isAvailable`). */
+  plans?: CheckoutPlanAvailability;
+}
+
+// ── U8-A 판매 표면 (추가형) ──
+
+/** 무인증 `pricing-config` 의 Price 한 건 — 키(플랜·주기·통화) + Paddle Price ID. */
+export type PricingPriceEntry = PlanPriceKey & { priceId: string };
+
+/** Plus 12개월 런칭가 정보. 기간 내이고 할인 ID 가 1개 이상 설정됐을 때만 응답에 실린다. */
+export interface PricingLaunchInfo {
+  plan: 'plus';
+  cycle: 12;
+  discountIds: Partial<Record<'KRW' | 'USD', string>>;
+  /** 종료 시각(ISO). 서버 판정 `now >= endsAt` 이면 종료. */
+  endsAt: string;
+}
+
+/**
+ * `GET /api/subscription/pricing-config` 응답(무인증·모드 불문). 비밀값은 싣지 않는다 —
+ * client token 은 브라우저 노출 전제, Price/할인 ID 는 비밀이 아니다.
+ */
+export interface PricingConfigResponse {
+  environment: PaddleEnvironment;
+  /** 미설정이면 null — 웹은 PricePreview 를 건너뛰고 숫자 없는 폴백을 그린다. */
+  clientToken: string | null;
+  prices: PricingPriceEntry[];
+  launch: PricingLaunchInfo | null;
+  open: CheckoutPlanAvailability;
 }

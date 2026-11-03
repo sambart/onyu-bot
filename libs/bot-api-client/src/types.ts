@@ -268,6 +268,12 @@ export interface MessageCreatedDto {
   isBot: boolean;
 }
 
+/** `GET /bot-api/sticky-message/active-channels` 응답 — 고정 바인딩이 걸린 채널 ID 집합(4 kind 합집합) */
+export interface StickyActiveChannelsResponse {
+  ok: boolean;
+  data: { channelIds: string[] };
+}
+
 export interface StickyMessageConfigItem {
   channelId: string;
   embedTitle: string | null;

@@ -219,6 +219,7 @@ export { SETTINGS_AUDIT_ACTOR_SENTINEL } from './settings-audit';
 export type {
   CheckoutConfigResponse,
   CheckoutIntentResponse,
+  CheckoutPlanAvailability,
   EntitlementRowStatus,
   EntitlementSnapshot,
   EntitlementSource,
@@ -237,6 +238,9 @@ export type {
   PremiumEntitlementState,
   PremiumFeatureKey,
   PremiumUnavailableReason,
+  PricingConfigResponse,
+  PricingLaunchInfo,
+  PricingPriceEntry,
   UserCheckoutIntentRequest,
 } from './subscription';
 export { PREMIUM_FEATURE_CATALOG } from './subscription';

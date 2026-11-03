@@ -78,6 +78,7 @@ import type {
   StatusPrefixApplyResult,
   StatusPrefixResetDto,
   StatusPrefixResetResult,
+  StickyActiveChannelsResponse,
   StickyMessageConfigItem,
   UserLocaleResponse,
   VoiceStateUpdateDto,
@@ -102,6 +103,8 @@ const AUTO_CHANNEL_NAME_INPUT_TIMEOUT_MS = 1_500;
  * per-request 타임아웃으로 짧게 끊어도 안전하다.
  */
 const USER_LOCALE_TIMEOUT_MS = 1_000;
+/** 고정 채널 집합 조회(A22 ③) — messageCreate 핸들러 경로라 짧게 */
+const STICKY_ACTIVE_CHANNELS_TIMEOUT_MS = 1_500;
 
 /**
  * newbie config 조회 per-request 타임아웃. 입장 이벤트 경로의 재시도(최대 3회 시도)가 전역 10s 로
@@ -273,6 +276,19 @@ export class BotApiClientService {
 
   async sendMessageCreated(dto: MessageCreatedDto): Promise<void> {
     await this.post('/bot-api/sticky-message/message-created', dto);
+  }
+
+  /**
+   * 길드의 고정 바인딩 채널 ID 집합 — 봇이 messageCreate 사전 필터에 쓴다(A22 ③).
+   * 이벤트 핸들러 경로라 장애 시 in-flight 가 쌓이지 않도록 per-request 타임아웃(1.5s)을 쓴다.
+   */
+  async getStickyActiveChannels(guildId: string): Promise<StickyActiveChannelsResponse> {
+    return this.get(
+      `/bot-api/sticky-message/active-channels?guildId=${encodeURIComponent(guildId)}`,
+      {
+        timeout: STICKY_ACTIVE_CHANNELS_TIMEOUT_MS,
+      },
+    );
   }
 
   async getStickyMessageConfigs(
