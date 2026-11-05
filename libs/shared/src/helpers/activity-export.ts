@@ -26,3 +26,7 @@ export function buildActivityExportFilename(guildId: string, from: string, to: s
   const safe = (value: string): string => value.replace(FILENAME_UNSAFE_PATTERN, '');
   return `${FILENAME_PREFIX}-${safe(guildId)}-${safe(from)}-${safe(to)}${FILENAME_EXTENSION}`;
 }
+
+/** 활동 집계 조회·내보내기 기간 상한(캘린더일, 시작·종료일 양끝 포함) — api DTO 검증과 web 사전 차단의 단일 출처.
+ * 일수 계산은 `types/period.ts` 의 `countInclusiveDays`/`isWithinMaxSpan`/`listYmdInRange` 가 정본이다. */
+export const MAX_ACTIVITY_EXPORT_RANGE_DAYS = 92;

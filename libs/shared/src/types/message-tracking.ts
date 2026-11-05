@@ -1,3 +1,5 @@
+import type { LookbackClampMeta } from './subscription';
+
 /**
  * message-tracking 도메인 일별 통계 조회 응답 타입 (E2, GET /api/guilds/:guildId/message-tracking/daily).
  * 메시지 내용(content)은 포함하지 않는다 — 채널·유저별 메시지 "수"만 집계한다 (PRD §2 프라이버시 원칙).
@@ -17,6 +19,15 @@ export interface ActivityDailyOverview {
   date: string; // YYYYMMDD (KST)
   voiceDurationSec: number; // voice_daily.channelDurationSec SUM (channelId != 'GLOBAL'), 없으면 0
   messageCount: number; // message_daily.messageCount SUM, 없으면 0
+}
+
+/**
+ * 개인 활동 히트맵 응답(F-VOICE-093) — `meta=1` 요청 시에만 이 형태로 응답한다(기본은 배열, 하위 호환).
+ * `lookback` 은 서버가 실제 조회한 기간이다 — `maxLookbackDays` = 조회 일수, `clamped` = 1년(365) 미만 여부.
+ */
+export interface MeActivityHeatmapResponse {
+  rows: ActivityDailyOverview[];
+  lookback: LookbackClampMeta;
 }
 
 /** F-MSG-010 응답 요소 — message_daily 유저별 합산 랭킹 (E3, 테이블 아님) */

@@ -23,11 +23,11 @@ export type PlanTier = 'free' | 'pro' | 'plus';
 export type PlanScope = 'guild' | 'user';
 
 /**
- * 잠금 대상 기능 키. 본 단위가 실제로 쓰는 2개 + 근접 예정 3개만 등재한다.
- * 미확정 혜택(배지 진화·칭호 등 게이트 보류분)은 넣지 않는다 —
- * 정의가 바뀌면 재작업이므로. **페르소나는 2026-08-12, 개인 AI 월간 리포트는 2026-08-31
- * D-lite 채택으로 각각 배제 사유가 소멸해 예외 등재했다**(`docs/plans/ai-persona-teaser.md`
- * D4 · `docs/plans/archive/monthly-report-teaser.md` D3). 확정 없는 항목을 이 선례로 끌어오지 말 것.
+ * 잠금 대상 기능 키. 정의가 확정된 혜택만 등재한다 — 미확정 혜택은 정의가 바뀌면 재작업이므로 넣지 않는다.
+ * **페르소나는 2026-08-12, 개인 AI 월간 리포트는 2026-08-31 D-lite 채택으로 각각 배제 사유가 소멸해
+ * 예외 등재했다**(`docs/plans/ai-persona-teaser.md` D4 · `docs/plans/archive/monthly-report-teaser.md` D3).
+ * 배지 진화·칭호는 U8-B3 에서 등급 구간·칭호 8종이 확정돼 보류 사유가 소멸했으므로 등재한다.
+ * 확정 없는 항목을 이 선례로 끌어오지 말 것.
  */
 export type PremiumFeatureKey =
   /** D4-3 — 개인 활동 1년 조회 */
@@ -41,7 +41,11 @@ export type PremiumFeatureKey =
   /** monthly-report-teaser D3 — 개인 AI 월간 리포트(D-lite 잠금 티저). 배치·기간이 확정돼 예외 등재됐다 */
   | 'personal.ai.monthlyReport'
   /** U8-B1 · F-SUB-032 — Pro 길드 활동 집계 CSV 내보내기(길드 스코프, 첫 길드 단위 혜택 게이트) */
-  | 'guild.export.csv';
+  | 'guild.export.csv'
+  /** U8-B3 — 카드 Plus 배지(연속 구독 등급 표시) */
+  | 'personal.badge.plus'
+  /** U8-B3 — 카드 칭호(8종 중 선택) */
+  | 'personal.title';
 
 /** `PremiumFeatureKey` → { scope, requiredTier } 단일 출처. 잠금 배지가 "Plus/Pro" 중 무엇을 표시할지 이 값으로 결정한다. */
 export const PREMIUM_FEATURE_CATALOG: Record<
@@ -54,6 +58,8 @@ export const PREMIUM_FEATURE_CATALOG: Record<
   'personal.ai.persona': { scope: 'user', requiredTier: 'plus' },
   'personal.ai.monthlyReport': { scope: 'user', requiredTier: 'plus' },
   'guild.export.csv': { scope: 'guild', requiredTier: 'pro' },
+  'personal.badge.plus': { scope: 'user', requiredTier: 'plus' },
+  'personal.title': { scope: 'user', requiredTier: 'plus' },
 };
 
 /**

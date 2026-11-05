@@ -82,6 +82,34 @@ describe('HelpCommand', () => {
     expect(getReplyDescription(interaction)).toContain('/관리도우미');
   });
 
+  it('F-COPRESENCE-036 — /궁합 분류가 helpFeatures 의 레벨·뱃지·친한친구 줄에 노출된다(ko)', async () => {
+    const interaction = makeInteraction();
+
+    await command.onHelp(interaction);
+
+    expect(getReplyDescription(interaction)).toContain(
+      '📈 레벨 · 뱃지 · 친한친구 · 🎲 궁합(/궁합)',
+    );
+  });
+
+  it('F-COPRESENCE-036 — en 로케일에서는 /ship 이 노출된다', async () => {
+    const i18n = new BotI18nService();
+    i18n.onModuleInit();
+    const enCommand = new HelpCommand(
+      i18n,
+      new LocaleResolverService({
+        getUserLocale: vi.fn().mockResolvedValue({ locale: 'en' }),
+      } as unknown as BotApiClientService),
+    );
+    const interaction = makeInteraction();
+
+    await enCommand.onHelp(interaction);
+
+    expect(getReplyDescription(interaction)).toContain(
+      '📈 Levels · badges · best friends · 🎲 ship (/ship)',
+    );
+  });
+
   it('DM(guildId: null)에서도 관리자 링크 없이 정상 응답한다(errors.guildOnly로 종료하지 않음)', async () => {
     const interaction = makeInteraction({ guildId: null });
 

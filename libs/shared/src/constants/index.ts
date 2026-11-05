@@ -20,7 +20,6 @@ export * from './subscription';
 export * from './voice-health-badge-assets';
 export * from './voice-health-badge-defaults';
 export * from './weekly-report-auto-disable';
-export * from './weekly-report-defaults';
 
 export const APP_NAME = 'Onyu';
 

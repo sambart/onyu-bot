@@ -28,11 +28,13 @@ import type {
   BotRolePanelConfigDto,
   CheckDuoEligibilityOptions,
   CommandUsedDto,
+  CompatCardResponse,
   CoPresenceSnapshot,
   DuoChemistryCardResponse,
   DuoEligibilityResponse,
   GetAdminAssistRecommendationOptions,
   GetBadgeCollectionCardOptions,
+  GetCompatCardOptions,
   GetDuoChemistryOptions,
   GetLevelLeaderboardCardOptions,
   GetLevelRankCardOptions,
@@ -121,6 +123,7 @@ const HTTP_STATUS_BAD_REQUEST = 400;
 /**
  * 듀오 케미 API 가 상대의 표시 거부(F-COPRESENCE-035)로 거절한 400 인지 판별한다.
  * `getDuoChemistry`/`checkDuoEligibility` 의 throw 동작은 그대로 두고, 호출측 catch 에서 이 헬퍼로 분기한다.
+ * 랜덤 궁합 `getCompatCard` 도 같은 코드·같은 본문으로 거절하므로 이 헬퍼로 판별한다(F-COPRESENCE-036).
  * `AllExceptionsFilter` 가 `code` 를 최상위로 승격하지만 봉투 변화에 견고하도록 `message.code` 도 허용한다.
  */
 export function isDuoPeerHiddenError(error: unknown): boolean {
@@ -386,6 +389,15 @@ export class BotApiClientService {
    */
   async checkDuoEligibility(options: CheckDuoEligibilityOptions): Promise<DuoEligibilityResponse> {
     return this.post('/bot-api/co-presence/duo/eligibility', options);
+  }
+
+  /**
+   * 랜덤 궁합 카드(F-COPRESENCE-036) — 동시접속 데이터를 읽지 않는 하루 고정 랜덤 카드.
+   * 닉네임·아바타 URL 이 액세스 로그에 남지 않도록 POST body 로 전송한다.
+   * 상대 표시 거부는 400 `CO_PRESENCE_PEER_HIDDEN` 으로 throw 되며 `isDuoPeerHiddenError` 로 판별한다.
+   */
+  async getCompatCard(options: GetCompatCardOptions): Promise<CompatCardResponse> {
+    return this.post('/bot-api/co-presence/compat', options);
   }
 
   // ── Me ──

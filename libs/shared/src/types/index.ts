@@ -61,6 +61,33 @@ export interface PaginatedResponse<T> {
   items: T[];
 }
 
+export type {
+  FirstValueDomain,
+  FirstValueForecast,
+  FirstValueForecastKind,
+  FirstValueResponse,
+  GuildOverviewResponse,
+  LiveVoiceChannelEntry,
+  LiveVoiceResponse,
+  ReenableAutoActionResponse,
+  ScheduleCadence,
+  ScheduleStatusDomain,
+  ScheduleStatusItem,
+  ScheduleStatusResponse,
+  SettingsAutoActionDomain,
+  SettingsAutoActionKind,
+  SettingsAutoActionReasonCode,
+  SettingsHealthAutoAction,
+  SettingsHealthDomain,
+  SettingsHealthItem,
+  SettingsHealthItemDomain,
+  SettingsHealthKind,
+  SettingsHealthResponse,
+  SettingsHealthSeverity,
+  SettingsLiveCheck,
+  WeeklyKpiResponse,
+} from './overview';
+
 export interface VoiceActivityData {
   guildId: string;
   guildName: string;
@@ -120,6 +147,8 @@ export type {
   NewbieOnboardingFailureDto,
   NewbieOnboardingFailureKind,
 } from './admin-log';
+export type { AiPersonaKey } from './ai-persona';
+export { AI_PERSONA_KEYS, DEFAULT_AI_PERSONA, isAiPersonaKey } from './ai-persona';
 export type { AccessTokenPayload, AuthTokenPair } from './auth';
 export type { MeCardThemeCategory, MeCardThemeKey } from './card-theme';
 export {
@@ -156,6 +185,7 @@ export * from './level';
 export type { MeBadgesBotResponse } from './me-badges';
 export type {
   ActivityDailyOverview,
+  MeActivityHeatmapResponse,
   MessageDailyRecord,
   MessageRankingRecord,
   VoiceRankingRecord,
@@ -244,6 +274,8 @@ export type {
   UserCheckoutIntentRequest,
 } from './subscription';
 export { PREMIUM_FEATURE_CATALOG } from './subscription';
+// super-admin.ts 와 분리 — public 미러(mirror-bot.sh)가 super-admin.ts 를 제거해도 봇 빌드가 유지되도록
+export type { ProcessResourceMetrics } from './process-resource-metrics';
 export type {
   AdminAssistCtaClickDto,
   AdminAssistCtaType,
@@ -287,6 +319,14 @@ export {
   WEB_VITALS_MAX_SAMPLES_PER_KEY,
   WEB_VITALS_METRICS,
 } from './usage-analytics';
+export type {
+  AppliedDisplayPerks,
+  PlusBadgeGrade,
+  PlusTitleKey,
+  UpdateUserPreferenceRequest,
+  UserPreferenceResponse,
+} from './user-preference';
+export { isPlusTitleKey, NO_DISPLAY_PERKS, PLUS_TITLE_KEYS } from './user-preference';
 export * from './voice-game';
 export type {
   GuildRecapAutoPostRequest,

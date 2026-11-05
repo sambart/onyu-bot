@@ -26,9 +26,17 @@ const LEGAL_KEY_PREFIXES = ['privacy.', 'terms.'] as const;
 
 /**
  * 1군(ko/en) 에만 추가되고 ja 번역이 아직 없는 키(2군 수동 작성 금지).
- * 번역 파이프라인 자동 PR 이 ja 를 채우면 해당 키를 여기서 제거한다. (초기: 없음)
+ * 번역 파이프라인 자동 PR 이 ja 를 채우면 해당 키를 여기서 제거한다.
  */
-const JA_PENDING_TRANSLATION_KEYS: readonly string[] = [];
+const JA_PENDING_TRANSLATION_KEYS: readonly string[] = [
+  // 랜덤 궁합(`/궁합`, F-COPRESENCE-036) — ja 는 번역 파이프라인이 채운다(en 폴백 동작)
+  'commands.compatBotTarget',
+  'commands.compatCooldown',
+  'commands.compatError',
+  'commands.compatNonMember',
+  'commands.compatPeerHidden',
+  'commands.compatPosted',
+];
 
 type Messages = Record<string, string>;
 

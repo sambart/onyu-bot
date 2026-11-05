@@ -19,6 +19,8 @@ import { AdminAssistCommand } from './admin-assist/admin-assist.command';
 import { AdminAssistCommandDto } from './admin-assist/admin-assist.dto';
 import { BestFriendCommand } from './friend/best-friend.command';
 import { BestFriendCommandDto } from './friend/best-friend.dto';
+import { CompatCommand } from './friend/compat.command';
+import { CompatCommandDto } from './friend/compat.dto';
 import { HelpCommand } from './help.command';
 import { LeaderboardCommand } from './level/leaderboard.command';
 import { LeaderboardCommandDto } from './level/leaderboard.dto';
@@ -58,6 +60,7 @@ const COMMANDS: Type[] = [
   MeCommand,
   ProfileCommand,
   BestFriendCommand,
+  CompatCommand,
   RankCommand,
   LeaderboardCommand,
   AdminAssistCommand,
@@ -67,6 +70,7 @@ const OPTIONS: Array<{ dto: Type; property: string }> = [
   { dto: StickyMessageDeleteDto, property: 'channel' },
   { dto: MeCommandDto, property: 'view' },
   { dto: BestFriendCommandDto, property: 'peer' },
+  { dto: CompatCommandDto, property: 'peer' },
   { dto: LeaderboardCommandDto, property: 'page' },
   { dto: RankCommandDto, property: 'user' },
   { dto: AdminAssistCommandDto, property: 'query' },
@@ -146,8 +150,8 @@ describe.each(LOCALIZED_LOCALES)(
 );
 
 describe('슬래시 커맨드 현지화 — 검증 범위', () => {
-  it('검증 대상 커맨드가 등록 커맨드 10종, 옵션이 6곳이다 (신규 추가 시 목록 갱신 강제)', () => {
-    expect(COMMANDS).toHaveLength(10);
-    expect(OPTIONS).toHaveLength(6);
+  it('검증 대상 커맨드가 등록 커맨드 11종, 옵션이 7곳이다 (신규 추가 시 목록 갱신 강제)', () => {
+    expect(COMMANDS).toHaveLength(11);
+    expect(OPTIONS).toHaveLength(7);
   });
 });

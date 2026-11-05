@@ -391,6 +391,31 @@ export interface GetDuoChemistryOptions {
 /** POST /bot-api/co-presence/duo 응답 — 기존 CanvasCardResponse와 동일 셰이프(신규 타입 아님) */
 export type DuoChemistryCardResponse = CanvasCardResponse;
 
+/**
+ * getCompatCard 요청 옵션(F-COPRESENCE-036) — API `CompatCardRequestDto` 와 수기 정합 필수.
+ * 🔒 불변식: `userId` 는 언제나 커맨드 실행자(`interaction.user.id`), 상대는 `peerId` 로만 전달한다.
+ * 본인 지정이면 두 값이 같다(듀오와 달리 400 아님).
+ */
+export interface GetCompatCardOptions {
+  guildId: string;
+  userId: string;
+  peerId: string;
+  selfDisplayName: string;
+  selfAvatarUrl: string;
+  peerDisplayName: string;
+  peerAvatarUrl: string;
+  locale: CanvasCardLocale;
+}
+
+/**
+ * POST /bot-api/co-presence/compat 응답 — 데이터 기간이 없어 `days` 가 없고,
+ * 점수·코멘트는 이미지에만 담아 응답 필드로 노출하지 않는다(R2).
+ */
+export interface CompatCardResponse {
+  ok: boolean;
+  data: { imageBase64: string } | null;
+}
+
 /** checkDuoEligibility 요청 옵션(B3) — API 듀오 eligibility DTO 와 수기 정합 필수 */
 export interface CheckDuoEligibilityOptions {
   guildId: string;

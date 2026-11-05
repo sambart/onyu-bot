@@ -4,6 +4,7 @@ import { Module } from '@nestjs/common';
 import { BotCommonModule } from '../common/bot-common.module';
 import { AdminAssistCommand } from './admin-assist/admin-assist.command';
 import { BestFriendCommand } from './friend/best-friend.command';
+import { CompatCommand } from './friend/compat.command';
 import { HelpCommand } from './help.command';
 import { LeaderboardCommand } from './level/leaderboard.command';
 import { RankCommand } from './level/rank.command';
@@ -30,6 +31,8 @@ import { VersionCommand } from './version.command';
     ProfileCommand,
     // Phase 5: 베스트 프렌드
     BestFriendCommand,
+    // F-COPRESENCE-036: /궁합 · /ship (랜덤 궁합 카드)
+    CompatCommand,
     // U9: /rank · /랭킹
     RankCommand,
     LeaderboardCommand,

@@ -1,0 +1,40 @@
+# 이 파일은 private 모노레포의 scripts/mirror-bot.sh 가 생성한다 — 여기서 직접 수정하지 말 것.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 20
+
+      # 이 리포는 lockfile 을 두지 않는다(원본 모노레포 lockfile 은 api/web 의존성을 포함해 재사용 불가)
+      - run: pnpm install
+
+      - name: Build libs (shared, bot-api-client)
+        run: pnpm libs:build
+
+      - name: Lint bot
+        run: pnpm --filter @onyu/bot lint
+
+      - name: Typecheck bot
+        run: pnpm --filter @onyu/bot exec tsc --noEmit
+
+      - name: Test bot
+        run: pnpm --filter @onyu/bot test
+
+      - name: Build bot
+        run: pnpm --filter @onyu/bot build

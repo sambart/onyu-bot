@@ -23,18 +23,16 @@ const LEGAL_KEY_PREFIXES = ['privacy.', 'terms.'] as const;
 /**
  * 1군(ko/en) 에만 추가되고 pt 번역이 아직 없는 키(2군 수동 작성 금지).
  * 번역 파이프라인 자동 PR 이 pt 를 채우면 해당 키를 여기서 제거한다.
- * (현재: 연말 결산 8키 — 번역 PR 머지 시 제거)
+ * (연말 결산 8키는 pt 자동 번역 PR `ac4f12e32` 로 채워져 제거됨)
  */
 const PT_PENDING_TRANSLATION_KEYS: readonly string[] = [
-  // 연말 결산(`/me 보기:결산`) — pt 는 번역 파이프라인이 채운다(en 폴백 동작)
-  'commands.meRecapButtonLabel',
-  'commands.meRecapEmpty',
-  'commands.meRecapEnded',
-  'commands.meRecapError',
-  'commands.meRecapNotStarted',
-  'commands.meRecapSummaryHours',
-  'commands.meRecapSummaryMessages',
-  'commands.meRecapSummaryMinutes',
+  // 랜덤 궁합(`/궁합`, F-COPRESENCE-036) — pt 는 번역 파이프라인이 채운다(en 폴백 동작)
+  'commands.compatBotTarget',
+  'commands.compatCooldown',
+  'commands.compatError',
+  'commands.compatNonMember',
+  'commands.compatPeerHidden',
+  'commands.compatPosted',
 ];
 
 type Messages = Record<string, string>;
@@ -85,13 +83,18 @@ describe('pt 봇 JSON 완결성', () => {
     ).toEqual([]);
   });
 
-  it('번역 대상 130키가 모두 번역돼 있다(en 147키 − 관리도우미 17키 − 번역 대기 0키)', () => {
+  // 고정 숫자는 번역 PR·1군 키 추가마다 깨져 ja 스펙과 같이 en 총수에서 파생한다
+  it('번역 대상 키가 모두 번역돼 있다(en 총수 − 관리도우미 17키 − 번역 대기 키)', () => {
+    const enTotal = BOT_NAMESPACES.reduce(
+      (sum, ns) => sum + Object.keys(load('en', ns) ?? {}).length,
+      0,
+    );
     const translatedCount = BOT_NAMESPACES.reduce(
       (sum, ns) => sum + Object.keys(load('pt', ns) ?? {}).length,
       0,
     );
 
-    expect(translatedCount).toBe(130);
+    expect(translatedCount).toBe(enTotal - 17 - PT_PENDING_TRANSLATION_KEYS.length);
   });
 
   it('pt 에 en 에 없는 과잉 키가 없다', () => {
