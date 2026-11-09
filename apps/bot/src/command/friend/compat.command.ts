@@ -1,7 +1,7 @@
 import { SlashCommandPipe } from '@discord-nestjs/common';
 import { Command, Handler, InteractionEvent } from '@discord-nestjs/core';
 import { Injectable, Logger } from '@nestjs/common';
-import { BotApiClientService, isDuoPeerHiddenError } from '@onyu/bot-api-client';
+import { BotApiClientService } from '@onyu/bot-api-client';
 import { parseLocale } from '@onyu/shared';
 import { AttachmentBuilder, ChatInputCommandInteraction, GuildMember, type User } from 'discord.js';
 
@@ -11,9 +11,12 @@ import { respondWithErrorNotice } from '../../common/util/interaction-response.u
 import { CompatCommandDto } from './compat.dto';
 import {
   COMPAT_COOLDOWN_MS,
+  COMPAT_USER_COOLDOWN_MS,
   getCompatCooldownRemainingMs,
+  getCompatUserCooldownRemainingMs,
   releaseCompatSlot,
   startCompatCooldown,
+  startCompatUserCooldown,
   tryAcquireCompatSlot,
 } from './compat-cooldown';
 
@@ -72,15 +75,40 @@ export class CompatCommand {
       await this.replyCooldown(interaction, locale, remainingMs);
       return;
     }
+    // 실행자 단위 쿨다운 — 채널을 옮겨 다니는 반복 조회 억제. API 미호출.
+    const userCooldownKey = `${guildId}:${interaction.user.id}`;
+    const userRemainingMs = getCompatUserCooldownRemainingMs(userCooldownKey);
+    if (userRemainingMs > 0) {
+      await this.replyEphemeral(
+        interaction,
+        this.i18n.t(locale, 'commands.compatUserCooldown', {
+          seconds: Math.ceil(userRemainingMs / MS_PER_SECOND),
+        }),
+      );
+      return;
+    }
     // 쿨다운은 게시 후에 시작하므로, 같은 채널의 다른 실행이 진행 중이면 곧 시작될 쿨다운 전체로 안내한다.
     if (!tryAcquireCompatSlot(cooldownKey)) {
       await this.replyCooldown(interaction, locale, COMPAT_COOLDOWN_MS);
       return;
     }
 
+    // 실행자 쿨다운도 게시 후에 시작하므로, 같은 실행자가 다른 채널에서 동시에 실행하면 위 확인을 함께 통과한다 — 실행자 슬롯으로 막는다.
+    if (!tryAcquireCompatSlot(userCooldownKey)) {
+      releaseCompatSlot(cooldownKey);
+      await this.replyEphemeral(
+        interaction,
+        this.i18n.t(locale, 'commands.compatUserCooldown', {
+          seconds: Math.ceil(COMPAT_USER_COOLDOWN_MS / MS_PER_SECOND),
+        }),
+      );
+      return;
+    }
+
     try {
-      await this.runCompat(interaction, guildId, locale, peerUser, cooldownKey);
+      await this.runCompat(interaction, guildId, locale, peerUser, cooldownKey, userCooldownKey);
     } finally {
+      releaseCompatSlot(userCooldownKey);
       releaseCompatSlot(cooldownKey);
     }
   }
@@ -126,10 +154,12 @@ export class CompatCommand {
     locale: string,
     peerUser: User,
     cooldownKey: string,
+    userCooldownKey: string,
   ): Promise<void> {
     try {
-      // 거부·오류 안내가 채널에 새지 않도록 ephemeral 로 시작한다. 첫 응답도 try 안에 둔다.
-      await interaction.deferReply({ ephemeral: true });
+      // 공개 defer — 원본 응답에 Discord 의 "OOO님이 /궁합 사용" 헤더가 붙어 실행자·커맨드가 드러난다.
+      // 거부·오류는 rejectPrivately 가 공개 원본을 지우고 ephemeral 로 안내한다(EC-CP-118 ⓑ). 첫 응답도 try 안에 둔다.
+      await interaction.deferReply();
 
       // GuildMember 캐스팅 — discord-nestjs 의 member 는 APIInteractionGuildMember | GuildMember 유니온
       const selfDisplayName =
@@ -156,36 +186,46 @@ export class CompatCommand {
 
       if (!result.ok || !result.data) {
         // 텍스트 폴백 없음(V5) — 고지 없는 점수 노출 방지
-        await interaction.editReply({ content: this.i18n.t(locale, 'commands.compatError') });
+        await this.rejectPrivately(interaction, this.i18n.t(locale, 'commands.compatError'));
         return;
       }
 
-      await this.postPublicCard(interaction, locale, result.data.imageBase64, cooldownKey);
+      const attachment = new AttachmentBuilder(Buffer.from(result.data.imageBase64, 'base64'), {
+        name: COMPAT_ATTACHMENT_NAME,
+      });
+      await interaction.editReply({ files: [attachment] });
+      startCompatCooldown(cooldownKey);
+      startCompatUserCooldown(userCooldownKey);
     } catch (error) {
       await this.handleError(interaction, locale, error);
     }
   }
 
-  /** editReply 로 원본을 확정 → 공개 followUp → 쿨다운 시작 → 원본(ephemeral) 삭제. */
-  private async postPublicCard(
+  /**
+   * 공개 defer 원본을 지우고 실행자에게만 안내한다 — 거부·오류(특히 상대 opt-out)가 채널에 남지 않게.
+   * 삭제가 먼저다: 원본이 살아 있는 채 followUp 하면 그 followUp 이 defer 된 공개 원본을 대체할 수 있다.
+   */
+  private async rejectPrivately(
     interaction: ChatInputCommandInteraction,
-    locale: string,
-    imageBase64: string,
-    cooldownKey: string,
+    content: string,
   ): Promise<void> {
-    const attachment = new AttachmentBuilder(Buffer.from(imageBase64, 'base64'), {
-      name: COMPAT_ATTACHMENT_NAME,
-    });
-
-    await interaction.editReply({ content: this.i18n.t(locale, 'commands.compatPosted') });
-    await interaction.followUp({ ephemeral: false, files: [attachment] });
-    startCompatCooldown(cooldownKey);
-
+    if (!interaction.deferred) {
+      // defer 자체가 실패한 경우 — 아직 응답이 없으니 ephemeral reply 로 안내한다
+      await respondWithErrorNotice(interaction, content, this.logger);
+      return;
+    }
     try {
       await interaction.deleteReply();
     } catch (deleteError) {
       this.logger.warn(
         `Compat deleteReply failed: ${deleteError instanceof Error ? deleteError.message : String(deleteError)}`,
+      );
+    }
+    try {
+      await interaction.followUp({ content, ephemeral: true });
+    } catch (followUpError) {
+      this.logger.warn(
+        `Compat private notice failed: ${followUpError instanceof Error ? followUpError.message : String(followUpError)}`,
       );
     }
   }
@@ -195,20 +235,7 @@ export class CompatCommand {
     locale: string,
     error: unknown,
   ): Promise<void> {
-    // 상대가 관계 표시를 거부한 정상 흐름(EC-CP-112) — 오류 로그 없이 단정하지 않는 안내만
-    if (isDuoPeerHiddenError(error)) {
-      this.logger.debug('Compat peer hidden');
-      await interaction.editReply({
-        content: this.i18n.t(locale, 'commands.compatPeerHidden'),
-        components: [],
-      });
-      return;
-    }
     this.logger.error('Compat command error', error instanceof Error ? error.stack : String(error));
-    await respondWithErrorNotice(
-      interaction,
-      this.i18n.t(locale, 'commands.compatError'),
-      this.logger,
-    );
+    await this.rejectPrivately(interaction, this.i18n.t(locale, 'commands.compatError'));
   }
 }

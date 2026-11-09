@@ -17,11 +17,16 @@ import type {
   AutoActionRecordDto,
   AutoChannelButtonClickDto,
   AutoChannelButtonResult,
+  AutoChannelControlCheckQuery,
+  AutoChannelControlCheckResult,
+  AutoChannelControlResult,
+  AutoChannelLockDto,
   AutoChannelNameInputQuery,
   AutoChannelNameInputSpec,
   AutoChannelNameSubmitDto,
   AutoChannelNameSubmitResult,
   AutoChannelSubOptionDto,
+  AutoChannelUserLimitDto,
   BestFriendCardResponse,
   BotApiResponse,
   BotHealthSnapshotDto,
@@ -105,6 +110,9 @@ const AUTO_CHANNEL_NAME_INPUT_TIMEOUT_MS = 1_500;
  * per-request 타임아웃으로 짧게 끊어도 안전하다.
  */
 const USER_LOCALE_TIMEOUT_MS = 1_000;
+/** 제어 패널 AC3 는 showModal 전(interaction 3초 데드라인 안)에 호출된다 — N3 와 같은 1.5s 예산 */
+const AUTO_CHANNEL_CONTROL_CHECK_TIMEOUT_MS = 1_500;
+
 /** 고정 채널 집합 조회(A22 ③) — messageCreate 핸들러 경로라 짧게 */
 const STICKY_ACTIVE_CHANNELS_TIMEOUT_MS = 1_500;
 
@@ -275,6 +283,36 @@ export class BotApiClientService {
     });
   }
 
+  /**
+   * 제어 패널 [정원 변경] 모달 전 조작 자격 사전 판정(AC3, F-VOICE-149). 부작용 0.
+   * per-request 타임아웃(1.5s) — 실패·타임아웃은 axios 가 throw 하므로 호출측이 모달 없이 안내한다.
+   */
+  async autoChannelControlCheck(
+    query: AutoChannelControlCheckQuery,
+  ): Promise<AutoChannelControlCheckResult> {
+    const params = new URLSearchParams({
+      guildId: query.guildId,
+      userId: query.userId,
+      channelId: query.channelId,
+    });
+    if (query.voiceChannelId) params.set('voiceChannelId', query.voiceChannelId);
+    return this.get(`/bot-api/auto-channel/control/check?${params.toString()}`, {
+      timeout: AUTO_CHANNEL_CONTROL_CHECK_TIMEOUT_MS,
+    });
+  }
+
+  /** 정원 변경(AC4). deferReply 이후 호출되므로 전역 타임아웃을 쓴다. */
+  async autoChannelControlUserLimit(
+    dto: AutoChannelUserLimitDto,
+  ): Promise<AutoChannelControlResult> {
+    return this.post('/bot-api/auto-channel/control/user-limit', dto);
+  }
+
+  /** 잠금/해제(AC5) — `locked` 는 원하는 최종 상태. deferReply 이후 호출되므로 전역 타임아웃을 쓴다. */
+  async autoChannelControlLock(dto: AutoChannelLockDto): Promise<AutoChannelControlResult> {
+    return this.post('/bot-api/auto-channel/control/lock', dto);
+  }
+
   // ── Sticky Message ──
 
   async sendMessageCreated(dto: MessageCreatedDto): Promise<void> {
@@ -394,7 +432,7 @@ export class BotApiClientService {
   /**
    * 랜덤 궁합 카드(F-COPRESENCE-036) — 동시접속 데이터를 읽지 않는 하루 고정 랜덤 카드.
    * 닉네임·아바타 URL 이 액세스 로그에 남지 않도록 POST body 로 전송한다.
-   * 상대 표시 거부는 400 `CO_PRESENCE_PEER_HIDDEN` 으로 throw 되며 `isDuoPeerHiddenError` 로 판별한다.
+   * 상대 표시 거부(opt-out) 검사는 하지 않는다(D8 (b)) — 비멤버·봇 등은 400, 렌더 실패는 `{ ok:false }`.
    */
   async getCompatCard(options: GetCompatCardOptions): Promise<CompatCardResponse> {
     return this.post('/bot-api/co-presence/compat', options);

@@ -45,6 +45,8 @@ export class HelpCommand {
       const lines = [
         this.i18n.t(locale, 'commands.helpIntro'),
         this.i18n.t(locale, 'commands.helpFeatures'),
+        // 궁합은 랜덤이라 관계 opt-out 대상 밖 — 설정과 혼동하지 않게 성격을 고지한다(D10 (c))
+        this.i18n.t(locale, 'commands.helpCompatNote'),
         this.i18n.t(locale, 'commands.helpDashboardLink', { url: `${webUrl}/select-guild` }),
       ];
 
@@ -56,6 +58,8 @@ export class HelpCommand {
           this.i18n.t(locale, 'commands.helpGettingStartedLink', {
             url: `${webUrl}/dashboard/guild/${interaction.guildId}/getting-started`,
           }),
+          // 피지목자 개별 탈출구가 없는 대신 서버 단위 차단 경로를 관리자에게 알린다(D9 (c))
+          this.i18n.t(locale, 'commands.helpCompatAdminNote'),
         );
       }
 

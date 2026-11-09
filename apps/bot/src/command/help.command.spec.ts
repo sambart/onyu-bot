@@ -110,6 +110,29 @@ describe('HelpCommand', () => {
     );
   });
 
+  it('D10 (c) — 궁합 성격 고지(랜덤 · 관계 표시 설정과 별개)는 일반 멤버에게도 노출된다', async () => {
+    const interaction = makeInteraction();
+
+    await command.onHelp(interaction);
+
+    expect(getReplyDescription(interaction)).toContain(
+      '🎲 /궁합 은 실제 활동과 무관한 오늘의 랜덤 결과예요. 친한친구 관계 표시 설정과는 별개예요.',
+    );
+  });
+
+  it('D9 (c) — 궁합 차단 경로 안내는 관리자에게만 노출된다', async () => {
+    const adminText =
+      '🛠️ /궁합 사용은 Discord 서버 설정 → 연동 → Onyu 에서 역할·채널별로 제한하거나 끌 수 있어요.';
+    const admin = makeInteraction({ memberPermissions: { has: vi.fn().mockReturnValue(true) } });
+    const member = makeInteraction();
+
+    await command.onHelp(admin);
+    await command.onHelp(member);
+
+    expect(getReplyDescription(admin)).toContain(adminText);
+    expect(getReplyDescription(member)).not.toContain(adminText);
+  });
+
   it('DM(guildId: null)에서도 관리자 링크 없이 정상 응답한다(errors.guildOnly로 종료하지 않음)', async () => {
     const interaction = makeInteraction({ guildId: null });
 

@@ -21,6 +21,10 @@ import { MESSAGE_CODE } from '../constants/message-codes';
 
 /** 방제 자유 입력 토큰 (7자, UTF-16 기준) */
 export const AUTO_CHANNEL_INPUT_TOKEN = '{input}';
+/** 서버 닉네임 토큰 */
+export const AUTO_CHANNEL_USERNAME_TOKEN = '{username}';
+/** 버튼 기본 채널명 토큰 (생성 메시지·음성 채널 상태, F-VOICE-152·153) */
+export const AUTO_CHANNEL_NAME_TOKEN = '{name}';
 /** Discord 채널명 상한 (F-VOICE-089) — 세는 단위는 JS .length (D-8) */
 export const AUTO_CHANNEL_NAME_MAX_LENGTH = 100;
 /** F-VOICE-128 기본 minLength */
@@ -59,10 +63,7 @@ export interface AutoChannelNameParts {
  * 단계에서 `{input}` 을 치환한다(치환 순서 = {username} → {name} → {input}, 토큰 주입 방어).
  */
 export function buildAutoChannelBaseName(parts: AutoChannelNameParts): string {
-  // '' 도 "미설정"으로 취급해야 하므로 ?? 가 아닌 빈 문자열 분기를 쓴다
-  const rawButtonTemplate = parts.buttonTemplate ?? '';
-  const buttonTemplate = rawButtonTemplate === '' ? parts.defaultButtonTemplate : rawButtonTemplate;
-  const baseName = buttonTemplate.replace(/{username}/g, parts.userName);
+  const baseName = resolveAutoChannelButtonBaseName(parts);
 
   const result = parts.subOptionTemplate
     ? parts.subOptionTemplate.replace(/{name}/g, baseName).replace(/{username}/g, parts.userName)
@@ -82,6 +83,21 @@ export function buildAutoChannelBaseName(parts: AutoChannelNameParts): string {
   }
 
   return withInput;
+}
+
+/**
+ * 버튼 기본 이름(`{name}` 의 원천) — 버튼 템플릿(미설정 시 로케일 기본형)에 `{username}` 만
+ * 치환한 값이다. 하위 선택지 템플릿·`{input}` 적용 전 단계이며 `buildAutoChannelBaseName` 이
+ * 내부에서 같은 함수를 쓴다(F-VOICE-152·153 생성 메시지/상태의 `{name}` 이 이 값을 재사용).
+ */
+export function resolveAutoChannelButtonBaseName(
+  parts: Pick<AutoChannelNameParts, 'buttonTemplate' | 'defaultButtonTemplate' | 'userName'>,
+): string {
+  // '' 도 "미설정"으로 취급해야 하므로 ?? 가 아닌 빈 문자열 분기를 쓴다
+  const rawButtonTemplate = parts.buttonTemplate ?? '';
+  const buttonTemplate = rawButtonTemplate === '' ? parts.defaultButtonTemplate : rawButtonTemplate;
+  // 함수 대체 — 닉네임 안의 `$&`·`$1` 이 대체 패턴으로 해석되지 않게 한다(EC-ACNI-128)
+  return buttonTemplate.replace(/{username}/g, () => parts.userName);
 }
 
 /**
@@ -115,6 +131,21 @@ export function countAutoChannelInputTokens(template: string | null | undefined)
 /** count > 0 — R3(instant 금지) 판정용 */
 export function hasAutoChannelInputToken(template: string | null | undefined): boolean {
   return countAutoChannelInputTokens(template) > 0;
+}
+
+/** 템플릿에 {name} 이 포함되는지 */
+export function hasAutoChannelNameToken(template: string | null | undefined): boolean {
+  return !!template && template.includes(AUTO_CHANNEL_NAME_TOKEN);
+}
+
+/**
+ * instant 모드 생성 메시지·음성 채널 상태에 금지된 토큰({name} 또는 {input}) 포함 여부.
+ * instant 방에는 버튼도 방제 입력도 없어 두 토큰이 의미가 없다(저장 시점 거부 판정 공용).
+ */
+export function hasAutoChannelInstantForbiddenNoticeToken(
+  template: string | null | undefined,
+): boolean {
+  return hasAutoChannelNameToken(template) || hasAutoChannelInputToken(template);
 }
 
 /** count === 1 — R1·R2·R6 판정용 (웹 사전 검증도 이 함수를 쓴다) */

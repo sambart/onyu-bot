@@ -50,6 +50,11 @@
   "bestFriendDuoPublishButtonLabel": "🔗 Compartilhar no canal",
   "bestFriendDuoPublishWarning": "Ao compartilhar, isso ficará visível para todos no canal, incluindo sua dupla.",
   "bestFriendDuoPublishFailed": "Não foi possível compartilhar no canal. Tente novamente em breve.",
+  "compatBotTarget": "Você não pode verificar a pontuação de compatibilidade com bots.",
+  "compatNonMember": "Esse usuário não é um membro deste servidor.",
+  "compatCooldown": "Um cartão de compatibilidade acabou de ser postado neste canal. Tente novamente em {seconds}s.",
+  "compatUserCooldown": "Você acabou de verificar um cartão de compatibilidade. Tente novamente em {seconds}s.",
+  "compatError": "Não foi possível criar o cartão de compatibilidade. Tente novamente em breve.",
   "rankNoData": "Você ainda não tem XP de atividade. Entre em um canal de voz ou envie mensagens para subir no ranking.",
   "rankNoDataOther": "Esse usuário ainda não possui XP de atividade.",
   "rankBotTarget": "Não é possível consultar contas de bot.",
@@ -81,7 +86,9 @@
   "statusPrefixNicknameTooLong": "Seu apelido é longo demais para aplicar o prefixo. Entre em contato com um administrador.",
   "helpTitle": "Ajuda do Onyu",
   "helpIntro": "O Onyu rastreia a atividade de voz e ajuda você a gerenciar seu servidor.",
-  "helpFeatures": "🎙️ Rastreamento de atividade de voz · rankings\n👋 Boas-vindas a novos membros · missões\n🤖 Relatórios de diagnóstico do servidor por IA\n📈 Níveis · insígnias · melhores amigos\n📌 Mensagens fixas · painéis de cargos\n🧭 Configurações do servidor e perguntas de análise (admin, /admin-assist)",
+  "helpFeatures": "🎙️ Rastreamento de atividade de voz · placar\n👋 Boas-vindas a novos membros · missões\n🤖 Relatórios de diagnóstico do servidor por IA\n📈 Níveis · distintivos · melhores amigos · 🎲 compatibilidade (/ship)\n📌 Mensagens fixas · painéis de cargos\n🧭 Configurações do servidor e perguntas de análise (admin, /admin-assist)",
+  "helpCompatNote": "🎲 /ship mostra um resultado aleatório para hoje que não tem nada a ver com a atividade real. É separado da configuração de exibição da relação de melhores amigos.",
   "helpDashboardLink": "🔗 Painel web: {url}",
-  "helpGettingStartedLink": "🚀 Admins de servidor — comecem por aqui: {url}"
+  "helpGettingStartedLink": "🚀 Admins de servidor — comecem por aqui: {url}",
+  "helpCompatAdminNote": "🛠️ Você pode restringir /ship por cargo ou canal, ou desativá-lo em Configurações do Servidor do Discord → Integrações → Onyu."
 }

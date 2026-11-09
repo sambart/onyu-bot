@@ -22,5 +22,6 @@
   "durationHourMin": "{h}h {m}m",
   "mocoDataUnavailable": "Não foi possível carregar os dados.",
   "welcomeCardGreeting": "Boas-vindas, {username}!",
-  "welcomeCardMemberChip": "Membro #{count}"
+  "welcomeCardMemberChip": "Membro #{count}",
+  "welcomeTestNotice": "🧪 Esta é uma mensagem de teste. É assim que ela aparecerá quando um novo membro entrar."
 }

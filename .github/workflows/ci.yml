@@ -20,6 +20,8 @@ jobs:
       - uses: actions/setup-node@v5
         with:
           node-version: 20
+          # v5 는 packageManager 필드를 보고 pnpm 캐시를 자동으로 켜는데, 캐시 키인 lockfile 이 없어 실패한다
+          package-manager-cache: false
 
       # 이 리포는 lockfile 을 두지 않는다(원본 모노레포 lockfile 은 api/web 의존성을 포함해 재사용 불가)
       - run: pnpm install

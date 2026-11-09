@@ -114,6 +114,10 @@ export const MESSAGE_CODE = {
   TEMPLATE_VARIABLE_NOT_ALLOWED: 'TEMPLATE_VARIABLE_NOT_ALLOWED',
   /** newbie 완료 보상 역할 계층 검증 거부(403/400) 또는 역할 조회 실패(503). errors.missionCompleteRoleId 동반. params 없음 */
   NEWBIE_COMPLETE_ROLE_REJECTED: 'NEWBIE_COMPLETE_ROLE_REJECTED',
+  /** 환영 테스트 발송 거부(400) — 저장된 환영 채널이 없음(환영이 꺼져 있어도 테스트는 허용). params 없음 */
+  NEWBIE_WELCOME_TEST_NOT_READY: 'NEWBIE_WELCOME_TEST_NOT_READY',
+  /** 환영 테스트 발송 빈도 제한 초과(429). params: { retryAfterSeconds } */
+  NEWBIE_WELCOME_TEST_RATE_LIMITED: 'NEWBIE_WELCOME_TEST_RATE_LIMITED',
 
   // ── i18n P3 — throwPeriodValidationError 코드화 (moco 기간 쿼리 검증 400) ──
   /**
@@ -180,10 +184,38 @@ export const MESSAGE_CODE = {
   ERR_AUTO_CHANNEL_SUB_TEMPLATE_MISSING_INPUT: 'ERR_AUTO_CHANNEL_SUB_TEMPLATE_MISSING_INPUT',
   /** 저장 시점 R3 — instantNameTemplate 에 {input} 포함(즉시 생성 모드는 입력 토큰 금지). params 없음 */
   ERR_AUTO_CHANNEL_INSTANT_INPUT_NOT_ALLOWED: 'ERR_AUTO_CHANNEL_INSTANT_INPUT_NOT_ALLOWED',
+  /** 저장 시점 — instant 모드 생성 메시지·음성 채널 상태에 {name}/{input} 포함(F-VOICE-152·153). params 없음 */
+  ERR_AUTO_CHANNEL_INSTANT_TOKEN_NOT_ALLOWED: 'ERR_AUTO_CHANNEL_INSTANT_TOKEN_NOT_ALLOWED',
   /** 저장 시점 R4·R5 — minLength/maxLength 모순(min>max) 또는 계산된 상한보다 큼. params 없음 */
   ERR_AUTO_CHANNEL_NAME_RULE_INVALID: 'ERR_AUTO_CHANNEL_NAME_RULE_INVALID',
   /** N3 조회 시 대상 버튼/선택지의 nameInputMode='off' 이거나 최종 템플릿에 {input} 0회(404). params 없음 */
   ERR_AUTO_CHANNEL_NAME_INPUT_DISABLED: 'ERR_AUTO_CHANNEL_NAME_INPUT_DISABLED',
+
+  // ── auto-channel 생성자 제어 패널 (docs/plans/auto-channel-room-control.md, F-VOICE-149) ──
+  /** 정원 변경 성공(AC4 updated). params: { userLimit } */
+  AUTO_CHANNEL_CONTROL_LIMIT_UPDATED: 'AUTO_CHANNEL_CONTROL_LIMIT_UPDATED',
+  /** 잠금 성공(AC5 updated). params 없음 */
+  AUTO_CHANNEL_CONTROL_LOCKED: 'AUTO_CHANNEL_CONTROL_LOCKED',
+  /** 잠금 해제 성공(AC5 updated). params 없음 */
+  AUTO_CHANNEL_CONTROL_UNLOCKED: 'AUTO_CHANNEL_CONTROL_UNLOCKED',
+  /** 이미 잠긴 방에 잠금(AC5 unchanged). params 없음 */
+  AUTO_CHANNEL_CONTROL_ALREADY_LOCKED: 'AUTO_CHANNEL_CONTROL_ALREADY_LOCKED',
+  /** 이미 열린 방에 해제(AC5 unchanged). params 없음 */
+  AUTO_CHANNEL_CONTROL_ALREADY_UNLOCKED: 'AUTO_CHANNEL_CONTROL_ALREADY_UNLOCKED',
+  /** 메타 없음(만료·삭제·자동방 아님) 또는 타 길드 채널(AC3·4·5 denied). params 없음 */
+  ERR_AUTO_CHANNEL_CONTROL_NOT_FOUND: 'ERR_AUTO_CHANNEL_CONTROL_NOT_FOUND',
+  /** 방 생성자가 아님(AC3·4·5 denied). params 없음 */
+  ERR_AUTO_CHANNEL_CONTROL_NOT_OWNER: 'ERR_AUTO_CHANNEL_CONTROL_NOT_OWNER',
+  /** 생성자가 그 채널에 접속해 있지 않음(AC3·4·5 denied). params 없음 */
+  ERR_AUTO_CHANNEL_CONTROL_OWNER_NOT_IN_CHANNEL: 'ERR_AUTO_CHANNEL_CONTROL_OWNER_NOT_IN_CHANNEL',
+  /** 설정에서 생성자 제어 기능이 꺼져 있음(AC3·4·5 denied). params 없음 */
+  ERR_AUTO_CHANNEL_CONTROL_DISABLED: 'ERR_AUTO_CHANNEL_CONTROL_DISABLED',
+  /** 정원 입력이 0~99 정수가 아님(AC4 validation_error). params: { min, max } */
+  ERR_AUTO_CHANNEL_CONTROL_LIMIT_INVALID: 'ERR_AUTO_CHANNEL_CONTROL_LIMIT_INVALID',
+  /** 봇에게 채널 권한 수정 권한 없음(AC4·5 error). params 없음 */
+  ERR_AUTO_CHANNEL_CONTROL_BOT_PERMISSION: 'ERR_AUTO_CHANNEL_CONTROL_BOT_PERMISSION',
+  /** 그 외 처리 실패(AC4·5 error). params 없음 */
+  ERR_AUTO_CHANNEL_CONTROL_FAILED: 'ERR_AUTO_CHANNEL_CONTROL_FAILED',
 
   // ── 관리 어시스턴트 Phase 3 승인-실행 E9 (docs/plans/admin-assist-phase3-approval.md D-16) ──
   /** 이력 행 없음 / 타 길드·타인 소유 / F5 동시 삭제(404). params 없음 */
@@ -254,5 +286,12 @@ export const MESSAGE_CODE = {
   INACTIVE_ACTION_HIERARCHY_DENIED: 'INACTIVE_ACTION_HIERARCHY_DENIED',
   /** Discord 조회 일시 실패로 위계를 판정할 수 없음(503). 조치는 실행되지 않았다. params 없음 */
   INACTIVE_ACTION_HIERARCHY_UNVERIFIABLE: 'INACTIVE_ACTION_HIERARCHY_UNVERIFIABLE',
+  // ── 관리자 결제 관리 (U9b — docs/plans/u9b-admin-billing.md §4-B) ──
+  /** 회수 대상 원장 행이 없음(404). params 없음 */
+  ADMIN_ENTITLEMENT_NOT_FOUND: 'ADMIN_ENTITLEMENT_NOT_FOUND',
+  /** comp_test 가 아닌 출처(paddle 등) 행은 관리 회수 불가(409). params 없음 */
+  ADMIN_ENTITLEMENT_REVOKE_SOURCE_NOT_ALLOWED: 'ADMIN_ENTITLEMENT_REVOKE_SOURCE_NOT_ALLOWED',
+  /** 같은 requestId 가 다른 주체에 쓰였거나 이미 회수된 요청(409). params 없음 */
+  ADMIN_ENTITLEMENT_REQUEST_CONFLICT: 'ADMIN_ENTITLEMENT_REQUEST_CONFLICT',
 } as const;
 export type MessageCode = (typeof MESSAGE_CODE)[keyof typeof MESSAGE_CODE];

@@ -32,6 +32,20 @@ export const MESSAGE_CODE_TO_BOT_KEY: Partial<Record<MessageCode, string>> = {
   ERR_AUTO_CHANNEL_NAME_TOO_SHORT: 'voice.autoChannelNameTooShort',
   ERR_AUTO_CHANNEL_NAME_TOO_LONG: 'voice.autoChannelNameTooLong',
   ERR_AUTO_CHANNEL_NAME_FORBIDDEN_WORD: 'voice.autoChannelNameForbiddenWord',
+
+  // ── auto-channel 생성자 제어 패널 (auto-channel-room-control, F-VOICE-149) ──
+  AUTO_CHANNEL_CONTROL_LIMIT_UPDATED: 'voice.autoChannelControlLimitUpdated',
+  AUTO_CHANNEL_CONTROL_LOCKED: 'voice.autoChannelControlLocked',
+  AUTO_CHANNEL_CONTROL_UNLOCKED: 'voice.autoChannelControlUnlocked',
+  AUTO_CHANNEL_CONTROL_ALREADY_LOCKED: 'voice.autoChannelControlAlreadyLocked',
+  AUTO_CHANNEL_CONTROL_ALREADY_UNLOCKED: 'voice.autoChannelControlAlreadyUnlocked',
+  ERR_AUTO_CHANNEL_CONTROL_NOT_FOUND: 'voice.autoChannelControlNotFound',
+  ERR_AUTO_CHANNEL_CONTROL_NOT_OWNER: 'voice.autoChannelControlNotOwner',
+  ERR_AUTO_CHANNEL_CONTROL_OWNER_NOT_IN_CHANNEL: 'voice.autoChannelControlOwnerNotInChannel',
+  ERR_AUTO_CHANNEL_CONTROL_DISABLED: 'voice.autoChannelControlDisabled',
+  ERR_AUTO_CHANNEL_CONTROL_LIMIT_INVALID: 'voice.autoChannelControlLimitInvalid',
+  ERR_AUTO_CHANNEL_CONTROL_BOT_PERMISSION: 'voice.autoChannelControlBotPermission',
+  ERR_AUTO_CHANNEL_CONTROL_FAILED: 'voice.autoChannelControlFailed',
 };
 
 /** result.code 가 매핑 테이블에 등록된 MessageCode 인지 판별하는 타입 가드 (unsafe `as` 단언 대체). */

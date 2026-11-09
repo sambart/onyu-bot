@@ -50,6 +50,11 @@
   "bestFriendDuoPublishButtonLabel": "🔗 チャンネルに公開",
   "bestFriendDuoPublishWarning": "公開すると相性パートナーを含むチャンネル内の全員に表示されます。",
   "bestFriendDuoPublishFailed": "チャンネルに公開できませんでした。しばらくしてからもう一度お試しください。",
+  "compatBotTarget": "ボットとは相性診断ができません。",
+  "compatNonMember": "そのユーザーはこのサーバーのメンバーではありません。",
+  "compatCooldown": "このチャンネルでは相性カードが投稿されたばかりです。{seconds}秒後にもう一度お試しください。",
+  "compatUserCooldown": "相性カードを作成したばかりです。{seconds}秒後にもう一度お試しください。",
+  "compatError": "相性カードを作成できませんでした。まもなくもう一度お試しください。",
   "rankNoData": "アクティビティXPがまだありません。ボイスやチャットで活動すると順位が表示されます。",
   "rankNoDataOther": "指定したユーザーのアクティビティXPはまだありません。",
   "rankBotTarget": "ボットアカウントの順位は確認できません。",
@@ -81,7 +86,9 @@
   "statusPrefixNicknameTooLong": "ニックネームが長すぎるため接頭辞を適用できません。管理者に連絡してください。",
   "helpTitle": "Onyu ヘルプ",
   "helpIntro": "Onyuはボイスチャットのアクティビティを記録し、サーバー運営をサポートするDiscordボットです。",
-  "helpFeatures": "🎙️ ボイスアクティビティ記録・ランキング\n👋 新規メンバー歓迎・ミッション\n🤖 AIサーバー診断レポート\n📈 レベル・バッジ・ベストフレンド\n📌 固定メッセージ・役割パネル\n🧭 サーバー設定・分析の質問（管理者限定、/admin-assist）",
+  "helpFeatures": "🎙️ ボイスチャンネル活動の追跡・ランキング\n👋 新規メンバーのウェルカム・ミッション\n🤖 AIサーバー診断レポート\n📈 レベル・バッジ・ベストフレンド・🎲 相性診断(/ship)\n📌 固定メッセージ・ロールパネル\n🧭 サーバー設定と分析の質問(管理者向け、/admin-assist)",
+  "helpCompatNote": "🎲 /shipは実際の活動とは関係のない今日のランダムな結果を表示します。ベストフレンドの関係表示設定とは別物です。",
   "helpDashboardLink": "🔗 Webダッシュボード: {url}",
-  "helpGettingStartedLink": "🚀 サーバー管理者向けスタートガイド: {url}"
+  "helpGettingStartedLink": "🚀 サーバー管理者向けスタートガイド: {url}",
+  "helpCompatAdminNote": "🛠️ /shipはDiscordのサーバー設定→連携サービス→Onyuからロールやチャンネルごとに制限したり、オフにしたりできます。"
 }

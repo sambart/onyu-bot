@@ -641,6 +641,25 @@ export type AdminAssistExecutedSettingAction =
   | AdminAssistExecutedSettingClaim
   | AdminAssistExecutedSettingApplied;
 
+/**
+ * AS3 PR2 — `GET …/admin-assist/setting-executions?historyIds=` 응답 행. 설정 이력 페이지가
+ * `…/history/{historyId}/execute` 감사 행에 "무엇이 어떻게 바뀌었는지"를 붙이는 데만 쓴다.
+ * `type='setting' AND status='applied'` 행만 담고, `queryText`·`responseText`·`userId` 는
+ * 싣지 않는다 — actor 는 감사 행에 이미 있고 자유 텍스트는 이력 페이지 용도로 과잉이다
+ * (as3 plan D10). `historyId` 는 `bigint` PK 라 `string`.
+ */
+export interface AdminAssistSettingExecutionItem {
+  historyId: string;
+  actionId: AdminAssistExecutableActionId;
+  executedAt: string;
+  changes: AdminAssistExecutedSettingApplied['changes'];
+}
+
+/** 요청한 historyIds 중 조건을 만족하는 행만 담는다(없는 id 는 조용히 빠진다) */
+export interface AdminAssistSettingExecutionsResponse {
+  items: AdminAssistSettingExecutionItem[];
+}
+
 /** 기존 게시 성공 기록(`type` 은 레거시 행에서 생략될 수 있다 — 판별 시 COALESCE 'publish') */
 export interface AdminAssistExecutedPublishAction {
   type?: 'publish';

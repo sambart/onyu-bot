@@ -5,6 +5,13 @@
  * 템플릿의 동작을 완전히 무변경으로 보존해야 한다. 이 계약이 깨지면 기존 전 길드의 환영
  * 메시지가 바뀐다.
  */
+import {
+  buildWelcomeMissionVars,
+  stripUnfilledMissionLines as sharedStripUnfilledMissionLines,
+  toOptionalText as sharedToOptionalText,
+  WELCOME_MISSION_VAR_NAMES,
+} from '@onyu/shared';
+
 import type { MissionVarsConfig } from './welcome-template.util';
 import {
   buildMissionVars,
@@ -318,5 +325,31 @@ describe('stripUnfilledMissionLines', () => {
     // 미션 변수를 포함하지 않는 줄이므로 원본 그대로 유지(단, 단일 줄 템플릿이라 삭제 자체가 없어
     // removed=false 경로를 타 원본 그대로 반환된다)
     expect(result).toBe(template);
+  });
+});
+
+describe('shim 재수출 — @onyu/shared 이관 (웹 미리보기와 동일 로직 공유)', () => {
+  it('buildMissionVars 는 shared buildWelcomeMissionVars 와 동일 참조다', () => {
+    expect(buildMissionVars).toBe(buildWelcomeMissionVars);
+  });
+
+  it('stripUnfilledMissionLines 는 shared 구현과 동일 참조다', () => {
+    expect(stripUnfilledMissionLines).toBe(sharedStripUnfilledMissionLines);
+  });
+
+  it('toOptionalText 는 shared 구현과 동일 참조다', () => {
+    expect(toOptionalText).toBe(sharedToOptionalText);
+  });
+
+  it('MISSION_VAR_NAMES 는 shared WELCOME_MISSION_VAR_NAMES 와 동일하며 4개 미션 변수를 포함한다', () => {
+    expect(MISSION_VAR_NAMES).toBe(WELCOME_MISSION_VAR_NAMES);
+    expect([...MISSION_VAR_NAMES].sort()).toEqual(
+      [
+        'missionChannel',
+        'missionDurationDays',
+        'missionTargetPlayCount',
+        'missionTargetPlaytime',
+      ].sort(),
+    );
   });
 });

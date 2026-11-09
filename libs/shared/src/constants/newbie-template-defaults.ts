@@ -179,6 +179,39 @@ export const NEWBIE_COMPLETE_TEMPLATE_DEFAULTS = defineLocaleTable<string>({
   pt: '🎉 {mention} concluiu a missão de novato! ({playtime} · {playCount} partidas)',
 });
 
+// ---- 환영 메시지 템플릿 ----
+
+/** 환영 메시지(content/embed 제목·본문) 템플릿 허용 변수. 봇 치환·API 검증·웹 안내가 공유하는 정본. */
+export const WELCOME_TEMPLATE_ALLOWED_VARS = [
+  '{username}',
+  '{mention}',
+  '{memberCount}',
+  '{serverName}',
+  '{missionTargetPlaytime}',
+  '{missionTargetPlayCount}',
+  '{missionDurationDays}',
+  '{missionChannel}',
+] as const;
+
+/**
+ * 환영 템플릿 미션 안내 변수명(중괄호 없음) — 값이 빈 문자열이면 그 변수를 포함한 줄을 삭제하는
+ * 조건부 렌더 판정 대상. 봇 `welcome-template.util.ts` 의 `MISSION_VAR_NAMES` 에서 이관.
+ */
+export const WELCOME_MISSION_VAR_NAMES = [
+  'missionTargetPlaytime',
+  'missionTargetPlayCount',
+  'missionDurationDays',
+  'missionChannel',
+] as const;
+
+/** 환영 메시지 필드별 최대 길이(코드포인트 기준) — Discord 한도. */
+export const WELCOME_TEXT_LIMITS = {
+  content: 2000,
+  embedTitle: 256,
+  embedDescription: 4096,
+  thumbnailUrl: 2048,
+} as const;
+
 // ---- 하위호환 별칭 — 기존 소비처(shim·controller·web·spec)의 import 경로와 참조 동일성을 보존한다 ----
 
 // ---- 미션 템플릿 기본값 ----

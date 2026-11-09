@@ -58,8 +58,42 @@ export function releaseCompatSlot(key: string): void {
   inFlightKeys.delete(key);
 }
 
+/** 실행자 단위 쿨다운(ms) — 채널을 바꿔 반복 조회하는 것을 막는다(D9 (d) M1). */
+export const COMPAT_USER_COOLDOWN_MS = 30_000;
+
+const userCooldownExpiresAt = new Map<string, number>();
+
+/**
+ * 실행자 남은 쿨다운(ms). 0 이면 통과. 만료 엔트리는 조회 시 지연 삭제한다.
+ * @param key `{guildId}:{userId}`
+ */
+export function getCompatUserCooldownRemainingMs(key: string, now: number = Date.now()): number {
+  const expiresAt = userCooldownExpiresAt.get(key);
+  if (expiresAt === undefined) {
+    return 0;
+  }
+  if (expiresAt <= now) {
+    userCooldownExpiresAt.delete(key);
+    return 0;
+  }
+  return expiresAt - now;
+}
+
+/** 실행자 쿨다운 시작 — 채널 쿨다운과 같이 공개 게시 성공 후에만 호출한다. */
+export function startCompatUserCooldown(key: string, now: number = Date.now()): void {
+  userCooldownExpiresAt.set(key, now + COMPAT_USER_COOLDOWN_MS);
+  const timer = setTimeout(() => {
+    const expiresAt = userCooldownExpiresAt.get(key);
+    if (expiresAt !== undefined && expiresAt <= Date.now()) {
+      userCooldownExpiresAt.delete(key);
+    }
+  }, COMPAT_USER_COOLDOWN_MS);
+  timer.unref?.();
+}
+
 /** 테스트용 초기화. */
 export function resetCompatCooldown(): void {
   cooldownExpiresAt.clear();
+  userCooldownExpiresAt.clear();
   inFlightKeys.clear();
 }

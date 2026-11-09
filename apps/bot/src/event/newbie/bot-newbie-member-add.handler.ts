@@ -1,19 +1,46 @@
 import { InjectDiscordClient, On } from '@discord-nestjs/core';
 import { Injectable, Logger } from '@nestjs/common';
-import { BotApiClientService, getApiErrorStatus, type NewbieConfigDto } from '@onyu/bot-api-client';
+import {
+  type AutoActionRecordDto,
+  BotApiClientService,
+  getApiErrorStatus,
+  type NewbieConfigDto,
+} from '@onyu/bot-api-client';
+import {
+  applyWelcomeTemplate,
+  buildWelcomeMissionVars,
+  toOptionalText,
+  truncateWelcomeText,
+  WELCOME_TEXT_LIMITS,
+} from '@onyu/shared';
 import type { SendableChannels } from 'discord.js';
-import { AttachmentBuilder, Client, EmbedBuilder, type GuildMember } from 'discord.js';
+import {
+  AttachmentBuilder,
+  Client,
+  EmbedBuilder,
+  type GuildMember,
+  PermissionFlagsBits,
+} from 'discord.js';
 
 import { lookupConfigWithRetry } from './config-lookup-retry';
 import {
-  buildMissionVars,
-  MISSION_VAR_NAMES,
-  stripUnfilledMissionLines,
-  toOptionalText,
-} from './welcome-template.util';
+  buildWelcomeTextOnly,
+  resolveWelcomeSendPlan,
+  type WelcomeChannelPerms,
+} from './welcome-send-plan';
 
 /** 환영인사 Canvas 카드 첨부파일 고정 파일명 — best-friend.command.ts:186 관례 */
 const WELCOME_CARD_ATTACHMENT_NAME = 'welcome-card.png';
+
+/** sendWelcomeEmbed 입력 — 파라미터 수 제한(최대 3)을 지키기 위해 객체로 묶는다. */
+interface SendWelcomeEmbedParams {
+  channel: SendableChannels;
+  member: GuildMember;
+  config: NewbieConfigDto;
+  content: string | undefined;
+  vars: Record<string, string>;
+  isTextOnly: boolean;
+}
 
 /**
  * Discord guildMemberAdd 이벤트를 수신하여 신입 온보딩을 처리한다.
@@ -132,74 +159,153 @@ export class BotNewbieMemberAddHandler {
         return;
       }
 
-      const vars: Record<string, string> = {
-        username: member.displayName,
-        mention: `<@${member.id}>`,
-        memberCount: String(member.guild.memberCount),
-        serverName: member.guild.name,
-        // F-NEWBIE-009 — 미션 안내 변수 4개(빈 문자열 치환 규칙은 buildMissionVars 참조)
-        ...buildMissionVars(config),
-      };
-      // F1(review-575-followup §2-1 C) — 전처리 결과가 공백뿐이면 content 자체를 생략한다
-      // (빈 content 필드를 굳이 실어 보내지 않는다).
-      const content = config.welcomeContent
-        ? toOptionalText(this.applyWelcomeTemplate(config.welcomeContent, vars))
-        : undefined;
+      // EC-NEWBIE-53 순서 유지 — 채널 길드 소속 확인 뒤, E4 호출 전에 권한을 1회 판정한다(사후 재시도 없음).
+      const perms = this.resolveChannelPerms(channel, member);
+      const plan = resolveWelcomeSendPlan(perms, config.welcomeDisplayMode);
+      if (plan === 'skip') {
+        this.logger.warn(
+          `[BOT] welcome skipped (채널 권한 부족): guild=${member.guild.id} channel=${config.welcomeChannelId}`,
+        );
+        this.recordWelcomeFailure(member);
+        return;
+      }
+      const vars = this.buildWelcomeVars(member, config);
+      const content = this.renderWelcomeContent(config, vars);
 
+      if (plan === 'canvas' && (await this.sendWelcomeCanvasTracked(channel, member, content))) {
+        return;
+      }
       if (config.welcomeDisplayMode === 'CANVAS') {
-        const sent = await this.sendWelcomeCanvas(channel, member, content);
-        if (sent) {
-          // F-USAGE-042 — 자동 동작 계측(fire-and-forget). 실패가 원 동작을 막지 않는다(§18-10).
-          // welcome-sent(총 발송, 하위호환)에 더해 welcome-canvas-sent 를 함께 적재한다 —
-          // 강등률 분모(welcome-canvas-sent + welcome-canvas-fallback)를 만들기 위함(2026-09-21).
-          void this.apiClient
-            .recordAutoAction({
-              guildId: member.guild.id,
-              domain: 'newbie',
-              action: 'welcome-sent',
-            })
-            .catch(() => undefined);
-          void this.apiClient
-            .recordAutoAction({
-              guildId: member.guild.id,
-              domain: 'newbie',
-              action: 'welcome-canvas-sent',
-            })
-            .catch(() => undefined);
-          return;
-        }
-        // 재시도 없음 — 즉시 EMBED 강등(TC-02-06/TC-02-10). 강등 계측은 EMBED 발송 시도 전에
-        // 남긴다 — EMBED 까지 실패하는 케이스에서도 "CANVAS 시도가 실패했다"는 분자가
-        // 누락되면 안 되기 때문이다(분모=welcome-canvas-sent+welcome-canvas-fallback, 2026-09-21).
-        void this.apiClient
-          .recordAutoAction({
-            guildId: member.guild.id,
-            domain: 'newbie',
-            action: 'welcome-canvas-fallback',
-          })
-          .catch(() => undefined);
+        // 재시도 없음 — 즉시 EMBED 강등(TC-02-06/TC-02-10) 또는 AttachFiles 부재로 E4 호출 없이 강등.
+        // 강등 계측은 EMBED 발송 시도 전에 남긴다 — EMBED 까지 실패하는 케이스에서도 "CANVAS 시도가
+        // 실패했다"는 분자가 누락되면 안 되기 때문이다(분모=welcome-canvas-sent+welcome-canvas-fallback, 2026-09-21).
+        this.recordNewbieAutoAction(member.guild.id, 'welcome-canvas-fallback');
       }
 
-      await this.sendWelcomeEmbed(channel, member, config, content, vars);
-      // F-USAGE-042 — 자동 동작 계측(fire-and-forget). 실패가 원 동작을 막지 않는다(§18-10).
+      // plan 이 canvas 인 채 E4 가 실패했다면 EMBED 기준으로 재판정한다(EmbedLinks 부재 시 텍스트-only).
+      const embedPlan = plan === 'canvas' ? resolveWelcomeSendPlan(perms, 'EMBED') : plan;
+      const isSent = await this.sendWelcomeEmbed({
+        channel,
+        member,
+        config,
+        content,
+        vars,
+        isTextOnly: embedPlan === 'text',
+      });
+      if (!isSent) {
+        // Embed 조립 실패 + content 없음 — 실제 발송 0건이므로 welcome-sent 를 계상하지 않고 실패로 기록한다(EC-NEWBIE-121).
+        this.recordWelcomeFailure(member);
+        return;
+      }
       // CANVAS 성공 경로는 위에서 이미 return 하므로 이중 계상 없음.
-      void this.apiClient
-        .recordAutoAction({ guildId: member.guild.id, domain: 'newbie', action: 'welcome-sent' })
-        .catch(() => undefined);
+      this.recordNewbieAutoAction(member.guild.id, 'welcome-sent');
     } catch (err) {
       this.logger.error(
         `[BOT] Welcome message failed: guild=${member.guild.id} member=${member.id}`,
         err instanceof Error ? err.stack : err,
       );
-      // F-ADMIN-LOG-006 — 관리 로그 게시(fire-and-forget). 원 동작(환영 메시지 발송)에는
-      // 절대 영향을 주지 않는다(계획 §2 P4).
-      void this.apiClient
-        .recordNewbieOnboardingFailure({
-          guildId: member.guild.id,
-          memberId: member.id,
-          kind: 'welcome_message',
-        })
-        .catch(() => undefined);
+      this.recordWelcomeFailure(member);
+    }
+  }
+
+  /** 환영 템플릿 치환 변수 — 기본 4종 + 미션 안내 변수 4개(F-NEWBIE-009, 빈 문자열 치환 규칙은 buildWelcomeMissionVars 참조). */
+  private buildWelcomeVars(member: GuildMember, config: NewbieConfigDto): Record<string, string> {
+    return {
+      username: member.displayName,
+      mention: `<@${member.id}>`,
+      memberCount: String(member.guild.memberCount),
+      serverName: member.guild.name,
+      ...buildWelcomeMissionVars(config),
+    };
+  }
+
+  /**
+   * F1(review-575-followup §2-1 C) — 전처리 결과가 공백뿐이면 content 자체를 생략한다
+   * (빈 content 필드를 굳이 실어 보내지 않는다). 치환 후 길이 초과분은 잘라낸다(①-5).
+   */
+  private renderWelcomeContent(
+    config: NewbieConfigDto,
+    vars: Record<string, string>,
+  ): string | undefined {
+    if (!config.welcomeContent) return undefined;
+    return toOptionalText(
+      truncateWelcomeText(
+        applyWelcomeTemplate(config.welcomeContent, vars),
+        WELCOME_TEXT_LIMITS.content,
+      ),
+    );
+  }
+
+  /**
+   * Canvas 발송 + 성공 계측 묶음. welcome-sent(총 발송, 하위호환)에 더해 welcome-canvas-sent 를 함께 적재한다 —
+   * 강등률 분모(welcome-canvas-sent + welcome-canvas-fallback)를 만들기 위함(2026-09-21).
+   * @returns true면 Canvas 발송 성공(호출부는 EMBED를 건너뛴다)
+   */
+  private async sendWelcomeCanvasTracked(
+    channel: SendableChannels,
+    member: GuildMember,
+    content: string | undefined,
+  ): Promise<boolean> {
+    const isSent = await this.sendWelcomeCanvas(channel, member, content);
+    if (isSent) {
+      this.recordNewbieAutoAction(member.guild.id, 'welcome-sent');
+      this.recordNewbieAutoAction(member.guild.id, 'welcome-canvas-sent');
+    }
+    return isSent;
+  }
+
+  /** F-USAGE-042 — newbie 자동 동작 계측(fire-and-forget). 실패가 원 동작을 막지 않는다(§18-10). */
+  private recordNewbieAutoAction(guildId: string, action: AutoActionRecordDto['action']): void {
+    void this.apiClient
+      .recordAutoAction({ guildId, domain: 'newbie', action })
+      .catch(() => undefined);
+  }
+
+  /**
+   * F-ADMIN-LOG-006 — 관리 로그 게시(fire-and-forget). 원 동작(환영 메시지 발송)에는
+   * 절대 영향을 주지 않는다(계획 §2 P4). kind 어휘는 welcome_message 를 재사용한다.
+   */
+  private recordWelcomeFailure(member: GuildMember): void {
+    // welcome-sent 는 성공 경로에서만 계상되므로 실패 경로 호출과 이중 계상되지 않는다.
+    this.recordNewbieAutoAction(member.guild.id, 'welcome-failed');
+    void this.apiClient
+      .recordNewbieOnboardingFailure({
+        guildId: member.guild.id,
+        memberId: member.id,
+        kind: 'welcome_message',
+      })
+      .catch(() => undefined);
+  }
+
+  /**
+   * 봇의 환영 채널 권한을 1회 조회한다. 조회 불가(members.me 없음 · permissionsFor 부재/null · throw)면
+   * null 을 반환해 현행 경로를 유지한다(fail-open).
+   */
+  private resolveChannelPerms(
+    channel: SendableChannels,
+    member: GuildMember,
+  ): WelcomeChannelPerms | null {
+    if (!('permissionsFor' in channel) || typeof channel.permissionsFor !== 'function') return null;
+    try {
+      const me = member.guild.members.me;
+      if (!me) return null;
+      const perms = channel.permissionsFor(me);
+      if (!perms) return null;
+      const sendFlag = channel.isThread()
+        ? PermissionFlagsBits.SendMessagesInThreads
+        : PermissionFlagsBits.SendMessages;
+      return {
+        canView: perms.has(PermissionFlagsBits.ViewChannel),
+        canSend: perms.has(sendFlag),
+        canEmbed: perms.has(PermissionFlagsBits.EmbedLinks),
+        canAttach: perms.has(PermissionFlagsBits.AttachFiles),
+      };
+    } catch (err) {
+      this.logger.warn(
+        `[BOT] welcome 권한 조회 실패 → 현행 경로: guild=${member.guild.id}`,
+        err instanceof Error ? err.stack : err,
+      );
+      return null;
     }
   }
 
@@ -248,14 +354,23 @@ export class BotNewbieMemberAddHandler {
    * 나도(🔒 `setColor`/`setThumbnail` 등 인접 위험) content만이라도 발송을 시도하는
    * 방어선을 둔다 — "환영 메시지 발송은 어떤 경우에도 보장돼야 하는 핵심 불변식"(:92)을
    * 임베드 조립 실패가 다시 깨지 않도록 하기 위함이다.
+   * @returns 실제로 channel.send 가 수행됐으면 true, 조립 실패 + content 없음으로 발송이 없었으면 false
    */
-  private async sendWelcomeEmbed(
-    channel: SendableChannels,
-    member: GuildMember,
-    config: NewbieConfigDto,
-    content: string | undefined,
-    vars: Record<string, string>,
-  ): Promise<void> {
+  private async sendWelcomeEmbed(params: SendWelcomeEmbedParams): Promise<boolean> {
+    const { channel, member, config, content, vars, isTextOnly } = params;
+    if (isTextOnly) {
+      // EmbedLinks 부재 — 임베드 대신 텍스트 1건. 이전엔 이 상황에서 발송 자체가 실패했으므로
+      // 신규 경로이며, 멘션이 동작하도록 allowedMentions 를 명시한다.
+      const text = buildWelcomeTextOnly({
+        content,
+        title: this.renderTitle(config, vars),
+        description: this.renderDescription(config, vars),
+      });
+      if (!text) throw new Error('welcome text-only fallback is empty');
+      await channel.send({ content: text, allowedMentions: { parse: ['users', 'roles'] } });
+      return true;
+    }
+
     let embed: EmbedBuilder;
     try {
       embed = this.buildWelcomeEmbed(config, member, vars);
@@ -264,12 +379,13 @@ export class BotNewbieMemberAddHandler {
         `[BOT] Welcome embed 조립 실패 → content-only 폴백 시도: guild=${member.guild.id} member=${member.id}`,
         err instanceof Error ? err.stack : err,
       );
-      if (!content) return; // 폴백 대상(content)도 없으면 현행과 동일하게 발송 없이 종료
+      if (!content) return false; // 폴백 대상(content)도 없으면 발송 없이 종료 — 호출부가 실패로 기록한다
       await channel.send({ content });
-      return;
+      return true;
     }
 
     await channel.send({ content, embeds: [embed.toJSON()] });
+    return true;
   }
 
   /** sendWelcomeEmbed의 임베드 조립 전용 분리 지점 — 빌더 setter 호출은 여기서만 일어난다. */
@@ -280,21 +396,18 @@ export class BotNewbieMemberAddHandler {
   ): EmbedBuilder {
     const embed = new EmbedBuilder();
 
-    const title = config.welcomeEmbedTitle
-      ? toOptionalText(this.applyWelcomeTemplate(config.welcomeEmbedTitle, vars))
-      : undefined;
+    const title = this.renderTitle(config, vars);
     if (title) {
       embed.setTitle(title);
     }
 
-    const description = config.welcomeEmbedDescription
-      ? toOptionalText(this.applyWelcomeTemplate(config.welcomeEmbedDescription, vars))
-      : undefined;
+    const description = this.renderDescription(config, vars);
     if (description) {
       embed.setDescription(description);
     }
 
     if (config.welcomeEmbedColor) {
+      // as 사유: DTO 는 string 이지만 API 저장 검증이 #RRGGBB 형식만 통과시키므로 discord.js 의 HexColorString 으로 좁힌다.
       embed.setColor(config.welcomeEmbedColor as `#${string}`);
     }
     if (config.welcomeEmbedThumbnailUrl) {
@@ -306,22 +419,28 @@ export class BotNewbieMemberAddHandler {
     return embed;
   }
 
-  /**
-   * F-NEWBIE-009 — 치환 직전에 미션 변수 조건부 렌더(줄 단위 전처리)를 적용한 뒤 기존
-   * `applyTemplate`을 호출한다. `welcomeContent`/`welcomeEmbedTitle`/`welcomeEmbedDescription`
-   * 3곳 모두 이 경로를 거친다(계획 §S1-2 적용 범위).
-   */
-  private applyWelcomeTemplate(template: string, vars: Record<string, string>): string {
-    const preprocessed = stripUnfilledMissionLines(template, MISSION_VAR_NAMES, vars);
-    return this.applyTemplate(preprocessed, vars);
+  /** 임베드 제목 렌더 — shared 치환(미션 줄 삭제 포함) 후 256 코드포인트로 잘라내고 공백뿐이면 undefined. */
+  private renderTitle(config: NewbieConfigDto, vars: Record<string, string>): string | undefined {
+    if (!config.welcomeEmbedTitle) return undefined;
+    return toOptionalText(
+      truncateWelcomeText(
+        applyWelcomeTemplate(config.welcomeEmbedTitle, vars),
+        WELCOME_TEXT_LIMITS.embedTitle,
+      ),
+    );
   }
 
-  private applyTemplate(template: string, vars: Record<string, string>): string {
-    // replacement를 함수로 전달 — 문자열로 넘기면 user-controlled value(닉네임 등) 내부의
-    // `$&`, `$$`, `$'` 같은 특수 패턴이 String.replace의 치환 메타문자로 오해석돼 메시지가 훼손된다.
-    return Object.entries(vars).reduce(
-      (result, [key, value]) => result.replace(new RegExp(`\\{${key}\\}`, 'g'), () => value),
-      template,
+  /** 임베드 설명 렌더 — 4096 코드포인트로 잘라낸다. */
+  private renderDescription(
+    config: NewbieConfigDto,
+    vars: Record<string, string>,
+  ): string | undefined {
+    if (!config.welcomeEmbedDescription) return undefined;
+    return toOptionalText(
+      truncateWelcomeText(
+        applyWelcomeTemplate(config.welcomeEmbedDescription, vars),
+        WELCOME_TEXT_LIMITS.embedDescription,
+      ),
     );
   }
 

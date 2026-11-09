@@ -22,5 +22,6 @@
   "durationHourMin": "{h}시간 {m}분",
   "mocoDataUnavailable": "데이터를 불러올 수 없습니다.",
   "welcomeCardGreeting": "{username}님, 환영합니다!",
-  "welcomeCardMemberChip": "{count}번째 멤버"
+  "welcomeCardMemberChip": "{count}번째 멤버",
+  "welcomeTestNotice": "🧪 테스트 발송입니다. 실제 신규 멤버 가입 시 이렇게 표시됩니다."
 }

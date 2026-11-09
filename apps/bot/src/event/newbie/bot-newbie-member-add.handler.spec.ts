@@ -7,6 +7,7 @@
  */
 import type { BotApiClientService, NewbieConfigDto } from '@onyu/bot-api-client';
 import type { Client, GuildMember } from 'discord.js';
+import { PermissionFlagsBits } from 'discord.js';
 import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from 'vitest';
 
 import { BotNewbieMemberAddHandler } from './bot-newbie-member-add.handler';
@@ -1215,7 +1216,7 @@ describe('BotNewbieMemberAddHandler', () => {
       });
     });
 
-    it('CANVAS 실패 → EMBED 까지 실패 시 welcome-canvas-fallback만 기록되고 welcome-sent는 기록되지 않는다', async () => {
+    it('CANVAS 실패 → EMBED 까지 실패 시 welcome-canvas-fallback + welcome-failed 가 기록되고 welcome-sent는 기록되지 않는다', async () => {
       apiClient.getNewbieConfig.mockResolvedValue(
         makeConfig({
           welcomeEnabled: true,
@@ -1234,15 +1235,23 @@ describe('BotNewbieMemberAddHandler', () => {
 
       await handler.handleGuildMemberAdd(member);
 
-      expect(apiClient.recordAutoAction).toHaveBeenCalledTimes(1);
+      expect(apiClient.recordAutoAction).toHaveBeenCalledTimes(2);
       expect(apiClient.recordAutoAction).toHaveBeenCalledWith({
         guildId: 'guild-1',
         domain: 'newbie',
         action: 'welcome-canvas-fallback',
       });
+      expect(apiClient.recordAutoAction).toHaveBeenCalledWith({
+        guildId: 'guild-1',
+        domain: 'newbie',
+        action: 'welcome-failed',
+      });
+      expect(apiClient.recordAutoAction).not.toHaveBeenCalledWith(
+        expect.objectContaining({ action: 'welcome-sent' }),
+      );
     });
 
-    it('완전 실패(channel.send throw) 시 0회 기록한다', async () => {
+    it('완전 실패(channel.send throw) 시 welcome-failed 1회만 기록한다', async () => {
       apiClient.getNewbieConfig.mockResolvedValue(
         makeConfig({ welcomeEnabled: true, welcomeChannelId: 'ch-1', welcomeDisplayMode: 'EMBED' }),
       );
@@ -1256,7 +1265,54 @@ describe('BotNewbieMemberAddHandler', () => {
 
       await handler.handleGuildMemberAdd(member);
 
-      expect(apiClient.recordAutoAction).not.toHaveBeenCalled();
+      expect(apiClient.recordAutoAction).toHaveBeenCalledTimes(1);
+      expect(apiClient.recordAutoAction).toHaveBeenCalledWith({
+        guildId: 'guild-1',
+        domain: 'newbie',
+        action: 'welcome-failed',
+      });
+    });
+
+    it('EMBED 성공 시 welcome-failed 를 기록하지 않는다', async () => {
+      apiClient.getNewbieConfig.mockResolvedValue(
+        makeConfig({ welcomeEnabled: true, welcomeChannelId: 'ch-1', welcomeDisplayMode: 'EMBED' }),
+      );
+      discordClient.channels.fetch.mockResolvedValue({
+        isTextBased: () => true,
+        isDMBased: () => false,
+        guildId: 'guild-1',
+        send: vi.fn().mockResolvedValue(undefined),
+      });
+
+      await handler.handleGuildMemberAdd(makeMember());
+
+      const actions = apiClient.recordAutoAction.mock.calls.map(
+        (call) => (call[0] as { action: string }).action,
+      );
+      expect(actions).toEqual(['welcome-sent']);
+    });
+
+    it('CANVAS 성공 시 welcome-failed 를 기록하지 않는다', async () => {
+      apiClient.getNewbieConfig.mockResolvedValue(
+        makeConfig({
+          welcomeEnabled: true,
+          welcomeChannelId: 'ch-1',
+          welcomeDisplayMode: 'CANVAS',
+        }),
+      );
+      discordClient.channels.fetch.mockResolvedValue({
+        isTextBased: () => true,
+        isDMBased: () => false,
+        guildId: 'guild-1',
+        send: vi.fn().mockResolvedValue(undefined),
+      });
+
+      await handler.handleGuildMemberAdd(makeMember());
+
+      const actions = apiClient.recordAutoAction.mock.calls.map(
+        (call) => (call[0] as { action: string }).action,
+      );
+      expect(actions).toEqual(['welcome-sent', 'welcome-canvas-sent']);
     });
 
     it('recordAutoAction이 reject해도 핸들러가 정상 완료된다', async () => {
@@ -1603,6 +1659,638 @@ describe('BotNewbieMemberAddHandler', () => {
       expect(apiClient.upsertGuildMember).toHaveBeenCalledWith(
         expect.objectContaining({ isBot: true }),
       );
+    });
+  });
+
+  // ──────────────────────────────────────────────────────
+  // 환영 설정 개편 — 발송 전 권한 분기(plan §2.3 · EC-NEWBIE-114~123)
+  // ──────────────────────────────────────────────────────
+  describe('환영 발송 전 권한 분기 (EC-NEWBIE-114~120)', () => {
+    type PermName = 'view' | 'send' | 'sendInThreads' | 'embed' | 'attach';
+    const PERM_FLAG: Record<PermName, bigint> = {
+      view: PermissionFlagsBits.ViewChannel,
+      send: PermissionFlagsBits.SendMessages,
+      sendInThreads: PermissionFlagsBits.SendMessagesInThreads,
+      embed: PermissionFlagsBits.EmbedLinks,
+      attach: PermissionFlagsBits.AttachFiles,
+    };
+    const ALL_PERMS: PermName[] = ['view', 'send', 'sendInThreads', 'embed', 'attach'];
+
+    function makePermissions(granted: PermName[]): { has: (flag: bigint) => boolean } {
+      const flags = new Set(granted.map((name) => PERM_FLAG[name]));
+      return { has: (flag: bigint) => flags.has(flag) };
+    }
+
+    function makeChannelWithPerms(
+      granted: PermName[],
+      options: { isThread?: boolean; send?: Mock } = {},
+    ): { channel: Record<string, unknown>; send: Mock; permissionsFor: Mock } {
+      const send = options.send ?? vi.fn().mockResolvedValue(undefined);
+      const permissionsFor = vi.fn().mockReturnValue(makePermissions(granted));
+      const channel = {
+        isTextBased: () => true,
+        isDMBased: () => false,
+        isThread: () => options.isThread ?? false,
+        guildId: 'guild-1',
+        permissionsFor,
+        send,
+      };
+      return { channel, send, permissionsFor };
+    }
+
+    function makeMemberWithMe(me: unknown = { id: 'bot-me' }): GuildMember {
+      return makeMember({
+        guild: { id: 'guild-1', memberCount: 100, name: '테스트 서버', members: { me } },
+      });
+    }
+
+    function setConfig(overrides: Partial<NewbieConfigDto> = {}): void {
+      apiClient.getNewbieConfig.mockResolvedValue(
+        makeConfig({ welcomeEnabled: true, welcomeChannelId: 'ch-1', ...overrides }),
+      );
+    }
+
+    function recordedActions(): string[] {
+      return apiClient.recordAutoAction.mock.calls.map(
+        (call) => (call[0] as { action: string }).action,
+      );
+    }
+
+    describe('fail-open — 판정 불가면 현행 경로 (EC-NEWBIE-118)', () => {
+      it('채널에 permissionsFor 가 없으면 분기 없이 EMBED 로 발송하고 welcome-sent 를 계상한다', async () => {
+        setConfig();
+        const send = vi.fn().mockResolvedValue(undefined);
+        discordClient.channels.fetch.mockResolvedValue({
+          isTextBased: () => true,
+          isDMBased: () => false,
+          guildId: 'guild-1',
+          send,
+        });
+
+        await handler.handleGuildMemberAdd(makeMemberWithMe());
+
+        expect(send).toHaveBeenCalledTimes(1);
+        const arg = send.mock.calls[0][0] as { embeds?: unknown[]; allowedMentions?: unknown };
+        expect(arg.embeds).toHaveLength(1);
+        expect(arg.allowedMentions).toBeUndefined();
+        expect(recordedActions()).toEqual(['welcome-sent']);
+        expect(apiClient.recordNewbieOnboardingFailure).not.toHaveBeenCalled();
+      });
+
+      it('member.guild.members.me 가 null 이면 permissionsFor 를 호출하지 않고 현행 경로로 발송한다', async () => {
+        setConfig();
+        const { channel, send, permissionsFor } = makeChannelWithPerms([]);
+        discordClient.channels.fetch.mockResolvedValue(channel);
+
+        await handler.handleGuildMemberAdd(makeMemberWithMe(null));
+
+        expect(permissionsFor).not.toHaveBeenCalled();
+        expect(send).toHaveBeenCalledTimes(1);
+        expect(recordedActions()).toEqual(['welcome-sent']);
+        expect(apiClient.recordNewbieOnboardingFailure).not.toHaveBeenCalled();
+      });
+
+      it('permissionsFor 가 null 을 반환하면 현행 경로로 발송한다', async () => {
+        setConfig();
+        const { channel, send, permissionsFor } = makeChannelWithPerms([]);
+        permissionsFor.mockReturnValue(null);
+        discordClient.channels.fetch.mockResolvedValue(channel);
+
+        await handler.handleGuildMemberAdd(makeMemberWithMe());
+
+        expect(send).toHaveBeenCalledTimes(1);
+        const arg = send.mock.calls[0][0] as { embeds?: unknown[] };
+        expect(arg.embeds).toHaveLength(1);
+        expect(recordedActions()).toEqual(['welcome-sent']);
+      });
+
+      it('permissionsFor 가 throw 하면 warn 후 현행 경로로 발송한다(발송 보장)', async () => {
+        setConfig();
+        const warnSpy = vi
+          .spyOn((handler as unknown as { logger: { warn: (m: string) => void } }).logger, 'warn')
+          .mockImplementation(() => undefined);
+        const { channel, send, permissionsFor } = makeChannelWithPerms([]);
+        permissionsFor.mockImplementation(() => {
+          throw new Error('permission cache broken');
+        });
+        discordClient.channels.fetch.mockResolvedValue(channel);
+
+        await handler.handleGuildMemberAdd(makeMemberWithMe());
+
+        expect(warnSpy).toHaveBeenCalledWith(
+          expect.stringContaining('welcome 권한 조회 실패'),
+          expect.any(String),
+        );
+        expect(send).toHaveBeenCalledTimes(1);
+        expect(recordedActions()).toEqual(['welcome-sent']);
+        expect(apiClient.recordNewbieOnboardingFailure).not.toHaveBeenCalled();
+      });
+
+      it('fail-open + CANVAS 면 현행대로 E4 를 호출해 카드를 발송한다', async () => {
+        setConfig({ welcomeDisplayMode: 'CANVAS' });
+        const { channel, send, permissionsFor } = makeChannelWithPerms([]);
+        permissionsFor.mockReturnValue(null);
+        discordClient.channels.fetch.mockResolvedValue(channel);
+
+        await handler.handleGuildMemberAdd(makeMemberWithMe());
+
+        expect(apiClient.getWelcomeCard).toHaveBeenCalledTimes(1);
+        const arg = send.mock.calls[0][0] as { files?: unknown[] };
+        expect(arg.files).toHaveLength(1);
+        expect(recordedActions()).toEqual(['welcome-sent', 'welcome-canvas-sent']);
+      });
+    });
+
+    describe('ViewChannel/SendMessages 없음 → 발송 생략 (EC-NEWBIE-114)', () => {
+      const SKIP_CASES: Array<{ title: string; granted: PermName[]; isThread?: boolean }> = [
+        { title: 'ViewChannel 없음', granted: ['send', 'embed', 'attach'] },
+        { title: 'SendMessages 없음', granted: ['view', 'embed', 'attach'] },
+        {
+          title: '스레드인데 SendMessagesInThreads 없음(SendMessages 만 있어도 생략)',
+          granted: ['view', 'send', 'embed', 'attach'],
+          isThread: true,
+        },
+      ];
+
+      it.each(SKIP_CASES)(
+        '$title 이면 E4·channel.send 0회, warn + 실패 기록 1회, welcome-sent 미계상, 미션·역할은 계속한다',
+        async ({ granted, isThread }) => {
+          setConfig({
+            welcomeDisplayMode: 'CANVAS',
+            missionEnabled: true,
+            roleEnabled: true,
+            newbieRoleId: 'role-1',
+          });
+          const warnSpy = vi
+            .spyOn((handler as unknown as { logger: { warn: (m: string) => void } }).logger, 'warn')
+            .mockImplementation(() => undefined);
+          const { channel, send } = makeChannelWithPerms(granted, { isThread });
+          discordClient.channels.fetch.mockResolvedValue(channel);
+          const member = makeMemberWithMe();
+
+          await handler.handleGuildMemberAdd(member);
+
+          expect(apiClient.getWelcomeCard).not.toHaveBeenCalled();
+          expect(send).not.toHaveBeenCalled();
+          expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('welcome skipped'));
+          expect(apiClient.recordNewbieOnboardingFailure).toHaveBeenCalledTimes(1);
+          expect(apiClient.recordNewbieOnboardingFailure).toHaveBeenCalledWith({
+            guildId: 'guild-1',
+            memberId: 'member-1',
+            kind: 'welcome_message',
+          });
+          // 역할 부여는 계속되므로 role-assigned 가 함께 기록된다 — welcome-failed 는 정확히 1회.
+          expect(recordedActions()).toEqual(['welcome-failed', 'role-assigned']);
+          expect(apiClient.sendMemberJoin).toHaveBeenCalledTimes(1);
+          expect(member.roles.add).toHaveBeenCalledWith('role-1');
+        },
+      );
+
+      it('스레드는 SendMessages 가 아니라 SendMessagesInThreads 로 판정한다(SendMessages 없어도 발송)', async () => {
+        setConfig();
+        const { channel, send } = makeChannelWithPerms(['view', 'sendInThreads', 'embed'], {
+          isThread: true,
+        });
+        discordClient.channels.fetch.mockResolvedValue(channel);
+
+        await handler.handleGuildMemberAdd(makeMemberWithMe());
+
+        expect(send).toHaveBeenCalledTimes(1);
+        expect(recordedActions()).toEqual(['welcome-sent']);
+        expect(apiClient.recordNewbieOnboardingFailure).not.toHaveBeenCalled();
+      });
+
+      it('일반 채널은 SendMessagesInThreads 만 있고 SendMessages 가 없으면 생략한다', async () => {
+        setConfig();
+        const { channel, send } = makeChannelWithPerms(['view', 'sendInThreads', 'embed']);
+        discordClient.channels.fetch.mockResolvedValue(channel);
+
+        await handler.handleGuildMemberAdd(makeMemberWithMe());
+
+        expect(send).not.toHaveBeenCalled();
+        expect(apiClient.recordNewbieOnboardingFailure).toHaveBeenCalledTimes(1);
+      });
+    });
+
+    describe('CANVAS + AttachFiles 없음 → E4 미호출 EMBED 강등 (EC-NEWBIE-115·117)', () => {
+      it('E4 를 호출하지 않고 Embed 로 발송하며 welcome-canvas-fallback + welcome-sent 를 계상한다(welcome-canvas-sent 없음)', async () => {
+        setConfig({ welcomeDisplayMode: 'CANVAS', welcomeEmbedTitle: '환영' });
+        const { channel, send } = makeChannelWithPerms(['view', 'send', 'embed']);
+        discordClient.channels.fetch.mockResolvedValue(channel);
+
+        await handler.handleGuildMemberAdd(makeMemberWithMe());
+
+        expect(apiClient.getWelcomeCard).not.toHaveBeenCalled();
+        expect(send).toHaveBeenCalledTimes(1);
+        const arg = send.mock.calls[0][0] as { embeds?: unknown[]; allowedMentions?: unknown };
+        expect(arg.embeds).toHaveLength(1);
+        expect(arg.allowedMentions).toBeUndefined();
+        expect(recordedActions()).toEqual(['welcome-canvas-fallback', 'welcome-sent']);
+      });
+
+      it('AttachFiles·EmbedLinks 둘 다 없으면 CANVAS 시도 없이 텍스트-only 1건 + fallback·sent 계상(EC-NEWBIE-117)', async () => {
+        setConfig({
+          welcomeDisplayMode: 'CANVAS',
+          welcomeContent: '안녕',
+          welcomeEmbedTitle: '제목',
+          welcomeEmbedDescription: '설명',
+        });
+        const { channel, send } = makeChannelWithPerms(['view', 'send']);
+        discordClient.channels.fetch.mockResolvedValue(channel);
+
+        await handler.handleGuildMemberAdd(makeMemberWithMe());
+
+        expect(apiClient.getWelcomeCard).not.toHaveBeenCalled();
+        expect(send).toHaveBeenCalledTimes(1);
+        expect(send).toHaveBeenCalledWith({
+          content: '안녕\n\n**제목**\n\n설명',
+          allowedMentions: { parse: ['users', 'roles'] },
+        });
+        expect(recordedActions()).toEqual(['welcome-canvas-fallback', 'welcome-sent']);
+      });
+
+      it('AttachFiles 가 있으면 정상 CANVAS 로 발송하고 welcome-canvas-fallback 은 계상하지 않는다', async () => {
+        setConfig({ welcomeDisplayMode: 'CANVAS' });
+        const { channel, send } = makeChannelWithPerms(ALL_PERMS);
+        discordClient.channels.fetch.mockResolvedValue(channel);
+
+        await handler.handleGuildMemberAdd(makeMemberWithMe());
+
+        expect(apiClient.getWelcomeCard).toHaveBeenCalledTimes(1);
+        const arg = send.mock.calls[0][0] as { files?: unknown[]; allowedMentions?: unknown };
+        expect(arg.files).toHaveLength(1);
+        expect(arg.allowedMentions).toBeUndefined();
+        expect(recordedActions()).toEqual(['welcome-sent', 'welcome-canvas-sent']);
+      });
+
+      it('AttachFiles 있고 EmbedLinks 없는 CANVAS 에서 E4 가 실패하면 EMBED 재판정으로 텍스트-only 로 발송한다', async () => {
+        setConfig({
+          welcomeDisplayMode: 'CANVAS',
+          welcomeContent: '안녕',
+          welcomeEmbedTitle: '제목',
+        });
+        apiClient.getWelcomeCard.mockRejectedValue(new Error('API 500'));
+        const { channel, send } = makeChannelWithPerms(['view', 'send', 'attach']);
+        discordClient.channels.fetch.mockResolvedValue(channel);
+
+        await handler.handleGuildMemberAdd(makeMemberWithMe());
+
+        expect(apiClient.getWelcomeCard).toHaveBeenCalledTimes(1);
+        expect(send).toHaveBeenCalledTimes(1);
+        expect(send).toHaveBeenCalledWith({
+          content: '안녕\n\n**제목**',
+          allowedMentions: { parse: ['users', 'roles'] },
+        });
+        expect(recordedActions()).toEqual(['welcome-canvas-fallback', 'welcome-sent']);
+      });
+
+      it('AttachFiles·EmbedLinks 모두 있는 CANVAS 에서 E4 가 실패하면 Embed 로 강등한다(텍스트-only 아님)', async () => {
+        setConfig({ welcomeDisplayMode: 'CANVAS', welcomeEmbedTitle: '제목' });
+        apiClient.getWelcomeCard.mockRejectedValue(new Error('API 500'));
+        const { channel, send } = makeChannelWithPerms(ALL_PERMS);
+        discordClient.channels.fetch.mockResolvedValue(channel);
+
+        await handler.handleGuildMemberAdd(makeMemberWithMe());
+
+        const arg = send.mock.calls[0][0] as { embeds?: unknown[]; allowedMentions?: unknown };
+        expect(arg.embeds).toHaveLength(1);
+        expect(arg.allowedMentions).toBeUndefined();
+      });
+    });
+
+    describe('EmbedLinks 없음 → 텍스트-only (EC-NEWBIE-116)', () => {
+      it('EMBED 모드 + EmbedLinks 없음이면 embeds 없이 텍스트 1건과 allowedMentions users/roles 로 발송하고 welcome-sent 1회를 계상한다', async () => {
+        setConfig({
+          welcomeDisplayMode: 'EMBED',
+          welcomeContent: '{mention} 환영해요',
+          welcomeEmbedTitle: '{serverName}',
+          welcomeEmbedDescription: '{username}님 반가워요',
+        });
+        const { channel, send } = makeChannelWithPerms(['view', 'send']);
+        discordClient.channels.fetch.mockResolvedValue(channel);
+
+        await handler.handleGuildMemberAdd(makeMemberWithMe());
+
+        expect(send).toHaveBeenCalledTimes(1);
+        expect(send).toHaveBeenCalledWith({
+          content: '<@member-1> 환영해요\n\n**테스트 서버**\n\n동현님 반가워요',
+          allowedMentions: { parse: ['users', 'roles'] },
+        });
+        expect(recordedActions()).toEqual(['welcome-sent']);
+        expect(apiClient.getWelcomeCard).not.toHaveBeenCalled();
+      });
+
+      it('allowedMentions.parse 에 everyone 이 포함되지 않는다(grandfather @everyone 알림 차단)', async () => {
+        setConfig({ welcomeContent: '@everyone 환영' });
+        const { channel, send } = makeChannelWithPerms(['view', 'send']);
+        discordClient.channels.fetch.mockResolvedValue(channel);
+
+        await handler.handleGuildMemberAdd(makeMemberWithMe());
+
+        const arg = send.mock.calls[0][0] as { allowedMentions: { parse: string[] } };
+        expect(arg.allowedMentions.parse).toEqual(['users', 'roles']);
+        expect(arg.allowedMentions.parse).not.toContain('everyone');
+      });
+
+      it('EmbedLinks 가 있으면 텍스트-only 로 내려가지 않고 Embed 로 발송한다', async () => {
+        setConfig({ welcomeEmbedTitle: '제목' });
+        const { channel, send } = makeChannelWithPerms(['view', 'send', 'embed']);
+        discordClient.channels.fetch.mockResolvedValue(channel);
+
+        await handler.handleGuildMemberAdd(makeMemberWithMe());
+
+        const arg = send.mock.calls[0][0] as { embeds?: unknown[]; allowedMentions?: unknown };
+        expect(arg.embeds).toHaveLength(1);
+        expect(arg.allowedMentions).toBeUndefined();
+      });
+    });
+
+    describe('텍스트 빈 결과 (EC-NEWBIE-121)', () => {
+      it('텍스트-only 인데 content·제목·설명이 모두 비면 발송 없이 실패 기록 1회, welcome-sent 미계상', async () => {
+        setConfig({
+          welcomeContent: null,
+          welcomeEmbedTitle: null,
+          welcomeEmbedDescription: null,
+        });
+        const { channel, send } = makeChannelWithPerms(['view', 'send']);
+        discordClient.channels.fetch.mockResolvedValue(channel);
+
+        await handler.handleGuildMemberAdd(makeMemberWithMe());
+
+        expect(send).not.toHaveBeenCalled();
+        expect(apiClient.recordNewbieOnboardingFailure).toHaveBeenCalledTimes(1);
+        expect(apiClient.recordNewbieOnboardingFailure).toHaveBeenCalledWith({
+          guildId: 'guild-1',
+          memberId: 'member-1',
+          kind: 'welcome_message',
+        });
+        expect(recordedActions()).not.toContain('welcome-sent');
+      });
+
+      it('치환 후 전부 공백(미션 줄만 있는 템플릿 + 미션 비활성)이어도 동일하게 실패로 기록한다', async () => {
+        setConfig({
+          missionEnabled: false,
+          welcomeContent: '{missionChannel}에서 확인',
+          welcomeEmbedTitle: '{missionDurationDays}일 미션',
+          welcomeEmbedDescription: '{missionTargetPlaytime}시간',
+        });
+        const { channel, send } = makeChannelWithPerms(['view', 'send']);
+        discordClient.channels.fetch.mockResolvedValue(channel);
+
+        await handler.handleGuildMemberAdd(makeMemberWithMe());
+
+        expect(send).not.toHaveBeenCalled();
+        expect(apiClient.recordNewbieOnboardingFailure).toHaveBeenCalledTimes(1);
+        expect(recordedActions()).not.toContain('welcome-sent');
+      });
+    });
+
+    describe('Embed 조립 실패 + content 없음 (EC-NEWBIE-121 인접)', () => {
+      it('setColor throw + content 없음이면 발송 0건, welcome-sent 미계상, 실패 기록 1회', async () => {
+        setConfig({
+          welcomeContent: null,
+          welcomeEmbedTitle: '제목',
+          welcomeEmbedColor: 'not-a-hex-color',
+        });
+        const { channel, send } = makeChannelWithPerms(ALL_PERMS);
+        discordClient.channels.fetch.mockResolvedValue(channel);
+        vi.spyOn(
+          (handler as unknown as { logger: { warn: (m: string) => void } }).logger,
+          'warn',
+        ).mockImplementation(() => undefined);
+
+        await handler.handleGuildMemberAdd(makeMemberWithMe());
+
+        expect(send).not.toHaveBeenCalled();
+        expect(recordedActions()).toEqual(['welcome-failed']);
+        expect(apiClient.recordNewbieOnboardingFailure).toHaveBeenCalledTimes(1);
+        expect(apiClient.recordNewbieOnboardingFailure).toHaveBeenCalledWith({
+          guildId: 'guild-1',
+          memberId: 'member-1',
+          kind: 'welcome_message',
+        });
+      });
+
+      it('fail-open(권한 판정 불가) 경로에서도 조립 실패 + content 없음이면 welcome-sent 를 계상하지 않는다', async () => {
+        setConfig({ welcomeContent: null, welcomeEmbedColor: 'not-a-hex-color' });
+        discordClient.channels.fetch.mockResolvedValue({
+          isTextBased: () => true,
+          isDMBased: () => false,
+          guildId: 'guild-1',
+          send: vi.fn().mockResolvedValue(undefined),
+        });
+        vi.spyOn(
+          (handler as unknown as { logger: { warn: (m: string) => void } }).logger,
+          'warn',
+        ).mockImplementation(() => undefined);
+
+        await handler.handleGuildMemberAdd(makeMemberWithMe());
+
+        expect(recordedActions()).toEqual(['welcome-failed']);
+        expect(apiClient.recordNewbieOnboardingFailure).toHaveBeenCalledTimes(1);
+      });
+
+      it('조립 실패여도 content 가 있으면 content-only 로 발송하고 welcome-sent 를 계상하며 allowedMentions 는 붙이지 않는다', async () => {
+        setConfig({ welcomeContent: '환영합니다!', welcomeEmbedColor: 'not-a-hex-color' });
+        const { channel, send } = makeChannelWithPerms(ALL_PERMS);
+        discordClient.channels.fetch.mockResolvedValue(channel);
+        vi.spyOn(
+          (handler as unknown as { logger: { warn: (m: string) => void } }).logger,
+          'warn',
+        ).mockImplementation(() => undefined);
+
+        await handler.handleGuildMemberAdd(makeMemberWithMe());
+
+        expect(send).toHaveBeenCalledTimes(1);
+        expect(send).toHaveBeenCalledWith({ content: '환영합니다!' });
+        expect(recordedActions()).toEqual(['welcome-sent']);
+        expect(apiClient.recordNewbieOnboardingFailure).not.toHaveBeenCalled();
+      });
+    });
+
+    describe('사전 분기 통과 후 발송 실패 (EC-NEWBIE-120)', () => {
+      it('권한 판정을 통과했지만 channel.send 가 throw 하면 재발송 없이 실패 기록만 남긴다(텍스트-only 재시도 금지)', async () => {
+        setConfig({ welcomeContent: '안녕', welcomeEmbedTitle: '제목' });
+        const sendMock = vi.fn().mockRejectedValue(new Error('Missing Permissions'));
+        const { channel, send } = makeChannelWithPerms(ALL_PERMS, { send: sendMock });
+        discordClient.channels.fetch.mockResolvedValue(channel);
+
+        await handler.handleGuildMemberAdd(makeMemberWithMe());
+
+        expect(send).toHaveBeenCalledTimes(1);
+        expect(recordedActions()).toEqual(['welcome-failed']);
+        expect(apiClient.recordNewbieOnboardingFailure).toHaveBeenCalledTimes(1);
+        expect(apiClient.recordNewbieOnboardingFailure).toHaveBeenCalledWith({
+          guildId: 'guild-1',
+          memberId: 'member-1',
+          kind: 'welcome_message',
+        });
+      });
+    });
+
+    describe('조기 종료 시 권한 조회 0회 (EC-NEWBIE-119)', () => {
+      it('타 길드 채널이면 permissionsFor 를 호출하지 않는다', async () => {
+        setConfig();
+        const { channel, send, permissionsFor } = makeChannelWithPerms(ALL_PERMS);
+        channel.guildId = 'guild-other';
+        discordClient.channels.fetch.mockResolvedValue(channel);
+        vi.spyOn(
+          (handler as unknown as { logger: { warn: (m: string) => void } }).logger,
+          'warn',
+        ).mockImplementation(() => undefined);
+
+        await handler.handleGuildMemberAdd(makeMemberWithMe());
+
+        expect(permissionsFor).not.toHaveBeenCalled();
+        expect(send).not.toHaveBeenCalled();
+      });
+
+      it('비텍스트 채널이면 permissionsFor 를 호출하지 않는다', async () => {
+        setConfig();
+        const { channel, send, permissionsFor } = makeChannelWithPerms(ALL_PERMS);
+        channel.isTextBased = () => false;
+        discordClient.channels.fetch.mockResolvedValue(channel);
+
+        await handler.handleGuildMemberAdd(makeMemberWithMe());
+
+        expect(permissionsFor).not.toHaveBeenCalled();
+        expect(send).not.toHaveBeenCalled();
+      });
+
+      it('채널 fetch 가 실패해도 permissionsFor 는 호출되지 않는다', async () => {
+        setConfig();
+        discordClient.channels.fetch.mockRejectedValue(new Error('Unknown Channel'));
+        const member = makeMemberWithMe();
+        const meSpy = vi.fn();
+        Object.defineProperty(member.guild.members, 'me', { get: meSpy });
+
+        await handler.handleGuildMemberAdd(member);
+
+        expect(meSpy).not.toHaveBeenCalled();
+      });
+    });
+  });
+
+  // ──────────────────────────────────────────────────────
+  // 발송 시 잘라내기 (EC-NEWBIE-123, SAFE-5)
+  // ──────────────────────────────────────────────────────
+  describe('발송 시 길이 잘라내기 (EC-NEWBIE-123)', () => {
+    function setConfig(overrides: Partial<NewbieConfigDto> = {}): void {
+      apiClient.getNewbieConfig.mockResolvedValue(
+        makeConfig({ welcomeEnabled: true, welcomeChannelId: 'ch-1', ...overrides }),
+      );
+    }
+
+    function setChannel(send: Mock, extra: Record<string, unknown> = {}): void {
+      discordClient.channels.fetch.mockResolvedValue({
+        isTextBased: () => true,
+        isDMBased: () => false,
+        guildId: 'guild-1',
+        send,
+        ...extra,
+      });
+    }
+
+    it('EMBED: content 2000 · 제목 256 · 설명 4096 코드포인트로 잘라내 발송한다', async () => {
+      setConfig({
+        welcomeContent: 'a'.repeat(3000),
+        welcomeEmbedTitle: 'b'.repeat(300),
+        welcomeEmbedDescription: 'c'.repeat(5000),
+      });
+      const send = vi.fn().mockResolvedValue(undefined);
+      setChannel(send);
+
+      await handler.handleGuildMemberAdd(makeMember());
+
+      const arg = send.mock.calls[0][0] as {
+        content: string;
+        embeds: Array<{ title: string; description: string }>;
+      };
+      expect(arg.content).toBe('a'.repeat(2000));
+      expect(arg.embeds[0].title).toBe('b'.repeat(256));
+      expect(arg.embeds[0].description).toBe('c'.repeat(4096));
+    });
+
+    it('한도 이내 값은 잘라내지 않고 말줄임표도 붙이지 않는다(경계값: 정확히 2000/256/4096)', async () => {
+      setConfig({
+        welcomeContent: 'a'.repeat(2000),
+        welcomeEmbedTitle: 'b'.repeat(256),
+        welcomeEmbedDescription: 'c'.repeat(4096),
+      });
+      const send = vi.fn().mockResolvedValue(undefined);
+      setChannel(send);
+
+      await handler.handleGuildMemberAdd(makeMember());
+
+      const arg = send.mock.calls[0][0] as {
+        content: string;
+        embeds: Array<{ title: string; description: string }>;
+      };
+      expect(arg.content).toBe('a'.repeat(2000));
+      expect(arg.embeds[0].title).toBe('b'.repeat(256));
+      expect(arg.embeds[0].description).toBe('c'.repeat(4096));
+    });
+
+    it('이모지(서러게이트 쌍)는 코드포인트 단위로 세어 lone surrogate 없이 잘라낸다', async () => {
+      setConfig({ welcomeContent: '😀'.repeat(2100) });
+      const send = vi.fn().mockResolvedValue(undefined);
+      setChannel(send);
+
+      await handler.handleGuildMemberAdd(makeMember());
+
+      const arg = send.mock.calls[0][0] as { content: string };
+      expect(Array.from(arg.content)).toHaveLength(2000);
+      expect(arg.content).toBe('😀'.repeat(2000));
+    });
+
+    it('변수 치환 "후" 길이로 잘라낸다(닉네임 반복으로 한도 초과)', async () => {
+      setConfig({ welcomeContent: '{username}'.repeat(100) });
+      const send = vi.fn().mockResolvedValue(undefined);
+      setChannel(send);
+
+      await handler.handleGuildMemberAdd(makeMember({ displayName: 'n'.repeat(32) }));
+
+      const arg = send.mock.calls[0][0] as { content: string };
+      expect(arg.content).toBe('n'.repeat(2000));
+    });
+
+    it('CANVAS 의 content 도 2000 코드포인트로 잘라낸다', async () => {
+      setConfig({ welcomeDisplayMode: 'CANVAS', welcomeContent: 'a'.repeat(2500) });
+      const send = vi.fn().mockResolvedValue(undefined);
+      setChannel(send);
+
+      await handler.handleGuildMemberAdd(makeMember());
+
+      const arg = send.mock.calls[0][0] as { content: string; files: unknown[] };
+      expect(arg.files).toHaveLength(1);
+      expect(arg.content).toBe('a'.repeat(2000));
+    });
+
+    it('텍스트-only 합본도 2000 코드포인트로 잘라낸다', async () => {
+      setConfig({
+        welcomeContent: 'a'.repeat(1500),
+        welcomeEmbedTitle: 'b'.repeat(200),
+        welcomeEmbedDescription: 'c'.repeat(2000),
+      });
+      const send = vi.fn().mockResolvedValue(undefined);
+      const permissions = {
+        has: (flag: bigint) =>
+          flag === PermissionFlagsBits.ViewChannel || flag === PermissionFlagsBits.SendMessages,
+      };
+      setChannel(send, {
+        isThread: () => false,
+        permissionsFor: vi.fn().mockReturnValue(permissions),
+      });
+      const member = makeMember({
+        guild: { id: 'guild-1', memberCount: 100, name: '서버', members: { me: { id: 'bot' } } },
+      });
+
+      await handler.handleGuildMemberAdd(member);
+
+      const arg = send.mock.calls[0][0] as { content: string };
+      const expected = `${'a'.repeat(1500)}\n\n**${'b'.repeat(200)}**\n\n${'c'.repeat(2000)}`;
+      expect(arg.content).toBe(Array.from(expected).slice(0, 2000).join(''));
+      expect(Array.from(arg.content)).toHaveLength(2000);
     });
   });
 });

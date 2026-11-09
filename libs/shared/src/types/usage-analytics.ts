@@ -145,7 +145,7 @@ export const AUTO_ACTION_DOMAINS = [
 ] as const;
 export type AutoActionDomain = (typeof AUTO_ACTION_DOMAINS)[number];
 
-/** 액션 화이트리스트 13종(도메인 간 재사용 있음) — auto_action_daily.action varchar(24) */
+/** 액션 화이트리스트 15종(도메인 간 재사용 있음) — auto_action_daily.action varchar(24) */
 export const AUTO_ACTION_TYPES = [
   'repost',
   'apply',
@@ -162,13 +162,18 @@ export const AUTO_ACTION_TYPES = [
   // 별도로 CANVAS 시도의 성공/강등을 구분해 분모/분자를 만든다.
   'welcome-canvas-sent',
   'welcome-canvas-fallback',
+  // 환영인사 최종 미발송(권한 부족 skip·EMBED 조립 실패·전송 예외) 계측(2026-11-09) —
+  // welcome-sent 와 상호 배타라 성공/실패 분모를 만든다.
+  'welcome-failed',
+  // 미션 보드 새 메시지 전송 실패 계측(2026-11-09) — 수정 실패→새 전송 폴백은 계측하지 않는다.
+  'mission-board-failed',
 ] as const;
 export type AutoActionType = (typeof AUTO_ACTION_TYPES)[number];
 
 /**
- * 도메인별 허용 액션 맵 — 14개 유효 조합의 유일 정본(F-USAGE-035 표).
+ * 도메인별 허용 액션 맵 — 16개 유효 조합의 유일 정본(F-USAGE-035 표).
  * 목록 밖 조합은 AutoActionUsageService.record()가 Redis 미접근 + 경고 로그만 남기고 drop 한다
- * (카디널리티 방어선, F-USAGE-044 — 하루 최대 활성 키 수 = 14 × 활성 길드 수).
+ * (카디널리티 방어선, F-USAGE-044 — 하루 최대 활성 키 수 = 16 × 활성 길드 수).
  */
 export const AUTO_ACTION_ALLOWED: Record<AutoActionDomain, readonly AutoActionType[]> = {
   'sticky-message': ['repost'],
@@ -181,6 +186,8 @@ export const AUTO_ACTION_ALLOWED: Record<AutoActionDomain, readonly AutoActionTy
     'role-expired-removed',
     'welcome-canvas-sent',
     'welcome-canvas-fallback',
+    'welcome-failed',
+    'mission-board-failed',
   ],
   level: ['role-granted', 'announced'],
   'inactive-member': ['auto-role-added'],

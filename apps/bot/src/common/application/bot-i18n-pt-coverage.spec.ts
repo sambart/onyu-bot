@@ -23,17 +23,9 @@ const LEGAL_KEY_PREFIXES = ['privacy.', 'terms.'] as const;
 /**
  * 1군(ko/en) 에만 추가되고 pt 번역이 아직 없는 키(2군 수동 작성 금지).
  * 번역 파이프라인 자동 PR 이 pt 를 채우면 해당 키를 여기서 제거한다.
- * (연말 결산 8키는 pt 자동 번역 PR `ac4f12e32` 로 채워져 제거됨)
+ * (연말 결산 8키는 pt 자동 번역 PR `ac4f12e32` 로, 궁합 7키·자동방 제어 패널 22키는 #1059 로 채워져 제거됨)
  */
-const PT_PENDING_TRANSLATION_KEYS: readonly string[] = [
-  // 랜덤 궁합(`/궁합`, F-COPRESENCE-036) — pt 는 번역 파이프라인이 채운다(en 폴백 동작)
-  'commands.compatBotTarget',
-  'commands.compatCooldown',
-  'commands.compatError',
-  'commands.compatNonMember',
-  'commands.compatPeerHidden',
-  'commands.compatPosted',
-];
+const PT_PENDING_TRANSLATION_KEYS: readonly string[] = [];
 
 type Messages = Record<string, string>;
 
@@ -71,7 +63,8 @@ describe('pt 봇 JSON 완결성', () => {
       .map((key) => `${ADMIN_ASSIST_NAMESPACE}.${key}`)
       .sort();
 
-    expect(expected).toHaveLength(17);
+    // 개수는 고정하지 않는다(adminAssist 키 추가마다 깨짐) — 접두사 오타로 빈 목록이 되는 것만 막는다
+    expect(expected.length).toBeGreaterThan(0);
     expect(missingKeys()).toEqual([...expected, ...PT_PENDING_TRANSLATION_KEYS].sort());
   });
 

@@ -2,6 +2,7 @@ import { DiscordModule } from '@discord-nestjs/core';
 import { Module } from '@nestjs/common';
 
 import { BotCommonModule } from '../common/bot-common.module';
+import { BotAutoChannelControlHandler } from './auto-channel/bot-auto-channel-control.handler';
 import { BotAutoChannelInteractionHandler } from './auto-channel/bot-auto-channel-interaction.handler';
 import { BotChannelStateHandler } from './channel/bot-channel-state.handler';
 import { BotDuoChemistryInteractionHandler } from './friend/bot-duo-chemistry-interaction.handler';
@@ -43,6 +44,8 @@ import { BotVoiceSyncHandler } from './voice/bot-voice-sync.handler';
     BotNewbieInteractionHandler,
     BotStatusPrefixInteractionHandler,
     BotAutoChannelInteractionHandler,
+    // Auto Channel 생성자 제어 패널(F-VOICE-149) — auto_ctl:* 버튼 · auto_ctl_modal:* 모달
+    BotAutoChannelControlHandler,
     BotStickyMessageHandler,
     // Sticky Message — messageCreate 사전 필터용 활성 채널 캐시(A22 ③)
     StickyActiveChannelCache,

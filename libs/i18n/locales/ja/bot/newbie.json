@@ -22,5 +22,6 @@
   "durationHourMin": "{h}時間{m}分",
   "mocoDataUnavailable": "データを読み込めませんでした。",
   "welcomeCardGreeting": "{username}さん、ようこそ！",
-  "welcomeCardMemberChip": "{count}人目のメンバー"
+  "welcomeCardMemberChip": "{count}人目のメンバー",
+  "welcomeTestNotice": "🧪 テスト送信です。新しいメンバーが参加すると、このように表示されます。"
 }

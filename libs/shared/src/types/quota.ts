@@ -25,6 +25,8 @@ export interface GuildQuotaItem extends QuotaItemBase {
    * `0` = 쿨다운 종료(즉시 가능). 둘을 절대 혼동하지 않는다.
    */
   cooldownRemainingSeconds: number | null;
+  /** ai-insight 수동 생성 캡(F-SUB-031·033). 플래그 off · health-diagnosis 는 null */
+  manualCap?: { period: 'month' | 'day'; used: number; limit: number; resetAt: string } | null;
 }
 
 export type GuildQuotaResponse = GuildQuotaItem[];

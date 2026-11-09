@@ -1,4 +1,5 @@
 export * from './admin-assist';
+export * from './auto-channel-room-control';
 export * from './benchmark';
 export * from './brand-colors';
 export * from './card-render';

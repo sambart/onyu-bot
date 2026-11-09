@@ -187,7 +187,9 @@ describe('AdminAssistCommand', () => {
     await command.onAdminAssist(interaction, new AdminAssistCommandDto());
 
     const call = (interaction.editReply as Mock).mock.calls[0][0] as { content: string };
-    expect(call.content).toContain('20');
+    // U8-B0 — 한도는 tier(Free 20 / Pro 50)에 따라 달라 문구에 숫자를 박지 않는다(의도 변경: '20' 단언 제거).
+    expect(call.content).toBe('오늘의 이용 한도를 모두 사용했어요. 내일 다시 이용해 주세요.');
+    expect(call.content).not.toMatch(/\d/);
   });
 
   it('TC-08-10 — 쿼터 소진과 일반 오류는 서로 다른 문구를 쓴다(장애 문구와 구분, 문구 비동일성 회귀 가드)', async () => {

@@ -80,6 +80,21 @@ export const LOOKBACK_WINDOW_DAYS = {
   max: 1825,
 } as const;
 
+/** 관리자 comp/test 부여 기간 상한(일). U9b D2 (a) 확정 2026-11-06 — 연장은 새 requestId 로 재부여. */
+export const ADMIN_COMP_GRANT_MAX_DAYS = 30;
+
+/** 관리자 부여·회수 사유 최대 길이. 원장 `revokeReason varchar(200)` 과 같은 값. */
+export const ADMIN_ENTITLEMENT_REASON_MAX_LENGTH = 200;
+
+/** D8(세무 — 간이과세 판정 보조) Pro 1개월 등가 기준액(KRW 수수료 원). 정본: premium-policy §8.2 */
+export const D8_PRO_EQUIVALENT_BASE_KRW = 5218;
+
+/** D8 판정 임계 — 월 Pro-등가 이 값 이상이면 충족. */
+export const D8_PRO_EQUIVALENT_THRESHOLD = 10;
+
+/** D8 트리거에 필요한 연속 충족 개월 수. */
+export const D8_REQUIRED_CONSECUTIVE_MONTHS = 3;
+
 /** 플랜·주기별 청구 개월 수. */
 export const PLAN_PERIOD_MONTHS = {
   pro: { month: 1, year: 12 },

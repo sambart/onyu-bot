@@ -257,6 +257,59 @@ export interface AutoChannelNameInputSpec {
   label?: string;
 }
 
+// ── Auto Channel 생성자 제어 패널 (F-VOICE-149, auto-channel-room-control) ──
+
+/** GET /bot-api/auto-channel/control/check 요청(AC3 — 모달 전 조작 자격 사전 판정). */
+export interface AutoChannelControlCheckQuery {
+  guildId: string;
+  /** 조작자(= 버튼을 누른 사람) */
+  userId: string;
+  /** customId 의 마지막 세그먼트 — 제어 대상 자동방 채널 */
+  channelId: string;
+  /** 조작자의 현재 음성 채널(게이트웨이 캐시). 없거나 null 이면 "채널 밖"으로 판정한다 */
+  voiceChannelId?: string | null;
+}
+
+/** AC3 응답 — `allowed` 로 판별한다. */
+export type AutoChannelControlCheckResult =
+  | { allowed: true; state: { locked: boolean; userLimit?: number } }
+  | { allowed: false; code: MessageCode; message: string };
+
+/** POST /bot-api/auto-channel/control/user-limit 요청(AC4 — 정원 변경). */
+export interface AutoChannelUserLimitDto {
+  guildId: string;
+  userId: string;
+  channelId: string;
+  voiceChannelId: string | null;
+  /** 모달 입력 원문 — 서버가 trim·파싱한다(범위 밖은 200 + validation_error). 봇은 `?? ''` 로 정규화해 보낸다 */
+  userLimitInput: string;
+}
+
+/** POST /bot-api/auto-channel/control/lock 요청(AC5 — 잠금/해제). */
+export interface AutoChannelLockDto {
+  guildId: string;
+  userId: string;
+  channelId: string;
+  voiceChannelId: string | null;
+  /** 원하는 최종 상태(true = 잠금, false = 해제) — 토글이 아니다 */
+  locked: boolean;
+  /** 잠금 시점 채널 안 멤버. 봇이 클릭자 먼저 + 앞 100명으로 절단해 보낸다. 해제 시 무시 */
+  channelMemberIds: string[];
+  /** 패널 메시지 ID(`interaction.message.id`) — 있으면 API 가 버튼 라벨을 동기화한다 */
+  panelMessageId?: string;
+}
+
+/** AC4·AC5 응답 — 사용자 실수는 전부 HTTP 200 + `action`, 400 은 봇 버그만. */
+export interface AutoChannelControlResult {
+  action: 'updated' | 'unchanged' | 'validation_error' | 'denied' | 'error';
+  /** 한국어 wire 폴백 — 봇은 `code` 로 로케일 문구를 고르고 미매핑이면 이 값을 쓴다 */
+  message: string;
+  code: MessageCode;
+  params?: Record<string, string | number>;
+  /** action 이 updated·unchanged 일 때 */
+  state?: { locked: boolean; userLimit?: number };
+}
+
 // ── Sticky Message ──
 
 export interface MessageCreatedDto {

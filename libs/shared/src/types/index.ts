@@ -46,6 +46,8 @@ export type {
   AdminAssistRecommendation,
   AdminAssistRecommendResponse,
   AdminAssistResultStatus,
+  AdminAssistSettingExecutionItem,
+  AdminAssistSettingExecutionsResponse,
   AdminAssistSource,
   AdminAssistSurface,
   DecliningChannelsMetrics,
