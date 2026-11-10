@@ -128,11 +128,13 @@ export class RolePanelInteractionService {
     if (status === 'GRANTED' || status === 'SWAPPED') {
       void this.apiClient
         .recordAutoAction({ guildId, domain: 'role-panel', action: 'role-granted' })
+        // SDK post() 의 logReqFailure 가 실패를 이미 로그로 남김 — 계측 실패가 역할 부여 응답을 막지 않는다
         .catch(() => undefined);
     }
     if (status === 'REMOVED' || status === 'SWAPPED') {
       void this.apiClient
         .recordAutoAction({ guildId, domain: 'role-panel', action: 'role-revoked' })
+        // SDK post() 의 logReqFailure 가 실패를 이미 로그로 남김 — 계측 실패가 역할 해제 응답을 막지 않는다
         .catch(() => undefined);
     }
   }

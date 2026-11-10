@@ -4,6 +4,7 @@ import unusedImports from 'eslint-plugin-unused-imports';
 import tseslint from 'typescript-eslint';
 
 import { ONYU_DISCORD_PLUGIN_NAME, onyuDiscordPlugin } from './eslint.discord-rules.mjs';
+import { ONYU_HYGIENE_PLUGIN_NAME, onyuHygienePlugin } from './eslint.hygiene-rules.mjs';
 import { ONYU_I18N_PLUGIN_NAME, onyuI18nPlugin } from './eslint.i18n-rules.mjs';
 
 /** Base ESLint flat config shared across all workspaces. */
@@ -51,22 +52,16 @@ export const baseConfig = [
       'no-console': ['error', { allow: ['warn', 'error'] }],
       'prefer-const': 'error',
       'no-var': 'error',
-      'eqeqeq': ['error', 'always', { null: 'ignore' }],
+      eqeqeq: ['error', 'always', { null: 'ignore' }],
       'no-throw-literal': 'error',
       'no-else-return': ['error', { allowElseIf: false }],
       'no-empty': ['error', { allowEmptyCatch: false }],
       // Constructor DI(NestJS) false positive 가독성 영향 작아 off — 일반 함수 과인자는 리뷰로 확인
       'no-negated-condition': 'off',
-      'no-warning-comments': [
-        'warn',
-        { terms: ['todo', 'fixme', 'xxx'], location: 'start' },
-      ],
+      'no-warning-comments': ['warn', { terms: ['todo', 'fixme', 'xxx'], location: 'start' }],
       // NestJS Constructor DI 는 보통 4~5개 — false positive 완화 (5 초과는 책임 과다 신호로 유지)
       'max-params': ['warn', { max: 5 }],
-      'max-lines-per-function': [
-        'warn',
-        { max: 50, skipBlankLines: true, skipComments: true },
-      ],
+      'max-lines-per-function': ['warn', { max: 50, skipBlankLines: true, skipComments: true }],
       'no-magic-numbers': [
         'warn',
         {
@@ -134,7 +129,12 @@ const I18N_PLUGINS = { [ONYU_I18N_PLUGIN_NAME]: onyuI18nPlugin };
  * @param {string[]} [scope.hangulFiles] R4(하드코딩 한글) 대상 glob — 없으면 R4 비활성
  * @param {string[]} [scope.hangulIgnores] R4 제외 glob
  */
-export function i18nRuleBlocks({ sourceFiles, tableAllowlist = [], hangulFiles = [], hangulIgnores = [] }) {
+export function i18nRuleBlocks({
+  sourceFiles,
+  tableAllowlist = [],
+  hangulFiles = [],
+  hangulIgnores = [],
+}) {
   const blocks = [
     {
       files: sourceFiles,
@@ -183,6 +183,30 @@ export function channelSendRuleBlocks({ sourceFiles, ignores = [] }) {
       ignores: [...I18N_TEST_IGNORES, ...ignores],
       plugins: { [ONYU_DISCORD_PLUGIN_NAME]: onyuDiscordPlugin },
       rules: { 'onyu-discord/guild-channel-send-requires-ownership-check': 'error' },
+    },
+  ];
+}
+
+// ---------------------------------------------------------------------------
+// 패턴 위생 규칙 (패턴 위생 감사 2026-11-04 A3 — 사유 없는 disable · 조용한 .catch 콜백)
+// ---------------------------------------------------------------------------
+
+/**
+ * 패턴 위생 규칙 블록을 만든다. 규칙 구현·판정 기준: 루트 `eslint.hygiene-rules.mjs`.
+ * @param {object} scope
+ * @param {string[]} scope.sourceFiles 대상 glob (앱 cwd 기준)
+ * @param {string[]} [scope.ignores] 추가 제외 glob
+ */
+export function hygieneRuleBlocks({ sourceFiles, ignores = [] }) {
+  return [
+    {
+      files: sourceFiles,
+      ignores: [...I18N_TEST_IGNORES, ...ignores],
+      plugins: { [ONYU_HYGIENE_PLUGIN_NAME]: onyuHygienePlugin },
+      rules: {
+        'onyu-hygiene/require-disable-description': 'error',
+        'onyu-hygiene/no-silent-catch-callback': 'error',
+      },
     },
   ];
 }

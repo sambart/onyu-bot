@@ -51,7 +51,8 @@ export const AUTO_CHANNEL_EMPTY_DELETE_DELAY_MAX_MINUTES = 10;
 export const AUTO_CHANNEL_CONTROL_MEMBER_IDS_MAX = 100;
 
 /**
- * 음성 채널 지역(rtc_region) 허용 목록. 출처: Discord `GET /voice/regions` 공개 목록 스냅샷.
+ * 음성 채널 지역(rtc_region) 허용 목록. 출처: Discord `GET /voice/regions` 공개 목록 스냅샷
+ * (2026-11-10 운영 봇 토큰 실측 12개 — 응답에 없는 `south-korea` 는 Discord 가 거부해 지역 없이 생성되므로 뺐다).
  * DB CHECK 를 두지 않으므로 이 배열만 고치면 된다(마이그레이션 불필요).
  */
 export const AUTO_CHANNEL_RTC_REGIONS = [
@@ -61,7 +62,6 @@ export const AUTO_CHANNEL_RTC_REGIONS = [
   'japan',
   'rotterdam',
   'singapore',
-  'south-korea',
   'southafrica',
   'sydney',
   'us-central',

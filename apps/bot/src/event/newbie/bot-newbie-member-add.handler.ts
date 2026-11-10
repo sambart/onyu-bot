@@ -9,8 +9,10 @@ import {
 import {
   applyWelcomeTemplate,
   buildWelcomeMissionVars,
+  formatWelcomeMemberCountOrdinal,
   toOptionalText,
   truncateWelcomeText,
+  WELCOME_ORDINAL_LOCALE_FALLBACK,
   WELCOME_TEXT_LIMITS,
 } from '@onyu/shared';
 import type { SendableChannels } from 'discord.js';
@@ -138,6 +140,7 @@ export class BotNewbieMemberAddHandler {
         memberId: member.id,
         kind: 'config_lookup',
       })
+      // SDK post() 의 logReqFailure 가 실패를 이미 로그로 남김 — 관리 로그 기록 실패가 온보딩 흐름을 막으면 안 된다
       .catch(() => undefined);
   }
 
@@ -149,6 +152,7 @@ export class BotNewbieMemberAddHandler {
   private async sendWelcomeMessage(member: GuildMember, config: NewbieConfigDto): Promise<void> {
     if (!config.welcomeChannelId) return;
     try {
+      // 채널 fetch 실패(삭제·권한 없음)는 null 로 흡수 — 아래 `!channel?.isTextBased()` 분기가 환영 생략으로 처리한다
       const channel = await this.discord.channels.fetch(config.welcomeChannelId).catch(() => null);
       if (!channel?.isTextBased()) return;
       // 이중 방어 — API 저장 검증을 통과한 레거시 값이라도 타 길드 채널로는 환영 메시지를 보내지 않는다
@@ -208,12 +212,16 @@ export class BotNewbieMemberAddHandler {
     }
   }
 
-  /** 환영 템플릿 치환 변수 — 기본 4종 + 미션 안내 변수 4개(F-NEWBIE-009, 빈 문자열 치환 규칙은 buildWelcomeMissionVars 참조). */
+  /** 환영 템플릿 치환 변수 — 기본 5종(서수 포함) + 미션 안내 변수 4개(F-NEWBIE-009, 빈 문자열 치환 규칙은 buildWelcomeMissionVars 참조). */
   private buildWelcomeVars(member: GuildMember, config: NewbieConfigDto): Record<string, string> {
     return {
       username: member.displayName,
       mention: `<@${member.id}>`,
       memberCount: String(member.guild.memberCount),
+      memberCountOrdinal: formatWelcomeMemberCountOrdinal(
+        member.guild.memberCount,
+        config.guildLocale ?? WELCOME_ORDINAL_LOCALE_FALLBACK,
+      ),
       serverName: member.guild.name,
       ...buildWelcomeMissionVars(config),
     };
@@ -258,6 +266,7 @@ export class BotNewbieMemberAddHandler {
   private recordNewbieAutoAction(guildId: string, action: AutoActionRecordDto['action']): void {
     void this.apiClient
       .recordAutoAction({ guildId, domain: 'newbie', action })
+      // SDK post() 의 logReqFailure 가 실패를 이미 로그로 남김 — 계측 실패가 원 동작을 막지 않는다(§18-10)
       .catch(() => undefined);
   }
 
@@ -274,6 +283,7 @@ export class BotNewbieMemberAddHandler {
         memberId: member.id,
         kind: 'welcome_message',
       })
+      // SDK post() 의 logReqFailure 가 실패를 이미 로그로 남김 — 관리 로그 기록 실패가 원 동작에 영향 없어야 한다
       .catch(() => undefined);
   }
 
@@ -476,6 +486,7 @@ export class BotNewbieMemberAddHandler {
             memberId: member.id,
             kind: 'role_assignment',
           })
+          // SDK post() 의 logReqFailure 가 실패를 이미 로그로 남김 — 위에서 역할 부여 실패는 error 로그로 기록됨
           .catch(() => undefined);
       }
     }

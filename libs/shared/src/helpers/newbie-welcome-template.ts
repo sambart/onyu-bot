@@ -1,8 +1,55 @@
+import { parseLocale, type SupportedLocale } from '../constants/locale';
 import {
   WELCOME_MISSION_VAR_NAMES,
   WELCOME_TEMPLATE_ALLOWED_VARS,
 } from '../constants/newbie-template-defaults';
+import { defineLocaleTable } from './locale-table';
 import { truncateByCodePoint } from './truncate';
+
+/**
+ * 서수 변수 `{memberCountOrdinal}` 의 로케일 폴백 — 포맷터의 미지원 로케일 처리와 봇의
+ * `guildLocale` 부재(구 API 응답) 처리가 같은 값을 쓴다. 환영 카드 로케일 폴백(ko)과 일치시킨다.
+ */
+export const WELCOME_ORDINAL_LOCALE_FALLBACK: SupportedLocale = 'ko';
+
+/** 지원 로케일에서 나오는 CLDR 서수 범주(`Intl.PluralRules` `type: 'ordinal'`)별 접미. */
+type OrdinalSuffixes = Readonly<Record<'one' | 'two' | 'few' | 'other', string>>;
+
+/**
+ * 로케일별 서수 접미 — 로케일 분기는 리터럴 `switch` 대신 테이블로 둔다(F-GENERAL-007).
+ * en 의 1st/2nd/3rd/11th~13th 규칙은 `Intl.PluralRules` 서수 범주(one/two/few/other)가 판정한다.
+ * ko·ja·pt 는 실제로 `other` 만 나오지만, 번역 도구가 2군 표 구조를 en 과 비교하므로 키 4개를 모두 채운다.
+ * pt 는 남성형 서수 표시자 U+00BA(도 기호 U+00B0 아님).
+ */
+const WELCOME_ORDINAL_SUFFIXES = defineLocaleTable<OrdinalSuffixes>({
+  ko: { one: '번째', two: '번째', few: '번째', other: '번째' },
+  en: { one: 'st', two: 'nd', few: 'rd', other: 'th' },
+  ja: { one: '人目', two: '人目', few: '人目', other: '人目' },
+  pt: { one: 'º', two: 'º', few: 'º', other: 'º' },
+});
+
+function isOrdinalSuffixKey(category: string): category is keyof OrdinalSuffixes {
+  return category === 'one' || category === 'two' || category === 'few' || category === 'other';
+}
+
+/**
+ * 멤버 수를 길드 로케일 서수 문자열로 만든다 — 환영 템플릿 `{memberCountOrdinal}` 치환 값.
+ *
+ * - ko `128번째` · en `128th` · ja `128人目` · pt `128º`. 숫자는 자리 구분 없이 `String(count)`
+ *   (`{memberCount}` 와 같은 표기).
+ * - 지원 로케일이 아니면 `WELCOME_ORDINAL_LOCALE_FALLBACK`(ko) 규칙.
+ * - `count` 가 0 이상의 안전 정수가 아니면 빈 문자열.
+ *
+ * 숫자는 호출부가 정한다(봇 = `guild.memberCount`, 테스트 발송 = 봇 제외 활성 수, 웹 = 미리보기 더미).
+ * 로케일은 API 가 판단해 내려준 길드 로케일(`guildLocale`)을 쓴다 — 봇은 스스로 길드 로케일을 모른다.
+ */
+export function formatWelcomeMemberCountOrdinal(count: number, locale: string): string {
+  if (!Number.isSafeInteger(count) || count < 0) return '';
+  const resolved = parseLocale(locale, WELCOME_ORDINAL_LOCALE_FALLBACK);
+  const suffixes = WELCOME_ORDINAL_SUFFIXES[resolved];
+  const category = new Intl.PluralRules(resolved, { type: 'ordinal' }).select(count);
+  return `${String(count)}${isOrdinalSuffixKey(category) ? suffixes[category] : suffixes.other}`;
+}
 
 type WelcomeMissionVarName = (typeof WELCOME_MISSION_VAR_NAMES)[number];
 
@@ -30,8 +77,8 @@ const WELCOME_MASS_MENTION_TOKENS: readonly string[] = ['@everyone', '@here'];
 /**
  * 미션 설정으로 환영 템플릿 변수 4개를 구성한다.
  *
- * 값은 단위 없는 순수 숫자/멘션만 반환한다 — 봇은 길드 로케일을 모르므로 단위 문구는
- * 기본 템플릿 문장 쪽에 고정 텍스트로 둔다.
+ * 값은 단위 없는 순수 숫자/멘션만 반환한다 — 단위 문구는 기본 템플릿 문장 쪽에 고정 텍스트로 둔다.
+ * 길드 로케일(`guildLocale`)은 서수 변수(`formatWelcomeMemberCountOrdinal`) 전용이다.
  */
 export function buildWelcomeMissionVars(
   input: WelcomeMissionVarsInput,

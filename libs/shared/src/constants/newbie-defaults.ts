@@ -74,6 +74,22 @@ export const MOCO_SCORE_PER_MINUTE_MAX = 10;
  */
 export const MOCO_AUTO_REFRESH_MAX_MINUTES = 1440;
 
+/**
+ * `mocoMinCoPresenceMin` 상한 — 동시접속 세션 회전 단위(co-presence `FLUSH_THRESHOLD_MINUTES`)와
+ * 같아야 한다. 상한이 회전 단위 이하면 모든 런의 머리 조각이 곧바로 유효라 사후 유효화가 필요 없다.
+ * 두 값의 일치는 api spec 이 단언한다. 2026-11-10 사용자 확정(D2 (i)).
+ */
+export const MOCO_MIN_CO_PRESENCE_MAX = 15;
+
+/**
+ * 판정·표시에 쓰는 최소 동시접속 적용값. 상한 도입 전에 저장된 >15 값은 DB 를 고치지 않고
+ * 읽을 때만 상한으로 클램프한다(D3 (β) — 길드 설정을 운영자가 대신 바꾸지 않는다).
+ * 하한(1)은 저장 DTO 가 보장하므로 여기서는 상한만 적용한다.
+ */
+export function resolveMocoMinCoPresenceMin(value: number | null | undefined): number {
+  return Math.min(value ?? NEWBIE_CONFIG_DEFAULTS.mocoMinCoPresenceMin, MOCO_MIN_CO_PRESENCE_MAX);
+}
+
 export type NewbieConfigDefaults = typeof NEWBIE_CONFIG_DEFAULTS;
 
 /**

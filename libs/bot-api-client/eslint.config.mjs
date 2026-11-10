@@ -1,6 +1,11 @@
 import globals from 'globals';
 
-import { baseConfig, baseIgnores, typeCheckedRules } from '../../eslint.config.base.mjs';
+import {
+  baseConfig,
+  baseIgnores,
+  hygieneRuleBlocks,
+  typeCheckedRules,
+} from '../../eslint.config.base.mjs';
 
 export default [
   { ignores: baseIgnores },
@@ -25,4 +30,7 @@ export default [
       '@typescript-eslint/prefer-nullish-coalescing': 'off',
     },
   },
+
+  // 패턴 위생(감사 A3) — 사유 없는 eslint-disable · 조용한 .catch 콜백 차단. 기존 위반은 소스에서 정리해 suppressions 파일 없음(신규 위반은 즉시 error)
+  ...hygieneRuleBlocks({ sourceFiles: ['src/**/*.ts'] }),
 ];

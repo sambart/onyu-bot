@@ -2293,4 +2293,167 @@ describe('BotNewbieMemberAddHandler', () => {
       expect(Array.from(arg.content)).toHaveLength(2000);
     });
   });
+
+  // ──────────────────────────────────────────────────────
+  // F-NEWBIE-001-ORD — {memberCountOrdinal} 치환 (guildLocale 는 API 가 내려준다)
+  // ──────────────────────────────────────────────────────
+  describe('F-NEWBIE-001-ORD — 서수 변수 치환', () => {
+    const ORDINAL_TEMPLATE = '{memberCount}명 중 {memberCountOrdinal}';
+
+    function setOrdinalConfig(overrides: Partial<NewbieConfigDto> = {}): void {
+      apiClient.getNewbieConfig.mockResolvedValue(
+        makeConfig({ welcomeEnabled: true, welcomeChannelId: 'ch-1', ...overrides }),
+      );
+    }
+
+    function setOrdinalChannel(send: Mock, extra: Record<string, unknown> = {}): void {
+      discordClient.channels.fetch.mockResolvedValue({
+        isTextBased: () => true,
+        isDMBased: () => false,
+        guildId: 'guild-1',
+        send,
+        ...extra,
+      });
+    }
+
+    it.each([
+      ['en', '100th'],
+      ['ja', '100人目'],
+      ['ko', '100번째'],
+      ['pt', '100º'],
+    ] as const)(
+      "guildLocale '%s' 이면 content 의 {memberCountOrdinal} 이 '%s' 로 치환된다",
+      async (guildLocale, expected) => {
+        setOrdinalConfig({ welcomeContent: ORDINAL_TEMPLATE, guildLocale });
+        const send = vi.fn().mockResolvedValue(undefined);
+        setOrdinalChannel(send);
+
+        await handler.handleGuildMemberAdd(makeMember());
+
+        expect((send.mock.calls[0][0] as { content?: string }).content).toBe(
+          `100명 중 ${expected}`,
+        );
+      },
+    );
+
+    it('guildLocale 가 없으면(구 API 응답) ko 규칙으로 치환한다', async () => {
+      setOrdinalConfig({ welcomeContent: ORDINAL_TEMPLATE });
+      const send = vi.fn().mockResolvedValue(undefined);
+      setOrdinalChannel(send);
+
+      await handler.handleGuildMemberAdd(makeMember());
+
+      expect((send.mock.calls[0][0] as { content?: string }).content).toBe('100명 중 100번째');
+    });
+
+    it('미지원 guildLocale 값이 와도 ko 규칙으로 치환한다', async () => {
+      setOrdinalConfig({
+        welcomeContent: ORDINAL_TEMPLATE,
+        guildLocale: 'fr' as unknown as NewbieConfigDto['guildLocale'],
+      });
+      const send = vi.fn().mockResolvedValue(undefined);
+      setOrdinalChannel(send);
+
+      await handler.handleGuildMemberAdd(makeMember());
+
+      expect((send.mock.calls[0][0] as { content?: string }).content).toBe('100명 중 100번째');
+    });
+
+    it('en 로케일에서 memberCount 가 112 이면 112th 로 치환된다 (11~13 예외)', async () => {
+      setOrdinalConfig({ welcomeContent: '{memberCountOrdinal}', guildLocale: 'en' });
+      const send = vi.fn().mockResolvedValue(undefined);
+      setOrdinalChannel(send);
+      const member = makeMember({
+        guild: { id: 'guild-1', memberCount: 112, name: '테스트 서버' },
+      });
+
+      await handler.handleGuildMemberAdd(member);
+
+      expect((send.mock.calls[0][0] as { content?: string }).content).toBe('112th');
+    });
+
+    it('Embed 제목·설명에도 서수가 치환된다', async () => {
+      setOrdinalConfig({
+        welcomeEmbedTitle: '{memberCountOrdinal} 멤버',
+        welcomeEmbedDescription: '{username} 님은 {memberCountOrdinal}',
+        guildLocale: 'en',
+      });
+      const send = vi.fn().mockResolvedValue(undefined);
+      setOrdinalChannel(send);
+
+      await handler.handleGuildMemberAdd(makeMember());
+
+      const arg = send.mock.calls[0][0] as {
+        embeds: Array<{ title?: string; description?: string }>;
+      };
+      expect(arg.embeds[0].title).toBe('100th 멤버');
+      expect(arg.embeds[0].description).toBe('동현 님은 100th');
+    });
+
+    it('EmbedLinks 없는 텍스트-only 폴백 경로에도 서수가 치환된다', async () => {
+      setOrdinalConfig({
+        welcomeContent: '{memberCountOrdinal}',
+        welcomeEmbedTitle: '제목',
+        welcomeEmbedDescription: '{memberCountOrdinal} 멤버',
+        guildLocale: 'ja',
+      });
+      const send = vi.fn().mockResolvedValue(undefined);
+      const permissions = {
+        has: (flag: bigint) =>
+          flag === PermissionFlagsBits.ViewChannel || flag === PermissionFlagsBits.SendMessages,
+      };
+      setOrdinalChannel(send, {
+        isThread: () => false,
+        permissionsFor: vi.fn().mockReturnValue(permissions),
+      });
+      const member = makeMember({
+        guild: { id: 'guild-1', memberCount: 100, name: '서버', members: { me: { id: 'bot' } } },
+      });
+
+      await handler.handleGuildMemberAdd(member);
+
+      const arg = send.mock.calls[0][0] as { content: string; embeds?: unknown[] };
+      expect(arg.embeds).toBeUndefined();
+      expect(arg.content).toBe('100人目\n\n**제목**\n\n100人目 멤버');
+    });
+
+    it('CANVAS 경로의 content 에 서수가 치환되고 getWelcomeCard 인자는 불변이다', async () => {
+      setOrdinalConfig({
+        welcomeDisplayMode: 'CANVAS',
+        welcomeContent: '{memberCountOrdinal}',
+        guildLocale: 'en',
+      });
+      const send = vi.fn().mockResolvedValue(undefined);
+      setOrdinalChannel(send);
+
+      await handler.handleGuildMemberAdd(makeMember());
+
+      expect(apiClient.getWelcomeCard).toHaveBeenCalledTimes(1);
+      expect(apiClient.getWelcomeCard).toHaveBeenCalledWith({
+        guildId: 'guild-1',
+        memberId: 'member-1',
+        displayName: '동현',
+        avatarUrl: 'https://example.com/avatar.png',
+        memberCount: 100,
+        serverName: '테스트 서버',
+      });
+      expect((send.mock.calls[0][0] as { content?: string }).content).toBe('100th');
+    });
+
+    it('서수 값이 빈 문자열이어도(비정상 memberCount) 해당 줄을 삭제하지 않는다 (미션 변수 아님)', async () => {
+      setOrdinalConfig({
+        welcomeContent: '환영\n당신은 {memberCountOrdinal} 멤버',
+        guildLocale: 'en',
+      });
+      const send = vi.fn().mockResolvedValue(undefined);
+      setOrdinalChannel(send);
+      const member = makeMember({
+        guild: { id: 'guild-1', memberCount: -1, name: '테스트 서버' },
+      });
+
+      await handler.handleGuildMemberAdd(member);
+
+      expect((send.mock.calls[0][0] as { content?: string }).content).toBe('환영\n당신은  멤버');
+    });
+  });
 });

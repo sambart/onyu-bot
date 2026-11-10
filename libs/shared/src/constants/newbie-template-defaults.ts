@@ -186,6 +186,7 @@ export const WELCOME_TEMPLATE_ALLOWED_VARS = [
   '{username}',
   '{mention}',
   '{memberCount}',
+  '{memberCountOrdinal}',
   '{serverName}',
   '{missionTargetPlaytime}',
   '{missionTargetPlayCount}',

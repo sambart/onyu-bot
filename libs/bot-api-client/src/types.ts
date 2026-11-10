@@ -114,6 +114,11 @@ export interface NewbieConfigDto {
   roleEnabled: boolean;
   newbieRoleId: string | null;
   roleDurationDays: number | null;
+  /**
+   * 서수 변수 `{memberCountOrdinal}` 포맷용 길드 로케일. optional — 신 봇 + 구 API(배포 순서 역전) 시
+   * undefined 이므로 봇은 `WELCOME_ORDINAL_LOCALE_FALLBACK`(ko)로 폴백한다.
+   */
+  guildLocale?: SupportedLocale;
 }
 
 /** GET /bot-api/newbie/welcome-card 응답 (E4). CanvasCardResponse와 셰이프가 달라 별도 선언 */
