@@ -277,6 +277,27 @@ export type {
 } from './subscription';
 export { PREMIUM_FEATURE_CATALOG } from './subscription';
 // super-admin.ts 와 분리 — public 미러(mirror-bot.sh)가 super-admin.ts 를 제거해도 봇 빌드가 유지되도록
+export type {
+  GeneratePersonalReportOutcome,
+  GeneratePersonalReportResponse,
+  PersonalReportDetailResponse,
+  PersonalReportKind,
+  PersonalReportLastOutcome,
+  PersonalReportListItem,
+  PersonalReportListResponse,
+  PersonalReportMetrics,
+  PersonalReportOnDemandQuota,
+  PersonalReportPreviousDelta,
+  PersonalReportStatus,
+  PersonalReportTimeOfDay,
+} from './personal-report';
+export {
+  isPersonalReportKind,
+  isPersonalReportStatus,
+  PERSONAL_REPORT_KINDS,
+  PERSONAL_REPORT_ONDEMAND_MONTHLY_LIMIT_PLUS,
+  PERSONAL_REPORT_STATUSES,
+} from './personal-report';
 export type { ProcessResourceMetrics } from './process-resource-metrics';
 export type {
   AdminAssistCtaClickDto,
@@ -328,7 +349,12 @@ export type {
   UpdateUserPreferenceRequest,
   UserPreferenceResponse,
 } from './user-preference';
-export { isPlusTitleKey, NO_DISPLAY_PERKS, PLUS_TITLE_KEYS } from './user-preference';
+export {
+  DEFAULT_MONTHLY_REPORT_ENABLED,
+  isPlusTitleKey,
+  NO_DISPLAY_PERKS,
+  PLUS_TITLE_KEYS,
+} from './user-preference';
 export * from './voice-game';
 export type {
   GuildRecapAutoPostRequest,

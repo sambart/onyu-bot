@@ -1,3 +1,5 @@
+import { isOneOf } from '../helpers/is-one-of';
+
 /**
  * `/me` 프로필 카드 커스텀 테마 — voice 도메인 카드 렌더 계약(D1).
  *
@@ -57,7 +59,7 @@ export const ME_CARD_THEME_SWATCH: Record<MeCardThemeKey, { from: string; to: st
 
 /** BE 쿼리 검증(닫힌 enum) · FE 방어 공용 타입 가드. */
 export function isMeCardThemeKey(value: unknown): value is MeCardThemeKey {
-  return typeof value === 'string' && (ME_CARD_THEME_KEYS as readonly string[]).includes(value);
+  return typeof value === 'string' && isOneOf(ME_CARD_THEME_KEYS, value);
 }
 
 /** 셀렉터 표시 그룹핑 전용 — API 계약에는 존재하지 않는다(서버로 전송되지 않음). */

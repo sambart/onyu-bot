@@ -1,3 +1,5 @@
+import { isOneOf } from '../helpers/is-one-of';
+
 /**
  * 로케일 tier 정본 (F-GENERAL-007).
  *
@@ -60,7 +62,7 @@ export const LOCALE_ENDONYMS: Readonly<Record<SupportedLocale, string>> = Object
  * `readonly string[]` 로 좁힘만 해제하는 기존 관용구(proxy.ts:73, locale-resolver.service.ts)를 함수로 승격한다.
  */
 export function isSupportedLocale(value: unknown): value is SupportedLocale {
-  return typeof value === 'string' && (SUPPORTED_LOCALES as readonly string[]).includes(value);
+  return typeof value === 'string' && isOneOf(SUPPORTED_LOCALES, value);
 }
 
 /**
@@ -82,12 +84,12 @@ export type WebExposedLocale = (typeof WEB_EXPOSED_LOCALES)[number];
 
 /** 임의 값이 웹에 노출되는 로케일인지 판정하는 타입 가드. */
 export function isWebExposedLocale(value: unknown): value is WebExposedLocale {
-  return typeof value === 'string' && (WEB_EXPOSED_LOCALES as readonly string[]).includes(value);
+  return typeof value === 'string' && isOneOf(WEB_EXPOSED_LOCALES, value);
 }
 
 /** 임의 값이 1군(완전 패리티) 로케일인지 판정하는 타입 가드. */
 export function isTier1Locale(value: unknown): value is Tier1Locale {
-  return typeof value === 'string' && (TIER1_LOCALES as readonly string[]).includes(value);
+  return typeof value === 'string' && isOneOf(TIER1_LOCALES, value);
 }
 
 /**
@@ -95,9 +97,7 @@ export function isTier1Locale(value: unknown): value is Tier1Locale {
  * 공개 로케일이면 자신을 그대로 돌려준다.
  */
 export function toPublicContentLocale(locale: SupportedLocale): PublicContentLocale {
-  return (PUBLIC_CONTENT_LOCALES as readonly string[]).includes(locale)
-    ? (locale as PublicContentLocale) // includes 로 검증됨 — readonly string[] 비교라 좁힘이 안 될 뿐
-    : TRANSLATION_FALLBACK_LOCALE;
+  return isOneOf(PUBLIC_CONTENT_LOCALES, locale) ? locale : TRANSLATION_FALLBACK_LOCALE;
 }
 
 /** 지원 로케일이면 그대로, 아니면 `fallback`(기본 `DEFAULT_LOCALE`)을 돌려준다. */

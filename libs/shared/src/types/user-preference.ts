@@ -3,6 +3,7 @@
  * 해금 여부(저장값 ∩ 해금)는 응답에 싣지 않는다 — 해금 단일 출처는 entitlement 스냅샷이다.
  * 단 `plusBadgeGrade` 는 해금 플래그가 아니라 서버가 파생해 내려주는 읽기 전용 표시값이다(요청으로 보낼 수 없다).
  */
+import { isOneOf } from '../helpers/is-one-of';
 import type { AiPersonaKey } from './ai-persona';
 import type { MeCardThemeKey } from './card-theme';
 
@@ -22,7 +23,7 @@ export type PlusTitleKey = (typeof PLUS_TITLE_KEYS)[number];
 
 /** 저장값·요청값 검증용 타입 가드. */
 export function isPlusTitleKey(value: unknown): value is PlusTitleKey {
-  return typeof value === 'string' && (PLUS_TITLE_KEYS as readonly string[]).includes(value);
+  return typeof value === 'string' && isOneOf(PLUS_TITLE_KEYS, value);
 }
 
 /** Plus 배지 등급 1~4 (구간은 `PLUS_BADGE_GRADE_MIN_MONTHS`, 라벨은 `PLUS_BADGE_GRADE_LABEL`). */
@@ -50,6 +51,8 @@ export interface UserPreferenceResponse {
   titleKey: PlusTitleKey | null;
   /** 읽기 전용 서버 파생값 — 현재 Plus 연속 구독 기준 등급. 산정 불가·해당 없음이면 null. */
   plusBadgeGrade: PlusBadgeGrade | null;
+  /** U8-B4 — 개인 AI 월간 리포트 자동 생성 수신 여부(저장값, 기본 `DEFAULT_MONTHLY_REPORT_ENABLED`). */
+  monthlyReportEnabled: boolean;
   /** ISO 8601. 저장 이력이 없으면 null. */
   updatedAt: string | null;
 }
@@ -61,4 +64,8 @@ export interface UpdateUserPreferenceRequest {
   showPlusBadge?: boolean;
   /** null = 해제. */
   titleKey?: PlusTitleKey | null;
+  monthlyReportEnabled?: boolean;
 }
+
+/** 월간 리포트 자동 생성 수신 기본값(행이 없을 때·신규 행). */
+export const DEFAULT_MONTHLY_REPORT_ENABLED = true;

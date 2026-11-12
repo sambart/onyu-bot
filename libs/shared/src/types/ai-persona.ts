@@ -1,3 +1,5 @@
+import { isOneOf } from '../helpers/is-one-of';
+
 /**
  * AI 페르소나(말투) 닫힌 enum — U8-B2 에서 web 로컬(`my/premium/lib/ai-personas.ts`)로부터 승격(F-SUB-034·036).
  * API 가 저장값 검증·렌더 합성에 소비하고 웹이 선택 UI 에 소비하는 앱 간 계약이다.
@@ -25,5 +27,5 @@ export const DEFAULT_AI_PERSONA: AiPersonaKey = 'neutral';
 
 /** 저장값·요청값 검증용 타입 가드. */
 export function isAiPersonaKey(value: unknown): value is AiPersonaKey {
-  return typeof value === 'string' && (AI_PERSONA_KEYS as readonly string[]).includes(value);
+  return typeof value === 'string' && isOneOf(AI_PERSONA_KEYS, value);
 }

@@ -3,6 +3,8 @@ export * from './auto-channel-name';
 export * from './auto-channel-notice';
 export * from './channel-obfuscation';
 export * from './interpolate';
+export * from './is-one-of';
+export * from './kst-date';
 export * from './level-announce-template';
 export * from './level-curve';
 export * from './level-no-xp-share';
@@ -15,15 +17,6 @@ export * from './year-end-recap';
 /** 오늘 날짜를 YYYYMMDD 형식 문자열로 반환한다 (로컬 시간 기준) */
 export function todayYYYYMMDD(): string {
   return new Date().toISOString().slice(0, 10).replace(/-/g, '');
-}
-
-/**
- * 주어진 날짜를 YYYYMMDD 형식 문자열로 반환한다 (KST 기준).
- * 인자를 생략하면 현재 시각(now) 기준으로 반환한다 (기존 호출부 하위호환).
- */
-export function getKSTDateString(date: Date = new Date()): string {
-  const kst = new Date(date.getTime() + 9 * 60 * 60 * 1000);
-  return kst.toISOString().slice(0, 10).replace(/-/g, '');
 }
 
 /** 오늘 날짜를 YYYYMMDD 형식 문자열로 반환한다 (UTC 기준) */

@@ -1,0 +1,32 @@
+{
+  "src/command/level/rank.command.ts": {
+    "onyu-hygiene/require-assertion-reason": {
+      "count": 1
+    }
+  },
+  "src/command/me.command.ts": {
+    "onyu-hygiene/require-assertion-reason": {
+      "count": 1
+    }
+  },
+  "src/common/application/bot-i18n.service.ts": {
+    "onyu-hygiene/require-assertion-reason": {
+      "count": 1
+    }
+  },
+  "src/common/util/guild-member.util.ts": {
+    "onyu-hygiene/require-assertion-reason": {
+      "count": 1
+    }
+  },
+  "src/event/auto-channel/bot-auto-channel-interaction.handler.ts": {
+    "onyu-hygiene/require-assertion-reason": {
+      "count": 4
+    }
+  },
+  "src/event/newbie/bot-newbie-interaction.handler.ts": {
+    "onyu-hygiene/require-assertion-reason": {
+      "count": 1
+    }
+  }
+}

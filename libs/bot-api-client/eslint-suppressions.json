@@ -1,0 +1,12 @@
+{
+  "src/bot-api-client.service.ts": {
+    "onyu-hygiene/require-assertion-reason": {
+      "count": 2
+    }
+  },
+  "src/request-failure-log.ts": {
+    "onyu-hygiene/require-assertion-reason": {
+      "count": 1
+    }
+  }
+}

@@ -42,10 +42,14 @@ export type PremiumFeatureKey =
   | 'personal.ai.monthlyReport'
   /** U8-B1 · F-SUB-032 — Pro 길드 활동 집계 CSV 내보내기(길드 스코프, 첫 길드 단위 혜택 게이트) */
   | 'guild.export.csv'
+  /** U8-B5 · F-SUB-044 — Pro 길드 대시보드 1년 조회(서버는 클램프로 판정, 이 키는 웹 표시·혜택 정합용) */
+  | 'guild.activityWindow.oneYear'
   /** U8-B3 — 카드 Plus 배지(연속 구독 등급 표시) */
   | 'personal.badge.plus'
   /** U8-B3 — 카드 칭호(8종 중 선택) */
-  | 'personal.title';
+  | 'personal.title'
+  /** U8-B4 · F-SUB-042 — 개인 AI(best-friend·me-ment) 일 한도 Plus 상향 */
+  | 'personal.ai.quota';
 
 /** `PremiumFeatureKey` → { scope, requiredTier } 단일 출처. 잠금 배지가 "Plus/Pro" 중 무엇을 표시할지 이 값으로 결정한다. */
 export const PREMIUM_FEATURE_CATALOG: Record<
@@ -58,8 +62,10 @@ export const PREMIUM_FEATURE_CATALOG: Record<
   'personal.ai.persona': { scope: 'user', requiredTier: 'plus' },
   'personal.ai.monthlyReport': { scope: 'user', requiredTier: 'plus' },
   'guild.export.csv': { scope: 'guild', requiredTier: 'pro' },
+  'guild.activityWindow.oneYear': { scope: 'guild', requiredTier: 'pro' },
   'personal.badge.plus': { scope: 'user', requiredTier: 'plus' },
   'personal.title': { scope: 'user', requiredTier: 'plus' },
+  'personal.ai.quota': { scope: 'user', requiredTier: 'plus' },
 };
 
 /**

@@ -1,3 +1,5 @@
+import { isOneOf } from '../helpers/is-one-of';
+
 /**
  * 봇 read-only 진입점(E8) per-request SDK 타임아웃(F-ADMIN-ASSIST-078~081, M4/A2).
  * `libs/bot-api-client` 전역 타임아웃(10s)은 이 경로의 정상 응답(수십 초 소요)을 조용히
@@ -21,7 +23,7 @@ export const ADMIN_ASSIST_EXECUTABLE_ACTION_IDS = [
 export type AdminAssistExecutableActionId = (typeof ADMIN_ASSIST_EXECUTABLE_ACTION_IDS)[number];
 
 export function isAdminAssistExecutableActionId(id: string): id is AdminAssistExecutableActionId {
-  return (ADMIN_ASSIST_EXECUTABLE_ACTION_IDS as readonly string[]).includes(id);
+  return isOneOf(ADMIN_ASSIST_EXECUTABLE_ACTION_IDS, id);
 }
 
 /** proposal 만료 TTL 기본값(분) — env ADMIN_ASSIST_EXECUTE_TTL_MIN 기본과 동일 (D-8) */

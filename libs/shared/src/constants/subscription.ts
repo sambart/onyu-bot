@@ -72,6 +72,9 @@ export const PLUS_TITLE_LABEL = defineLocaleTable<Record<PlusTitleKey, string>>(
   },
 });
 
+/** Plus 개인 AI(best-friend·me-ment) 일 한도 — 표시용 단일 출처. 서버 실제 값은 env `LLM_QUOTA_*_PERSONAL_DAILY_PLUS`. */
+export const PLUS_PERSONAL_AI_DAILY_LIMIT = 10;
+
 /** 조회 윈도우(일). 정책: docs/specs/premium-policy.md §5 */
 export const LOOKBACK_WINDOW_DAYS = {
   free: 90,

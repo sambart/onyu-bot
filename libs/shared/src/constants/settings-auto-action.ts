@@ -1,3 +1,4 @@
+import { isOneOf } from '../helpers/is-one-of';
 import type { SettingsAutoActionKind, SettingsAutoActionReasonCode } from '../types/overview';
 
 /** 설정 자동 조치 기록 kind 목록 (F-WEB-043) */
@@ -31,12 +32,12 @@ export const SETTINGS_AUTO_ACTION_REASON_KEY: Record<SettingsAutoActionReasonCod
 
 /** DB 문자열이 기록 kind 인지 좁히는 타입 가드 */
 export function isSettingsAutoActionKind(value: string): value is SettingsAutoActionKind {
-  return (SETTINGS_AUTO_ACTION_KINDS as readonly string[]).includes(value);
+  return isOneOf(SETTINGS_AUTO_ACTION_KINDS, value);
 }
 
 /** DB 문자열이 기록 reasonCode 인지 좁히는 타입 가드 */
 export function isSettingsAutoActionReasonCode(
   value: string,
 ): value is SettingsAutoActionReasonCode {
-  return (SETTINGS_AUTO_ACTION_REASON_CODES as readonly string[]).includes(value);
+  return isOneOf(SETTINGS_AUTO_ACTION_REASON_CODES, value);
 }

@@ -293,5 +293,14 @@ export const MESSAGE_CODE = {
   ADMIN_ENTITLEMENT_REVOKE_SOURCE_NOT_ALLOWED: 'ADMIN_ENTITLEMENT_REVOKE_SOURCE_NOT_ALLOWED',
   /** 같은 requestId 가 다른 주체에 쓰였거나 이미 회수된 요청(409). params 없음 */
   ADMIN_ENTITLEMENT_REQUEST_CONFLICT: 'ADMIN_ENTITLEMENT_REQUEST_CONFLICT',
+  // ── 개인 AI 월간 리포트 (U8-B4 F-SUB-043 — docs/plans/u8b4-ai-deepening.md §4-1). REPORT_*(report-intake) 와 별개 ──
+  /** 요청한 월·kind 의 리포트가 없음(404). params 없음 */
+  PERSONAL_REPORT_NOT_FOUND: 'PERSONAL_REPORT_NOT_FOUND',
+  /** 같은 사용자의 리포트 생성이 이미 진행 중(409). params 없음 */
+  PERSONAL_REPORT_IN_PROGRESS: 'PERSONAL_REPORT_IN_PROGRESS',
+  /** 온디맨드 월 한도 소진(429). params: { limit, resetAt } */
+  PERSONAL_REPORT_ONDEMAND_LIMIT_REACHED: 'PERSONAL_REPORT_ONDEMAND_LIMIT_REACHED',
+  /** 생성 불가(503). params: { reason: 'global_limit' | 'generation_failed' | 'deletion_pending' } — deletion_pending 은 데이터 삭제 묘비(M30) */
+  PERSONAL_REPORT_GENERATION_UNAVAILABLE: 'PERSONAL_REPORT_GENERATION_UNAVAILABLE',
 } as const;
 export type MessageCode = (typeof MESSAGE_CODE)[keyof typeof MESSAGE_CODE];

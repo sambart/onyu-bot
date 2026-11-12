@@ -1,3 +1,5 @@
+import { isOneOf } from '../helpers/is-one-of';
+
 // 레벨 시스템(U4) 공유 타입·상수 (api/web 공통 사용)
 
 // ── 응답/요청 DTO ──
@@ -82,9 +84,7 @@ export type LeaderboardMetric = (typeof LEADERBOARD_METRIC_VALUES)[number];
  * (`'XP'` → false). 호출자는 false 일 때 `'xp'` 로 폴백한다(400 아님).
  */
 export function isLeaderboardMetric(value: unknown): value is LeaderboardMetric {
-  return (
-    typeof value === 'string' && (LEADERBOARD_METRIC_VALUES as readonly string[]).includes(value)
-  );
+  return typeof value === 'string' && isOneOf(LEADERBOARD_METRIC_VALUES, value);
 }
 
 /**

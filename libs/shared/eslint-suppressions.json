@@ -1,0 +1,22 @@
+{
+  "src/constants/inactive-member-defaults.ts": {
+    "onyu-hygiene/require-assertion-reason": {
+      "count": 1
+    }
+  },
+  "src/constants/level-defaults.ts": {
+    "onyu-hygiene/require-assertion-reason": {
+      "count": 3
+    }
+  },
+  "src/constants/locale.ts": {
+    "onyu-hygiene/require-assertion-reason": {
+      "count": 1
+    }
+  },
+  "src/helpers/locale-table.ts": {
+    "onyu-hygiene/require-assertion-reason": {
+      "count": 2
+    }
+  }
+}

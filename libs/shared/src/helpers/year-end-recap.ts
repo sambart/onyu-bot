@@ -5,8 +5,8 @@ import {
   RECAP_YEAR,
 } from '../constants/year-end-recap';
 import type { RecapHero, RecapWindowPhase } from '../types/year-end-recap';
+import { getKSTDateString } from './kst-date';
 
-const KST_OFFSET_MS = 9 * 60 * 60 * 1000;
 const SECONDS_PER_HOUR = 3600;
 const SECONDS_PER_MINUTE = 60;
 const MIN_MESSAGE_COUNT_FOR_HERO = 1;
@@ -21,10 +21,7 @@ const MIN_MESSAGE_COUNT_FOR_HERO = 1;
  * @returns 창 시작 전 'not_started' · 창 안 'open' · 창 종료 후 'ended'
  */
 export function getRecapWindowPhase(now: Date, year: number = RECAP_YEAR): RecapWindowPhase {
-  const today = new Date(now.getTime() + KST_OFFSET_MS)
-    .toISOString()
-    .slice(0, 10)
-    .replace(/-/g, '');
+  const today = getKSTDateString(now);
   const start = `${year}${RECAP_WINDOW_START_MMDD}`;
   const end = `${year + 1}${RECAP_WINDOW_END_MMDD}`;
 
@@ -43,10 +40,7 @@ export function getRecapWindowPhase(now: Date, year: number = RECAP_YEAR): Recap
  * @returns 자동 게시 기간 안이면 true
  */
 export function isRecapAutoPostPeriod(now: Date, year: number = RECAP_YEAR): boolean {
-  const today = new Date(now.getTime() + KST_OFFSET_MS)
-    .toISOString()
-    .slice(0, 10)
-    .replace(/-/g, '');
+  const today = getKSTDateString(now);
   return (
     today >= `${year}${RECAP_WINDOW_START_MMDD}` && today <= `${year}${RECAP_AUTO_POST_END_MMDD}`
   );
