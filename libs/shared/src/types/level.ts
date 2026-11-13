@@ -1,4 +1,5 @@
 import { isOneOf } from '../helpers/is-one-of';
+import type { PlusBadgeGrade } from './user-preference';
 
 // 레벨 시스템(U4) 공유 타입·상수 (api/web 공통 사용)
 
@@ -287,6 +288,12 @@ export interface LevelLeaderboardEntry {
   voiceSec: number | null;
   /** 🔒 최근 90일 메시지 수. `metric=message` 응답에서만 숫자, 그 외 `null` (endpoint-spec §5-5). */
   messageCount: number | null;
+  /**
+   * F-SUB-049(U10 하이라이트) — Plus 하이라이트 표시 대상일 때만 존재하는 객체(이름 강조 + Plus 칩). 표시 대상이 아니면 키 생략.
+   * `grade` = 결제 구독 기간 기반 등급, 쿠폰·comp 해금자는 null(등급 없는 "Plus" 칩).
+   * 서버가 해금 AND showPlusOnLeaderboard 일 때만 채우며, 익명 행(타인 조회)은 항상 생략.
+   */
+  plusHighlight?: { grade: PlusBadgeGrade | null };
 }
 
 /** 리더보드 응답 루트 (결정 A: 에코형 — `page`/`limit` 요청값 에코 포함) */

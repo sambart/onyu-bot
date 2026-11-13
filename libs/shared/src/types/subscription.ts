@@ -49,7 +49,9 @@ export type PremiumFeatureKey =
   /** U8-B3 — 카드 칭호(8종 중 선택) */
   | 'personal.title'
   /** U8-B4 · F-SUB-042 — 개인 AI(best-friend·me-ment) 일 한도 Plus 상향 */
-  | 'personal.ai.quota';
+  | 'personal.ai.quota'
+  /** U10 · F-SUB-049 — 서버 레벨 리더보드 Plus 하이라이트(이름 강조 + Plus 칩) */
+  | 'personal.leaderboard.highlight';
 
 /** `PremiumFeatureKey` → { scope, requiredTier } 단일 출처. 잠금 배지가 "Plus/Pro" 중 무엇을 표시할지 이 값으로 결정한다. */
 export const PREMIUM_FEATURE_CATALOG: Record<
@@ -66,6 +68,7 @@ export const PREMIUM_FEATURE_CATALOG: Record<
   'personal.badge.plus': { scope: 'user', requiredTier: 'plus' },
   'personal.title': { scope: 'user', requiredTier: 'plus' },
   'personal.ai.quota': { scope: 'user', requiredTier: 'plus' },
+  'personal.leaderboard.highlight': { scope: 'user', requiredTier: 'plus' },
 };
 
 /**
@@ -106,6 +109,22 @@ export interface EntitlementSnapshot {
    * `status !== 'expired' && cancelAtPeriodEnd != null` 이면 선택된 유효 행이 paddle 출처다(웹 판별 규칙).
    */
   cancelAtPeriodEnd?: boolean | null;
+  /**
+   * U11 대표 행 출처(M23 — 만료 배너 판정용, 표시 전용·판정 무관). 유효 행 없음 = null.
+   * 롤아웃 구간의 구 API 응답 대비로 optional(웹은 필드 없음을 허용한다).
+   */
+  source?: EntitlementSource | null;
+  /**
+   * U11 쿠폰 회수 통지(D-10). 같은 주체의 쿠폰 출처 회수 행 중 최근 30일 이내 최신 1건. 없으면 null.
+   * 롤아웃 구간의 구 API 응답 대비로 optional.
+   */
+  couponRevocation?: CouponRevocationNotice | null;
+}
+
+/** 쿠폰 혜택 회수 통지 — 약관에 따라 웹 대시보드에 사유를 표시한다. */
+export interface CouponRevocationNotice {
+  revokedAt: string;
+  reason: string;
 }
 
 /** 플랜·주기 조합. Pro 는 길드 단위 월/연, Plus 는 개인 단위 N개월. */
@@ -181,6 +200,11 @@ export interface CheckoutConfigResponse {
   clientToken?: string;
   /** U8-A: 서버는 항상 채운다. 롤아웃 구간의 구 API 응답 대비로 optional(웹은 `plans ? plans[scope] : isAvailable`). */
   plans?: CheckoutPlanAvailability;
+  /**
+   * U11 쿠폰 등록 카드 노출 여부(D-5). `COUPON_REDEEM_ENABLED` 와 결제 게이트를 모두 통과한 플랜만 true.
+   * `PADDLE_CLIENT_TOKEN` 과 무관하다. 롤아웃 구간의 구 API 응답 대비로 optional.
+   */
+  couponRedeem?: CheckoutPlanAvailability;
 }
 
 // ── U8-A 판매 표면 (추가형) ──
@@ -209,3 +233,39 @@ export interface PricingConfigResponse {
   launch: PricingLaunchInfo | null;
   open: CheckoutPlanAvailability;
 }
+
+// ── U11 무료 쿠폰 캠페인 (추가형) ──
+
+/** 쿠폰 캠페인 대상 주체. `user` → Plus(개인), `guild` → Pro(길드). DB `coupon_campaign.targetScope` 와 1:1. */
+export type CouponTargetScope = PlanScope;
+
+/** 쿠폰 등록 요청 body(R1·R2 공통). `confirm` 이 없거나 false 면 미리보기(쓰기 없음), true 면 확정 등록. */
+export interface CouponRedeemRequest {
+  code: string;
+  confirm?: boolean;
+}
+
+/** 쿠폰 등록 미리보기에 싣는 캠페인 조건. 쿠폰 id·캠페인 이름·코드는 싣지 않는다. */
+export interface CouponRedeemTerms {
+  scope: CouponTargetScope;
+  tier: Exclude<PlanTier, 'free'>;
+  grantDays: number;
+  /** 등록 기한(ISO) = min(코드 만료, 캠페인 등록 마감, 캠페인 조기 종료 시각). */
+  redeemDeadline: string;
+}
+
+/** 쿠폰 등록으로 부여된(또는 이미 부여된) 혜택 요약. */
+export interface CouponRedeemEntitlement {
+  scope: CouponTargetScope;
+  tier: Exclude<PlanTier, 'free'>;
+  startsAt: string;
+  endsAt: string;
+}
+
+/**
+ * `POST /api/users/me/coupons/redeem` · `POST /api/guilds/:guildId/coupons/redeem` 응답.
+ * `preview` = 확정 전 조건 안내, `redeemed` = 이번 요청으로 부여, `already_redeemed_by_you` = 멱등 재제출.
+ */
+export type CouponRedeemResponse =
+  | { outcome: 'preview'; terms: CouponRedeemTerms }
+  | { outcome: 'redeemed' | 'already_redeemed_by_you'; entitlement: CouponRedeemEntitlement };

@@ -252,6 +252,12 @@ export type {
   CheckoutConfigResponse,
   CheckoutIntentResponse,
   CheckoutPlanAvailability,
+  CouponRedeemEntitlement,
+  CouponRedeemRequest,
+  CouponRedeemResponse,
+  CouponRedeemTerms,
+  CouponRevocationNotice,
+  CouponTargetScope,
   EntitlementRowStatus,
   EntitlementSnapshot,
   EntitlementSource,
@@ -351,6 +357,7 @@ export type {
 } from './user-preference';
 export {
   DEFAULT_MONTHLY_REPORT_ENABLED,
+  DEFAULT_SHOW_PLUS_ON_LEADERBOARD,
   isPlusTitleKey,
   NO_DISPLAY_PERKS,
   PLUS_TITLE_KEYS,

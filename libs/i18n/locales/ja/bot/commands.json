@@ -52,7 +52,6 @@
   "bestFriendDuoPublishFailed": "チャンネルに公開できませんでした。しばらくしてからもう一度お試しください。",
   "compatBotTarget": "ボットとは相性診断ができません。",
   "compatNonMember": "そのユーザーはこのサーバーのメンバーではありません。",
-  "compatCooldown": "このチャンネルでは相性カードが投稿されたばかりです。{seconds}秒後にもう一度お試しください。",
   "compatUserCooldown": "相性カードを作成したばかりです。{seconds}秒後にもう一度お試しください。",
   "compatError": "相性カードを作成できませんでした。まもなくもう一度お試しください。",
   "rankNoData": "アクティビティXPがまだありません。ボイスやチャットで活動すると順位が表示されます。",

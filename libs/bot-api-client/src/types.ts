@@ -471,7 +471,8 @@ export interface GetCompatCardOptions {
  */
 export interface CompatCardResponse {
   ok: boolean;
-  data: { imageBase64: string } | null;
+  /** nextResetAt: 길드 현지 날짜가 바뀌는 첫 순간(ISO 8601 UTC). 없으면 봇은 content 생략 */
+  data: { imageBase64: string; nextResetAt?: string } | null;
 }
 
 /** checkDuoEligibility 요청 옵션(B3) — API 듀오 eligibility DTO 와 수기 정합 필수 */

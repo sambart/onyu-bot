@@ -10,12 +10,9 @@ import { LocaleResolverService } from '../../common/application/locale-resolver.
 import { respondWithErrorNotice } from '../../common/util/interaction-response.util';
 import { CompatCommandDto } from './compat.dto';
 import {
-  COMPAT_COOLDOWN_MS,
   COMPAT_USER_COOLDOWN_MS,
-  getCompatCooldownRemainingMs,
   getCompatUserCooldownRemainingMs,
   releaseCompatSlot,
-  startCompatCooldown,
   startCompatUserCooldown,
   tryAcquireCompatSlot,
 } from './compat-cooldown';
@@ -69,13 +66,7 @@ export class CompatCommand {
       return;
     }
 
-    const cooldownKey = `${guildId}:${interaction.channelId}`;
-    const remainingMs = getCompatCooldownRemainingMs(cooldownKey);
-    if (remainingMs > 0) {
-      await this.replyCooldown(interaction, locale, remainingMs);
-      return;
-    }
-    // 실행자 단위 쿨다운 — 채널을 옮겨 다니는 반복 조회 억제. API 미호출.
+    // 실행자 단위 쿨다운만 둔다 — 채널 쿨다운은 여러 사용자의 동시 사용을 서로 막아 2026-11-12 제거(command-policy §3 예외). API 미호출.
     const userCooldownKey = `${guildId}:${interaction.user.id}`;
     const userRemainingMs = getCompatUserCooldownRemainingMs(userCooldownKey);
     if (userRemainingMs > 0) {
@@ -87,15 +78,8 @@ export class CompatCommand {
       );
       return;
     }
-    // 쿨다운은 게시 후에 시작하므로, 같은 채널의 다른 실행이 진행 중이면 곧 시작될 쿨다운 전체로 안내한다.
-    if (!tryAcquireCompatSlot(cooldownKey)) {
-      await this.replyCooldown(interaction, locale, COMPAT_COOLDOWN_MS);
-      return;
-    }
-
-    // 실행자 쿨다운도 게시 후에 시작하므로, 같은 실행자가 다른 채널에서 동시에 실행하면 위 확인을 함께 통과한다 — 실행자 슬롯으로 막는다.
+    // 실행자 쿨다운은 게시 후에 시작하므로, 같은 실행자가 다른 채널에서 동시에 실행하면 위 확인을 함께 통과한다 — 실행자 슬롯으로 막는다.
     if (!tryAcquireCompatSlot(userCooldownKey)) {
-      releaseCompatSlot(cooldownKey);
       await this.replyEphemeral(
         interaction,
         this.i18n.t(locale, 'commands.compatUserCooldown', {
@@ -106,10 +90,9 @@ export class CompatCommand {
     }
 
     try {
-      await this.runCompat(interaction, guildId, locale, peerUser, cooldownKey, userCooldownKey);
+      await this.runCompat(interaction, guildId, locale, peerUser, userCooldownKey);
     } finally {
       releaseCompatSlot(userCooldownKey);
-      releaseCompatSlot(cooldownKey);
     }
   }
 
@@ -129,18 +112,6 @@ export class CompatCommand {
     return null;
   }
 
-  private async replyCooldown(
-    interaction: ChatInputCommandInteraction,
-    locale: string,
-    remainingMs: number,
-  ): Promise<void> {
-    const seconds = Math.ceil(remainingMs / MS_PER_SECOND);
-    await this.replyEphemeral(
-      interaction,
-      this.i18n.t(locale, 'commands.compatCooldown', { seconds }),
-    );
-  }
-
   private async replyEphemeral(
     interaction: ChatInputCommandInteraction,
     content: string,
@@ -153,7 +124,6 @@ export class CompatCommand {
     guildId: string,
     locale: string,
     peerUser: User,
-    cooldownKey: string,
     userCooldownKey: string,
   ): Promise<void> {
     try {
@@ -193,12 +163,31 @@ export class CompatCommand {
       const attachment = new AttachmentBuilder(Buffer.from(result.data.imageBase64, 'base64'), {
         name: COMPAT_ATTACHMENT_NAME,
       });
-      await interaction.editReply({ files: [attachment] });
-      startCompatCooldown(cooldownKey);
+      const content = this.buildNextResetLine(locale, result.data.nextResetAt);
+      await interaction.editReply(
+        content === null ? { files: [attachment] } : { content, files: [attachment] },
+      );
       startCompatUserCooldown(userCooldownKey);
     } catch (error) {
       await this.handleError(interaction, locale, error);
     }
+  }
+
+  /**
+   * 카드 아래 "숫자 교체" 상대 시각 한 줄. 필드 부재(구버전 API)·파싱 실패면 null → content 생략.
+   * Discord 타임스탬프 토큰은 번역 문자열이 아닌 파라미터로 주입한다(보는 사람 시간대로 렌더).
+   */
+  private buildNextResetLine(locale: string, nextResetAt: unknown): string | null {
+    if (typeof nextResetAt !== 'string') {
+      return null;
+    }
+    const ms = Date.parse(nextResetAt);
+    if (!Number.isFinite(ms)) {
+      return null;
+    }
+    return this.i18n.t(locale, 'commands.compatNextReset', {
+      relative: `<t:${Math.floor(ms / MS_PER_SECOND)}:R>`,
+    });
   }
 
   /**

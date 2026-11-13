@@ -26,7 +26,6 @@ import { CompatCommand } from './compat.command';
 import { CompatCommandDto } from './compat.dto';
 import {
   COMPAT_USER_COOLDOWN_MS,
-  getCompatCooldownRemainingMs,
   getCompatUserCooldownRemainingMs,
   resetCompatCooldown,
 } from './compat-cooldown';
@@ -35,9 +34,7 @@ const GUILD_ID = 'guild-1';
 const CHANNEL_ID = 'channel-1';
 const USER_ID = 'user-1';
 const PEER_ID = 'peer-1';
-const COOLDOWN_KEY = `${GUILD_ID}:${CHANNEL_ID}`;
 const USER_COOLDOWN_KEY = `${GUILD_ID}:${USER_ID}`;
-const COOLDOWN_MS = 10_000;
 const START_TIME = new Date('2026-11-03T00:00:00.000Z');
 
 const KO = {
@@ -53,10 +50,6 @@ const POSTED_ORDER = ['defer', 'edit:card'];
 /** 거부·오류 흐름의 호출 순서 — 공개 원본 삭제 후 ephemeral 안내 */
 function privateNoticeOrder(content: string): string[] {
   return ['defer', 'delete', `followUp:${content}`];
-}
-
-function cooldownText(seconds: number): string {
-  return `이 채널에서 방금 궁합을 봤어요. ${seconds}초 후 다시 시도해주세요.`;
 }
 
 function userCooldownText(seconds: number): string {
@@ -100,7 +93,7 @@ interface InteractionBundle {
   interaction: ChatInputCommandInteraction;
   /** 호출 순서 로그 — `defer` / `edit:card` / `edit:<content>` / `followUp:<content>` / `delete` / `reply:<content>` */
   order: string[];
-  /** 카드 editReply 시점의 채널 쿨다운 남은 ms */
+  /** 카드 editReply 시점의 실행자 쿨다운 남은 ms */
   cooldownAt: { edit?: number };
 }
 
@@ -130,7 +123,7 @@ function makeInteraction(
     }),
     editReply: vi.fn((arg: { content?: string; files?: unknown[] }) => {
       order.push(arg.files ? 'edit:card' : `edit:${arg.content ?? ''}`);
-      cooldownAt.edit = getCompatCooldownRemainingMs(COOLDOWN_KEY);
+      cooldownAt.edit = getCompatUserCooldownRemainingMs(USER_COOLDOWN_KEY);
       return Promise.resolve(undefined);
     }),
     followUp: vi.fn((arg: { content?: string }) => {
@@ -278,7 +271,7 @@ describe('CompatCommand', () => {
       expect(apiClient.getCompatCard).not.toHaveBeenCalled();
       expect(bundle.interaction.deferReply).not.toHaveBeenCalled();
       expect(bundle.interaction.followUp).not.toHaveBeenCalled();
-      expect(getCompatCooldownRemainingMs(COOLDOWN_KEY)).toBe(0);
+      expect(getCompatUserCooldownRemainingMs(USER_COOLDOWN_KEY)).toBe(0);
     });
 
     it('길드 비멤버(getMember null)를 지정하면 compatNonMember 를 ephemeral 로 응답하고 SDK 를 호출하지 않는다', async () => {
@@ -295,7 +288,7 @@ describe('CompatCommand', () => {
       });
       expect(apiClient.getCompatCard).not.toHaveBeenCalled();
       expect(bundle.interaction.deferReply).not.toHaveBeenCalled();
-      expect(getCompatCooldownRemainingMs(COOLDOWN_KEY)).toBe(0);
+      expect(getCompatUserCooldownRemainingMs(USER_COOLDOWN_KEY)).toBe(0);
     });
 
     it('봇 검사가 비멤버 검사보다 먼저다(봇이면서 getMember null 이어도 compatBotTarget)', async () => {
@@ -342,115 +335,61 @@ describe('CompatCommand', () => {
 
   // ─── 쿨다운 ─────────────────────────────────────────────────────────────────
 
-  describe('채널 쿨다운(EC-CP-117)', () => {
-    it('쿨다운 중이면 compatCooldown(올림 초)을 ephemeral 로 응답하고 SDK 를 호출하지 않는다', async () => {
+  // 채널 쿨다운(EC-CP-117, 채널당 10초)은 2026-11-12 제거됐다 — 여러 사용자의 정당한 동시 사용을 서로 막았다.
+  // 아래는 기존 "채널 단위 차단" 단언을 "채널 단위로는 막지 않는다"로 교체한 것이다.
+  describe('채널 쿨다운 제거(2026-11-12) — 같은 채널의 다른 실행자는 막지 않는다', () => {
+    it('같은 채널에서 다른 실행자가 연달아 실행하면 둘 다 게시된다(이전엔 10초 차단)', async () => {
       const first = makeInteraction(makeOptions(makePeerUser(PEER_ID), {}));
-      await run(first);
-      vi.advanceTimersByTime(3_500); // 남은 6500ms → 올림 7초
-      apiClient.getCompatCard.mockClear();
-      const second = makeInteraction(makeOptions(makePeerUser('peer-2'), {}));
-
-      await run(second);
-
-      expect(second.interaction.reply).toHaveBeenCalledTimes(1);
-      expect(second.interaction.reply).toHaveBeenCalledWith({
-        content: cooldownText(7),
-        ephemeral: true,
-      });
-      expect(apiClient.getCompatCard).not.toHaveBeenCalled();
-      expect(second.interaction.deferReply).not.toHaveBeenCalled();
-      expect(second.interaction.followUp).not.toHaveBeenCalled();
-    });
-
-    it('게시 직후(남은 10000ms)에는 10초로 안내한다', async () => {
-      await run(makeInteraction(makeOptions(makePeerUser(PEER_ID), {})));
-      const second = makeInteraction(makeOptions(makePeerUser(PEER_ID), {}));
-
-      await run(second);
-
-      expect(second.interaction.reply).toHaveBeenCalledWith({
-        content: cooldownText(10),
-        ephemeral: true,
-      });
-    });
-
-    it('남은 시간이 1ms 여도 1초로 안내한다(올림)', async () => {
-      await run(makeInteraction(makeOptions(makePeerUser(PEER_ID), {})));
-      vi.advanceTimersByTime(COOLDOWN_MS - 1);
-      const second = makeInteraction(makeOptions(makePeerUser(PEER_ID), {}));
-
-      await run(second);
-
-      expect(second.interaction.reply).toHaveBeenCalledWith({
-        content: cooldownText(1),
-        ephemeral: true,
-      });
-    });
-
-    it('10초가 지나면 같은 채널에서 다시 게시할 수 있다', async () => {
-      await run(makeInteraction(makeOptions(makePeerUser(PEER_ID), {})));
-      vi.advanceTimersByTime(COOLDOWN_MS);
-      // 같은 실행자는 30초 실행자 쿨다운에 걸리므로 다른 실행자로 채널 쿨다운 만료만 검증한다.
       const second = makeInteraction(makeOptions(makePeerUser('peer-2'), {}), otherUser('user-2'));
 
+      await run(first);
       await run(second);
-
-      expect(apiClient.getCompatCard).toHaveBeenCalledTimes(2);
-      expect(second.order).toEqual(POSTED_ORDER);
-    });
-
-    it('다른 채널의 쿨다운은 독립이다', async () => {
-      await run(makeInteraction(makeOptions(makePeerUser(PEER_ID), {})));
-      const otherChannel = makeInteraction(makeOptions(makePeerUser(PEER_ID), {}), {
-        channelId: 'channel-2',
-        ...otherUser('user-2'),
-      });
-
-      await run(otherChannel);
-
-      expect(otherChannel.interaction.reply).not.toHaveBeenCalled();
-      expect(otherChannel.order).toEqual(POSTED_ORDER);
-      expect(apiClient.getCompatCard).toHaveBeenCalledTimes(2);
-    });
-
-    it('같은 channelId 라도 다른 길드면 독립이다', async () => {
-      await run(makeInteraction(makeOptions(makePeerUser(PEER_ID), {})));
-      const otherGuild = makeInteraction(makeOptions(makePeerUser(PEER_ID), {}), {
-        guildId: 'guild-2',
-      });
-
-      await run(otherGuild);
-
-      expect(otherGuild.interaction.reply).not.toHaveBeenCalled();
-      expect(otherGuild.order).toEqual(POSTED_ORDER);
-    });
-
-    it('같은 채널 동시 실행은 1건만 게시하고 나머지는 쿨다운 전체(10초)로 안내한다', async () => {
-      let resolveCard: (value: CompatCardResponse) => void = () => undefined;
-      apiClient.getCompatCard.mockReturnValueOnce(
-        new Promise<CompatCardResponse>((resolve) => {
-          resolveCard = resolve;
-        }),
-      );
-      const first = makeInteraction(makeOptions(makePeerUser(PEER_ID), {}));
-      const second = makeInteraction(makeOptions(makePeerUser('peer-2'), {}));
-
-      const firstRun = run(first);
-      await vi.waitFor(() => expect(apiClient.getCompatCard).toHaveBeenCalledTimes(1));
-      await run(second);
-      resolveCard(cardResponse());
-      await firstRun;
 
       expect(first.order).toEqual(POSTED_ORDER);
-      expect(second.interaction.reply).toHaveBeenCalledWith({
-        content: cooldownText(10),
-        ephemeral: true,
-      });
-      expect(second.interaction.deferReply).not.toHaveBeenCalled();
-      expect(apiClient.getCompatCard).toHaveBeenCalledTimes(1);
+      expect(second.order).toEqual(POSTED_ORDER);
+      expect(second.interaction.reply).not.toHaveBeenCalled();
+      expect(apiClient.getCompatCard).toHaveBeenCalledTimes(2);
+      expect(apiClient.getCompatCard).toHaveBeenLastCalledWith(
+        expect.objectContaining({ userId: 'user-2', peerId: 'peer-2' }),
+      );
     });
 
-    it('진행 중이던 실행이 실패하면 슬롯이 반납돼 곧바로 다시 실행할 수 있다', async () => {
+    it('같은 채널 동시 실행(다른 실행자 2명)도 둘 다 게시된다(이전엔 1건만 통과)', async () => {
+      const resolvers: Array<(value: CompatCardResponse) => void> = [];
+      apiClient.getCompatCard.mockImplementation(
+        () =>
+          new Promise<CompatCardResponse>((resolve) => {
+            resolvers.push(resolve);
+          }),
+      );
+      const first = makeInteraction(makeOptions(makePeerUser(PEER_ID), {}));
+      const second = makeInteraction(makeOptions(makePeerUser('peer-2'), {}), otherUser('user-2'));
+
+      const firstRun = run(first);
+      const secondRun = run(second);
+      await vi.waitFor(() => expect(apiClient.getCompatCard).toHaveBeenCalledTimes(2));
+      resolvers.forEach((resolve) => resolve(cardResponse()));
+      await Promise.all([firstRun, secondRun]);
+
+      expect(first.order).toEqual(POSTED_ORDER);
+      expect(second.order).toEqual(POSTED_ORDER);
+      expect(first.interaction.reply).not.toHaveBeenCalled();
+      expect(second.interaction.reply).not.toHaveBeenCalled();
+    });
+
+    it('채널 쿨다운 안내 없이 게시 직후에도 다른 실행자는 같은 채널에서 ephemeral 안내를 받지 않는다', async () => {
+      await run(makeInteraction(makeOptions(makePeerUser(PEER_ID), {})));
+      vi.advanceTimersByTime(1);
+      const other = makeInteraction(makeOptions(makePeerUser(PEER_ID), {}), otherUser('user-2'));
+
+      await run(other);
+
+      expect(other.interaction.reply).not.toHaveBeenCalled();
+      expect(other.interaction.followUp).not.toHaveBeenCalled();
+      expect(other.order).toEqual(POSTED_ORDER);
+    });
+
+    it('진행 중이던 실행이 실패하면 실행자 슬롯이 반납돼 곧바로 다시 실행할 수 있다', async () => {
       apiClient.getCompatCard.mockResolvedValueOnce({ ok: false });
       await run(makeInteraction(makeOptions(makePeerUser(PEER_ID), {})));
       const retry = makeInteraction(makeOptions(makePeerUser(PEER_ID), {}));
@@ -537,9 +476,9 @@ describe('CompatCommand', () => {
       });
     });
 
-    it('채널 쿨다운이 끝난 뒤(10초 후)에도 같은 채널에서 같은 실행자는 막힌다', async () => {
+    it('같은 채널에서도 같은 실행자의 연타(10초 후)는 실행자 쿨다운으로 막힌다', async () => {
       await postOnce();
-      vi.advanceTimersByTime(COOLDOWN_MS);
+      vi.advanceTimersByTime(10_000);
       const second = makeInteraction(makeOptions(makePeerUser(PEER_ID), {}));
 
       await run(second);
@@ -592,16 +531,16 @@ describe('CompatCommand', () => {
       expect(apiClient.getCompatCard).toHaveBeenCalledTimes(1);
     });
 
-    it('채널 쿨다운과 실행자 쿨다운이 동시에 걸려 있으면 채널 안내가 우선한다', async () => {
+    it('같은 채널에서 같은 실행자가 직후 연타하면 실행자 쿨다운 안내(채널 안내 아님)를 받는다', async () => {
       await postOnce();
-      vi.advanceTimersByTime(3_000); // 채널 7초, 실행자 27초
+      vi.advanceTimersByTime(3_000); // 실행자 27초 남음
       const second = makeInteraction(makeOptions(makePeerUser(PEER_ID), {}));
 
       await run(second);
 
       expect(second.interaction.reply).toHaveBeenCalledTimes(1);
       expect(second.interaction.reply).toHaveBeenCalledWith({
-        content: cooldownText(7),
+        content: userCooldownText(27),
         ephemeral: true,
       });
       expect(apiClient.getCompatCard).not.toHaveBeenCalled();
@@ -699,7 +638,7 @@ describe('CompatCommand', () => {
       expect(apiClient.getCompatCard).toHaveBeenCalledTimes(1);
     });
 
-    it('실행자 슬롯에 막힌 시도는 그 채널 슬롯을 점유하지 않고, 실패한 실행은 실행자 슬롯을 반납한다', async () => {
+    it('실행자 슬롯에 막힌 시도는 같은 채널의 다른 실행자를 막지 않고, 실패한 실행은 실행자 슬롯을 반납한다', async () => {
       let resolveCard: (value: CompatCardResponse) => void = () => undefined;
       apiClient.getCompatCard.mockReturnValueOnce(
         new Promise<CompatCardResponse>((resolve) => {
@@ -726,7 +665,7 @@ describe('CompatCommand', () => {
       expect(retry.interaction.reply).not.toHaveBeenCalled();
     });
 
-    it('실행자 쿨다운으로 막힌 시도는 채널 슬롯을 점유하지 않는다', async () => {
+    it('실행자 쿨다운으로 막힌 시도는 같은 채널의 다른 실행자를 막지 않는다', async () => {
       await postOnce();
       await run(
         makeInteraction(makeOptions(makePeerUser(PEER_ID), {}), { channelId: 'channel-2' }),
@@ -782,7 +721,155 @@ describe('CompatCommand', () => {
       await run(bundle);
 
       expect(bundle.cooldownAt.edit).toBe(0);
-      expect(getCompatCooldownRemainingMs(COOLDOWN_KEY)).toBe(COOLDOWN_MS);
+      expect(getCompatUserCooldownRemainingMs(USER_COOLDOWN_KEY)).toBe(COMPAT_USER_COOLDOWN_MS);
+    });
+
+    // ─── G0-1 T9·T10·T20 — 본문 "숫자 교체" 상대 시각 한 줄 ─────────────────────
+
+    describe('nextResetAt 본문 한 줄 (G0-1)', () => {
+      const NEXT_RESET_ISO = '2026-11-03T15:00:00.000Z';
+      const NEXT_RESET_UNIX = Math.floor(Date.parse(NEXT_RESET_ISO) / 1000);
+
+      function withNextReset(value: unknown): CompatCardResponse {
+        return cardResponse({
+          data: {
+            imageBase64: Buffer.from('compat-png').toString('base64'),
+            nextResetAt: value,
+          } as CompatCardResponse['data'],
+        });
+      }
+
+      function editArg(bundle: InteractionBundle): {
+        content?: string;
+        files: AttachmentBuilder[];
+      } {
+        return (bundle.interaction.editReply as Mock).mock.calls[0][0] as {
+          content?: string;
+          files: AttachmentBuilder[];
+        };
+      }
+
+      it('ko: content 가 "🔄 숫자 교체 <t:{유닉스 초}:R>" 이고 카드 첨부 1개가 함께 간다', async () => {
+        apiClient.getCompatCard.mockResolvedValue(withNextReset(NEXT_RESET_ISO));
+        const bundle = makeInteraction(makeOptions(makePeerUser(PEER_ID), {}));
+
+        await run(bundle);
+
+        const arg = editArg(bundle);
+        expect(arg.content).toBe(`🔄 숫자 교체 <t:${NEXT_RESET_UNIX}:R>`);
+        expect(arg.files).toHaveLength(1);
+        expect(arg.files[0].name).toBe('compat.png');
+        expect(bundle.order).toEqual(POSTED_ORDER);
+      });
+
+      it('en: content 가 "🔄 New numbers <t:{유닉스 초}:R>" 이다', async () => {
+        apiClient.getCompatCard.mockResolvedValue(withNextReset(NEXT_RESET_ISO));
+        const bundle = makeInteraction(makeOptions(makePeerUser(PEER_ID), {}), { locale: 'en' });
+
+        await run(bundle);
+
+        expect(editArg(bundle).content).toBe(`🔄 New numbers <t:${NEXT_RESET_UNIX}:R>`);
+      });
+
+      it.each(['pt-BR', 'ja'])('2군 로케일 %s 는 en 문구로 폴백한다', async (locale) => {
+        apiClient.getCompatCard.mockResolvedValue(withNextReset(NEXT_RESET_ISO));
+        const bundle = makeInteraction(makeOptions(makePeerUser(PEER_ID), {}), { locale });
+
+        await run(bundle);
+
+        expect(editArg(bundle).content).toBe(`🔄 New numbers <t:${NEXT_RESET_UNIX}:R>`);
+      });
+
+      it('초는 Math.floor(Date.parse(x) / 1000) — 밀리초가 있는 시각은 내림한다', async () => {
+        apiClient.getCompatCard.mockResolvedValue(withNextReset('2026-11-03T15:00:00.999Z'));
+        const bundle = makeInteraction(makeOptions(makePeerUser(PEER_ID), {}));
+
+        await run(bundle);
+
+        expect(editArg(bundle).content).toBe(
+          `🔄 숫자 교체 <t:${Math.floor(Date.parse('2026-11-03T15:00:00.999Z') / 1000)}:R>`,
+        );
+      });
+
+      it('과거 시각도 같은 형식으로 게시한다(문구가 "…전" 에서도 성립 — T20)', async () => {
+        const past = '2026-11-02T00:00:00.000Z'; // START_TIME(11-03) 이전
+        apiClient.getCompatCard.mockResolvedValue(withNextReset(past));
+        const bundle = makeInteraction(makeOptions(makePeerUser(PEER_ID), {}));
+
+        await run(bundle);
+
+        expect(editArg(bundle).content).toBe(`🔄 숫자 교체 <t:${Date.parse(past) / 1000}:R>`);
+      });
+
+      it('content 는 /^🔄 [^<]*<t:\\d+:R>$/ 에 정확히 맞고 멘션·점수 숫자 표기가 없다(R3·V5)', async () => {
+        apiClient.getCompatCard.mockResolvedValue(withNextReset(NEXT_RESET_ISO));
+        const bundle = makeInteraction(makeOptions(makePeerUser(PEER_ID), {}));
+
+        await run(bundle);
+
+        const { content } = editArg(bundle);
+        expect(content).toMatch(/^🔄 [^<]*<t:\d+:R>$/);
+        expect(content).not.toContain('<@');
+        expect(content).not.toMatch(/%|점/);
+        expect(content).not.toContain('Asia/Seoul');
+      });
+
+      it.each([
+        ['필드 부재(구버전 API)', undefined],
+        ['파싱 실패 문자열 garbage', 'garbage'],
+        ['빈 문자열', ''],
+        ['숫자(비문자열)', 1_762_182_000],
+        ['null', null],
+        ['객체', { at: NEXT_RESET_ISO }],
+      ])('nextResetAt %s 이면 content 키 자체가 없고 이미지만 게시한다', async (_label, value) => {
+        const data: Record<string, unknown> = {
+          imageBase64: Buffer.from('compat-png').toString('base64'),
+        };
+        if (value !== undefined) data.nextResetAt = value;
+        apiClient.getCompatCard.mockResolvedValue(
+          cardResponse({ data: data as unknown as CompatCardResponse['data'] }),
+        );
+        const bundle = makeInteraction(makeOptions(makePeerUser(PEER_ID), {}));
+
+        await run(bundle);
+
+        const arg = editArg(bundle);
+        expect(arg).not.toHaveProperty('content');
+        expect(Object.keys(arg)).toEqual(['files']);
+        expect(arg.files).toHaveLength(1);
+        expect(bundle.order).toEqual(POSTED_ORDER);
+      });
+
+      it('content 가 생략돼도 쿨다운은 정상 소모된다(오류 취급 아님)', async () => {
+        apiClient.getCompatCard.mockResolvedValue(withNextReset('garbage'));
+        const bundle = makeInteraction(makeOptions(makePeerUser(PEER_ID), {}));
+
+        await run(bundle);
+
+        expect(getCompatUserCooldownRemainingMs(USER_COOLDOWN_KEY)).toBe(COMPAT_USER_COOLDOWN_MS);
+        expect(bundle.interaction.deleteReply).not.toHaveBeenCalled();
+      });
+
+      it('content 가 있어도 쿨다운은 카드 게시 성공 후에만 시작된다', async () => {
+        apiClient.getCompatCard.mockResolvedValue(withNextReset(NEXT_RESET_ISO));
+        const bundle = makeInteraction(makeOptions(makePeerUser(PEER_ID), {}));
+
+        await run(bundle);
+
+        expect(bundle.cooldownAt.edit).toBe(0);
+        expect(getCompatUserCooldownRemainingMs(USER_COOLDOWN_KEY)).toBe(COMPAT_USER_COOLDOWN_MS);
+      });
+
+      it('설정 유도 안내·시간대 이름 등 다른 문구를 추가하지 않는다(T10) — content 는 한 줄뿐이다', async () => {
+        apiClient.getCompatCard.mockResolvedValue(withNextReset(NEXT_RESET_ISO));
+        const bundle = makeInteraction(makeOptions(makePeerUser(PEER_ID), {}));
+
+        await run(bundle);
+
+        expect(editArg(bundle).content?.split('\n')).toHaveLength(1);
+        expect(bundle.interaction.followUp).not.toHaveBeenCalled();
+        expect(bundle.interaction.reply).not.toHaveBeenCalled();
+      });
     });
 
     it('SDK 에는 userId=실행자, peerId=상대, 길드 닉네임·아바타(png 128)·로케일을 전달한다', async () => {
@@ -883,7 +970,7 @@ describe('CompatCommand', () => {
       await run(bundle);
 
       expect(bundle.order).toEqual(POSTED_ORDER);
-      expect(getCompatCooldownRemainingMs(COOLDOWN_KEY)).toBe(COOLDOWN_MS);
+      expect(getCompatUserCooldownRemainingMs(USER_COOLDOWN_KEY)).toBe(COMPAT_USER_COOLDOWN_MS);
     });
 
     it('본인 지정이면 봇 계정 판정이 없고 비멤버 안내도 나가지 않는다', async () => {
@@ -917,7 +1004,6 @@ describe('CompatCommand', () => {
         });
         expect(bundle.order).not.toContain('followUp:이 멤버와의 궁합 카드는 표시할 수 없어요.');
         expect(bundle.interaction.editReply).not.toHaveBeenCalled();
-        expect(getCompatCooldownRemainingMs(COOLDOWN_KEY)).toBe(0);
         expect(getCompatUserCooldownRemainingMs(USER_COOLDOWN_KEY)).toBe(0);
       },
     );
@@ -947,7 +1033,7 @@ describe('CompatCommand', () => {
         ephemeral: true,
       });
       expect(bundle.interaction.editReply).not.toHaveBeenCalled();
-      expect(getCompatCooldownRemainingMs(COOLDOWN_KEY)).toBe(0);
+      expect(getCompatUserCooldownRemainingMs(USER_COOLDOWN_KEY)).toBe(0);
     });
 
     it('ok:true 라도 data 가 없으면 compatError 로 처리한다(텍스트 폴백 없음)', async () => {
@@ -957,7 +1043,7 @@ describe('CompatCommand', () => {
       await run(bundle);
 
       expect(bundle.order).toEqual(privateNoticeOrder(KO.error));
-      expect(getCompatCooldownRemainingMs(COOLDOWN_KEY)).toBe(0);
+      expect(getCompatUserCooldownRemainingMs(USER_COOLDOWN_KEY)).toBe(0);
     });
 
     it.each([
@@ -974,7 +1060,7 @@ describe('CompatCommand', () => {
 
         expect(bundle.order).toEqual(privateNoticeOrder(KO.error));
         expect(bundle.interaction.editReply).not.toHaveBeenCalled();
-        expect(getCompatCooldownRemainingMs(COOLDOWN_KEY)).toBe(0);
+        expect(getCompatUserCooldownRemainingMs(USER_COOLDOWN_KEY)).toBe(0);
       },
     );
 
@@ -987,7 +1073,7 @@ describe('CompatCommand', () => {
       await run(bundle);
 
       expect(bundle.order).toEqual(privateNoticeOrder(KO.error));
-      expect(getCompatCooldownRemainingMs(COOLDOWN_KEY)).toBe(0);
+      expect(getCompatUserCooldownRemainingMs(USER_COOLDOWN_KEY)).toBe(0);
     });
 
     it('deferReply 가 실패하면 SDK 를 호출하지 않고 ephemeral reply 로 compatError 를 안내한다', async () => {
@@ -1002,7 +1088,7 @@ describe('CompatCommand', () => {
         ephemeral: true,
       });
       expect(bundle.interaction.followUp).not.toHaveBeenCalled();
-      expect(getCompatCooldownRemainingMs(COOLDOWN_KEY)).toBe(0);
+      expect(getCompatUserCooldownRemainingMs(USER_COOLDOWN_KEY)).toBe(0);
     });
 
     it('오류 후 같은 채널에서 곧바로 다시 시도할 수 있다(쿨다운 미소모)', async () => {
@@ -1043,7 +1129,7 @@ describe('CompatCommand', () => {
 
       expect(bundle.interaction.deleteReply).toHaveBeenCalledTimes(1);
       expect(warnSpy).toHaveBeenCalledTimes(1);
-      expect(getCompatCooldownRemainingMs(COOLDOWN_KEY)).toBe(0);
+      expect(getCompatUserCooldownRemainingMs(USER_COOLDOWN_KEY)).toBe(0);
     });
   });
 });

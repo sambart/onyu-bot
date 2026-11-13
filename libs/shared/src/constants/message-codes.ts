@@ -302,5 +302,39 @@ export const MESSAGE_CODE = {
   PERSONAL_REPORT_ONDEMAND_LIMIT_REACHED: 'PERSONAL_REPORT_ONDEMAND_LIMIT_REACHED',
   /** 생성 불가(503). params: { reason: 'global_limit' | 'generation_failed' | 'deletion_pending' } — deletion_pending 은 데이터 삭제 묘비(M30) */
   PERSONAL_REPORT_GENERATION_UNAVAILABLE: 'PERSONAL_REPORT_GENERATION_UNAVAILABLE',
+  // ── 무료 쿠폰 캠페인 등록 (U11 — docs/plans/u11-coupon-campaign.md §4.1). 실패 카운트 대상은 계획 D-8 ──
+  /** 등록 게이트(COUPON_REDEEM_ENABLED × 결제 모드) 닫힘(403). params 없음 */
+  COUPON_REDEEM_DISABLED: 'COUPON_REDEEM_DISABLED',
+  /** 실패 누적·시도 횟수 초과로 잠김(429). params·Retry-After 없음 — 잠금 해제 시각 비공개 */
+  COUPON_RATE_LIMITED: 'COUPON_RATE_LIMITED',
+  /** 요청 제한 저장소(Redis) 장애 — fail-closed(503). params 없음 */
+  COUPON_REDEEM_BUSY: 'COUPON_REDEEM_BUSY',
+  /** 코드 형식 오류(400). 실패 카운트 제외. params 없음 */
+  COUPON_INVALID_FORMAT: 'COUPON_INVALID_FORMAT',
+  /** 없는 코드 또는 폐기된 코드(404 — 둘을 구분하지 않는다). params 없음 */
+  COUPON_NOT_FOUND: 'COUPON_NOT_FOUND',
+  /** 코드 대상 scope 와 등록 경로가 다름 — Plus 코드↔개인, Pro 코드↔길드(400). params 없음 */
+  COUPON_TARGET_MISMATCH: 'COUPON_TARGET_MISMATCH',
+  /** 이미 다른 주체가 소진한 코드(409). params 없음 */
+  COUPON_ALREADY_REDEEMED: 'COUPON_ALREADY_REDEEMED',
+  /** 코드 만료 시각이 지남(409). params 없음 */
+  COUPON_EXPIRED: 'COUPON_EXPIRED',
+  /** 캠페인 종료·시작 전·등록 마감(409). params 없음 */
+  COUPON_CAMPAIGN_ENDED: 'COUPON_CAMPAIGN_ENDED',
+  /** 같은 주체에 이미 유효한 혜택(출처 무관)이 있음(409). 코드는 소진되지 않는다. params 없음 */
+  COUPON_SUBJECT_ALREADY_ENTITLED: 'COUPON_SUBJECT_ALREADY_ENTITLED',
+  /** 이 캠페인에서 이미 쿠폰을 사용한 주체(Plus=사용자, Pro=길드)(409). params 없음 */
+  COUPON_CAMPAIGN_ALREADY_USED: 'COUPON_CAMPAIGN_ALREADY_USED',
+  // ── 관리자 쿠폰 캠페인 관리 (U11 — docs/plans/u11-coupon-campaign.md §4.3) ──
+  /** 캠페인 없음(404). params 없음 */
+  ADMIN_COUPON_CAMPAIGN_NOT_FOUND: 'ADMIN_COUPON_CAMPAIGN_NOT_FOUND',
+  /** 쿠폰 없음(404). params 없음 */
+  ADMIN_COUPON_NOT_FOUND: 'ADMIN_COUPON_NOT_FOUND',
+  /** 코드 생성 배치 없음(404). params 없음 */
+  ADMIN_COUPON_BATCH_NOT_FOUND: 'ADMIN_COUPON_BATCH_NOT_FOUND',
+  /** 상태 충돌 — 총량 초과(params.remaining)·종료/마감 캠페인 코드 생성·소진된 코드 폐기(409) */
+  ADMIN_COUPON_STATE_CONFLICT: 'ADMIN_COUPON_STATE_CONFLICT',
+  /** 같은 requestId 로 본문이 다른 요청(409). params 없음 */
+  ADMIN_COUPON_REQUEST_CONFLICT: 'ADMIN_COUPON_REQUEST_CONFLICT',
 } as const;
 export type MessageCode = (typeof MESSAGE_CODE)[keyof typeof MESSAGE_CODE];

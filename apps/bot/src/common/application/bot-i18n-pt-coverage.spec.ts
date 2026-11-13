@@ -25,7 +25,7 @@ const LEGAL_KEY_PREFIXES = ['privacy.', 'terms.'] as const;
  * 번역 파이프라인 자동 PR 이 pt 를 채우면 해당 키를 여기서 제거한다.
  * (연말 결산 8키는 pt 자동 번역 PR `ac4f12e32` 로, 궁합 7키·자동방 제어 패널 22키는 #1059 로 채워져 제거됨)
  */
-const PT_PENDING_TRANSLATION_KEYS: readonly string[] = [];
+const PT_PENDING_TRANSLATION_KEYS: readonly string[] = ['commands.compatNextReset'];
 
 type Messages = Record<string, string>;
 

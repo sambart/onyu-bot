@@ -53,6 +53,8 @@ export interface UserPreferenceResponse {
   plusBadgeGrade: PlusBadgeGrade | null;
   /** U8-B4 — 개인 AI 월간 리포트 자동 생성 수신 여부(저장값, 기본 `DEFAULT_MONTHLY_REPORT_ENABLED`). */
   monthlyReportEnabled: boolean;
+  /** U10 · F-SUB-049 — 서버 리더보드 Plus 표시 여부(저장값, 기본 `DEFAULT_SHOW_PLUS_ON_LEADERBOARD`). 비해금도 저장 가능. */
+  showPlusOnLeaderboard: boolean;
   /** ISO 8601. 저장 이력이 없으면 null. */
   updatedAt: string | null;
 }
@@ -65,7 +67,12 @@ export interface UpdateUserPreferenceRequest {
   /** null = 해제. */
   titleKey?: PlusTitleKey | null;
   monthlyReportEnabled?: boolean;
+  /** U10 · F-SUB-049 — 해금 판정 없이 저장(끄기는 누구나 가능). */
+  showPlusOnLeaderboard?: boolean;
 }
 
 /** 월간 리포트 자동 생성 수신 기본값(행이 없을 때·신규 행). */
 export const DEFAULT_MONTHLY_REPORT_ENABLED = true;
+
+/** 리더보드 Plus 표시 기본값(행이 없을 때·신규 행) — 사용자 결정 D1: 기본 켜짐. */
+export const DEFAULT_SHOW_PLUS_ON_LEADERBOARD = true;

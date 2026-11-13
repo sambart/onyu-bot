@@ -52,7 +52,6 @@
   "bestFriendDuoPublishFailed": "Não foi possível compartilhar no canal. Tente novamente em breve.",
   "compatBotTarget": "Você não pode verificar a pontuação de compatibilidade com bots.",
   "compatNonMember": "Esse usuário não é um membro deste servidor.",
-  "compatCooldown": "Um cartão de compatibilidade acabou de ser postado neste canal. Tente novamente em {seconds}s.",
   "compatUserCooldown": "Você acabou de verificar um cartão de compatibilidade. Tente novamente em {seconds}s.",
   "compatError": "Não foi possível criar o cartão de compatibilidade. Tente novamente em breve.",
   "rankNoData": "Você ainda não tem XP de atividade. Entre em um canal de voz ou envie mensagens para subir no ranking.",

@@ -129,3 +129,31 @@ export function buildPlanPriceEnvKey(key: PlanPriceKey): string {
   const cycle = key.plan === 'pro' ? PRO_CYCLE_SUFFIX[key.cycle] : `M${key.cycle}`;
   return `PADDLE_PRICE_${plan}_${cycle}_${key.currency}`;
 }
+
+// ── U11 무료 쿠폰 캠페인 (docs/plans/u11-coupon-campaign.md §5 S10) ──
+
+/** 쿠폰 코드 길이(Crockford Base32, 60비트). */
+export const COUPON_CODE_LENGTH = 12;
+
+/** 표시형 코드의 하이픈 그룹 크기(`XXXX-XXXX-XXXX`). */
+export const COUPON_CODE_GROUP_SIZE = 4;
+
+/** 등록 요청 body `code` 입력 상한(정규화 전 문자 수 — 하이픈·공백 포함). */
+export const COUPON_CODE_INPUT_MAX_LENGTH = 64;
+
+/** 캠페인 혜택 일수 하한·상한·기본값. */
+export const COUPON_GRANT_DAYS_MIN = 1;
+export const COUPON_GRANT_DAYS_MAX = 30;
+export const COUPON_GRANT_DAYS_DEFAULT = 30;
+
+/** 코드 1회 생성 요청 장수 상한(웹 BFF 15초 타임아웃·JSON 응답 크기 고려). */
+export const COUPON_CODES_PER_REQUEST_MAX = 1000;
+
+/** 캠페인당 총 발급 상한(폐기 포함 발급 총수 기준). */
+export const COUPON_MAX_CODES_PER_CAMPAIGN = 100000;
+
+/** 만료 배너 표시 시작 — 쿠폰 혜택 종료까지 남은 일수가 이 값 이하일 때. */
+export const COUPON_EXPIRY_BANNER_DAYS = 7;
+
+/** 만료 배너 강조 — 남은 일수가 이 값 이하일 때. */
+export const COUPON_EXPIRY_BANNER_URGENT_DAYS = 1;
